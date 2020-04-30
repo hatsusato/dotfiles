@@ -1,0 +1,9 @@
+#!/usr/bin/make -f
+
+apt-packages := \
+fcitx \
+fcitx-mozc \
+nautilus-dropbox \
+neovim \
+
+apt := $(addprefix apt/,$(apt-packages))

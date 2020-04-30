@@ -2,9 +2,5 @@
 
 set -eu
 
-todo=()
-for pkg in "$@"; do
-    dpkg --no-pager -l "$pkg" &>/dev/null && continue
-    todo+=("$pkg")
-done
-((${#todo[@]})) && sudo apt-get install -qq "${todo[@]}"
+dpkg --no-pager -l "$1" &>/dev/null && exit
+sudo apt-get install -qq "$1"

@@ -1,7 +1,6 @@
 #!/usr/bin/make -f
 
-packages := fcitx fcitx-mozc nautilus-dropbox neovim
-apt := $(addprefix apt/,$(packages))
+include Makefile.apt # apt := ...
 
 all:
 
