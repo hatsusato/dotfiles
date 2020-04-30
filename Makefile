@@ -17,6 +17,10 @@ dropbox: apt/nautilus-dropbox
 editor: apt/neovim
 	@sudo update-alternatives --config editor
 
+.PHONY: grub
+grub:
+	@./patch.sh /etc/default/grub
+
 .PHONY: $(apt)
 $(apt): apt/%:
 	@./apt-install.sh $*
