@@ -1,6 +1,6 @@
 #!/usr/bin/make -f
 
-packages := nautilus-dropbox
+packages := nautilus-dropbox neovim
 apt := $(addprefix apt/,$(packages))
 
 all:
@@ -12,6 +12,10 @@ chrome:
 .PHONY: dropbox
 dropbox: apt/nautilus-dropbox
 	@./dropbox-init.sh
+
+.PHONY: editor
+editor: apt/neovim
+	@sudo update-alternatives --config editor
 
 .PHONY: $(apt)
 $(apt): apt/%:
