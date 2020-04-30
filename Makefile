@@ -1,6 +1,6 @@
 #!/usr/bin/make -f
 
-packages := nautilus-dropbox neovim
+packages := fcitx fcitx-mozc nautilus-dropbox neovim
 apt := $(addprefix apt/,$(packages))
 
 all:
@@ -20,6 +20,10 @@ editor: apt/neovim
 .PHONY: grub
 grub:
 	@./patch.sh /etc/default/grub
+
+.PHONY: im-config
+im-config: apt/fcitx apt/fcitx-mozc
+	@./im-config.sh
 
 .PHONY: $(apt)
 $(apt): apt/%:
