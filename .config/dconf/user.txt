@@ -1,0 +1,27 @@
+#[org/gnome/mutter]
+#overlay-key='Super_L'
+
+[org/gnome/desktop/peripherals/touchpad]
+click-method='fingers'
+natural-scroll=false
+tap-to-click=false
+two-finger-scrolling-enabled=true
+
+[org/gnome/desktop/wm/keybindings]
+panel-main-menu=['XF86Display']
+
+[org/gnome/settings-daemon/plugins/media-keys]
+custom-keybindings=['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/']
+
+[org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0]
+binding='<Control><Shift>x'
+command='xkb-config'
+name='XKBを設定'
+
+[org/gnome/shell]
+favorite-apps=['gnome-control-center.desktop', 'software-properties-gtk.desktop', 'firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Terminal.desktop', 'google-chrome.desktop', 'gnome-system-monitor.desktop', 'slack.desktop', 'emacsclient.desktop']
+
+[org/gnome/shell/extensions/dash-to-dock]
+dash-max-icon-size=32
+dock-fixed=false
+dock-position='BOTTOM'

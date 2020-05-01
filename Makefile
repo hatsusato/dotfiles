@@ -6,6 +6,8 @@ pam-mount := /etc/security/pam_mount.conf.xml
 mount-src := $(HOME)/Dropbox/Private
 mount-dst := $(HOME)/Private
 password-store := $(HOME)/.password-store
+dconf/config := $(HOME)/.config/dconf/user.txt
+dconf/etc := /etc/dconf/profile/user
 
 all:
 
@@ -16,6 +18,10 @@ browserpass: apt/git apt/pass apt/webext-browserpass | $(password-store).git
 .PHONY: chrome
 chrome:
 	@./chrome-install.sh
+
+.PHONY: dconf
+dconf: $(dconf/config) $(dconf/etc)
+	@sudo dconf update
 
 .PHONY: dropbox
 dropbox: apt/nautilus-dropbox
@@ -40,6 +46,10 @@ private/patch: $(pam-mount)
 private/mount: apt/gocryptfs | $(mount-dst)
 	@./mount.sh $(mount-src) $(mount-dst)
 
+$(dconf/config): $(HOME)/%: %
+	@install -m644 $< $@
+$(dconf/etc): /%: %
+	@sudo install -m644 $< $@
 $(password-store):
 	@mkdir -p $@
 $(password-store).git: apt/git apt/pass | $(password-store)
