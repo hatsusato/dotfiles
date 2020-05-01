@@ -2,7 +2,6 @@
 
 set -eu
 
-dst=$1
-src=${1#/}.patch
-cat "$src" | patch --dry-run -f -p0 -R -s "$dst" >/dev/null && exit
-cat "$src" | sudo patch -b -f -p0 -Vt "$dst"
+patch=${1#/}.patch
+./expand.sh "$patch" | patch --dry-run -f -p0 -R -s "$1" >/dev/null && exit
+./expand.sh "$patch" | sudo patch -b -f -p0 -Vt "$1"
