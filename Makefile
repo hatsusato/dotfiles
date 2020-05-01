@@ -14,6 +14,8 @@ dconf/config := $(HOME)/.config/dconf/user.txt
 dconf/etc := /etc/dconf/profile/user
 dropbox/msg := 最新の状態
 grub/etc := /etc/default/grub
+im-config/title := 'im-config instructions'
+im-config/body := "$$(cat im-config.txt)"
 pass/git := $(HOME)/.password-store/.git
 pass/git/add := pass git remote add origin
 pass/git/fetch := pass git fetch
@@ -56,7 +58,8 @@ grub: $(grub/etc)
 
 .PHONY: im-config
 im-config: apt/fcitx apt/fcitx-mozc
-	@./im-config.sh
+	@notify-send -u critical $(im-config/title) $(im-config/body)
+	@im-config
 
 .PHONY: pass
 pass: $(pass/repo) apt/git apt/pass apt/webext-browserpass
