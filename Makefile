@@ -30,6 +30,7 @@ ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
 
 targets/git := $(pass/git) $(spacemacs/hatsusato/git) $(spacemacs/syl20bnr/git) $(ssh/git)
+targets/patch := $(addprefix patch/,$(grub/etc) $(private/conf) $(spacemacs/dotfile))
 
 all:
 
@@ -45,6 +46,10 @@ $(spacemacs/hatsusato/git): git/repository := $(spacemacs/hatsusato/repo)
 $(spacemacs/syl20bnr/git): git/repository := $(spacemacs/syl20bnr/repo)
 $(ssh/git): git/repository := $(ssh/repo)
 $(spacemacs/syl20bnr/git): git/flags := --branch develop
+
+.PHONY: $(targets/patch)
+$(targets/patch): patch/%: %
+	@./patch.sh $*
 
 .PHONY: chrome
 chrome: $(chrome/deb)
@@ -73,8 +78,7 @@ editor: apt/neovim
 	@sudo update-alternatives --config editor
 
 .PHONY: grub
-grub: $(grub/etc)
-	@./patch.sh $<
+grub: patch/$(grub/etc)
 	@sudo update-grub
 
 .PHONY: im-config
@@ -88,10 +92,8 @@ pass: $(pass/git)
 $(pass/git): $(pass/repo)
 $(pass/repo): private
 
-.PHONY: private private/patch private/mount
-private: private/mount private/patch
-private/patch: $(private/conf)
-	@./patch.sh $<
+.PHONY: private private/mount
+private: private/mount patch/$(private/conf)
 private/mount: $(private/mount/src) $(private/mount/dst)
 	@$(private/list) | grep -F -q '$^' || gocryptfs $^
 $(private/conf): apt/libpam-mount
@@ -106,10 +108,8 @@ spacemacs/daemon: apt/emacs-bin-common
 spacemacs/daemon: $(spacemacs/desktop)
 	@systemctl --user enable emacs.service
 spacemacs/layer: apt/emacs-mozc
-spacemacs/layer: $(spacemacs/dotfile) | $(spacemacs/hatsusato/git)
-	@./patch.sh $<
-$(spacemacs/desktop): $(HOME)/%: %
-	@install -D -m644 $< $@
+spacemacs/layer: patch/$(spacemacs/dotfile)
+patch/$(spacemacs/dotfile): $(spacemacs/hatsusato/git)
 $(spacemacs/dotfile): apt/emacs
 $(spacemacs/dotfile): $(HOME)/%: | $(spacemacs/syl20bnr/git)
 	@test -f $@ || emacs
