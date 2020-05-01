@@ -36,13 +36,27 @@ dirs/git := $(pass/git) $(spacemacs/layer/git) $(spacemacs/repo/git) $(ssh/git)
 
 all:
 
+.PHONY: $(apt)
+$(apt): apt/%:
+	@./apt-install.sh $*
+$(dirs/git): apt/git
+
 .PHONY: chrome
 chrome: $(chrome/deb)
 	@./apt-install.sh $(chrome/package) $<
+$(chrome/deb):
+	@test -d $(@D) || make $(@D)
+	@wget -c -nv -O $@ $(chrome/deb/url)
+$(chrome/deb/dir):
+	@sudo install -D -o $(USER) -g $(USER) -d $(@D)
 
 .PHONY: dconf
 dconf: $(dconf/config) $(dconf/etc)
 	@sudo dconf update
+$(dconf/config): $(HOME)/%: %
+	@install -D -m644 $< $@
+$(dconf/etc): /%: %
+	@sudo install -D -m644 $< $@
 
 .PHONY: dropbox
 dropbox: apt/nautilus-dropbox
@@ -70,6 +84,11 @@ pass: $(pass/repo)
 	@$(pass/git/get) 2>/dev/null | grep -q '^$<$$' || $(pass/git/add) $<
 	@$(pass/git/fetch)
 	@$(pass/git/merge) 2>/dev/null || $(pass/git/reset) >/dev/null
+$(pass/git): apt/pass
+$(pass/git): %.git: $(pass/repo)
+	@mkdir -p $*
+	@pass git init
+$(pass/repo): private
 
 .PHONY: private private/patch private/mount
 private: private/patch private/mount
@@ -78,6 +97,9 @@ private/patch: $(pam-mount)
 private/mount: apt/gocryptfs
 private/mount: | $(mount-dst)
 	@./mount.sh $(mount-src) $(mount-dst)
+$(pam-mount): apt/libpam-mount
+$(mount-dst):
+	@mkdir -p $@
 
 .PHONY: spacemacs spacemacs/daemon spacemacs/layer
 spacemacs: spacemacs/daemon spacemacs/layer
@@ -87,27 +109,6 @@ spacemacs/daemon: $(spacemacs/desktop)
 spacemacs/layer: apt/emacs-mozc
 spacemacs/layer: $(spacemacs/dotfile) | $(spacemacs/layer/git)
 	@./patch.sh $<
-
-.PHONY: ssh
-ssh: | $(ssh/git)
-
-$(chrome/deb):
-	@test -d $(@D) || make $(@D)
-	@wget -c -nv -O $@ $(chrome/deb/url)
-$(chrome/deb/dir):
-	@sudo install -D -o $(USER) -g $(USER) -d $(@D)
-$(dconf/config): $(HOME)/%: %
-	@install -D -m644 $< $@
-$(dconf/etc): /%: %
-	@sudo install -D -m644 $< $@
-$(pam-mount): apt/libpam-mount
-$(mount-dst):
-	@mkdir -p $@
-$(pass/git): apt/pass
-$(pass/git): %.git: $(pass/repo)
-	@mkdir -p $*
-	@pass git init
-$(pass/repo): private
 $(spacemacs/desktop): $(HOME)/%: %
 	@install -D -m644 $< $@
 $(spacemacs/dotfile): apt/emacs
@@ -117,12 +118,9 @@ $(spacemacs/layer/git): %.git: | $(spacemacs/repo/git)
 	@test -d $@ || git clone $(spacemacs/layer/url) $*
 $(spacemacs/repo/git): %.git:
 	@test -d $@ || git clone --branch develop $(spacemacs/repo/url) $*
+
+.PHONY: ssh
+ssh: | $(ssh/git)
 $(ssh/git): %.git: $(ssh/repo)
 	@test -d $@ || git clone $< $*
 $(ssh/repo): private
-
-$(dirs/git): apt/git
-
-.PHONY: $(apt)
-$(apt): apt/%:
-	@./apt-install.sh $*
