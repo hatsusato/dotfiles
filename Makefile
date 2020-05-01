@@ -1,6 +1,7 @@
 #!/usr/bin/make -f
 
 include Makefile.apt # apt := ...
+make := make --no-print-directory
 chrome/deb = $(chrome/deb/dir)/$(chrome/deb/name)
 chrome/deb/dir := /usr/local/src/$(USER)
 chrome/deb/name = $(chrome/package)_current_amd64.deb
@@ -49,7 +50,7 @@ $(spacemacs/repo/git): git/flags := --branch develop
 chrome: $(chrome/deb)
 	@./apt-install.sh $(chrome/package) $<
 $(chrome/deb):
-	@test -d $(@D) || make $(@D)
+	@test -d $(@D) || $(make) $(@D)
 	@wget -c -nv -O $@ $(chrome/deb/url)
 $(chrome/deb/dir):
 	@sudo install -D -o $(USER) -g $(USER) -d $(@D)
@@ -97,7 +98,7 @@ $(private/conf): apt/libpam-mount
 $(private/mount/dst): apt/gocryptfs
 	@mkdir -p $@
 $(private/mount/src):
-	@test -d $@ || make dropbox
+	@test -d $@ || $(make) dropbox
 
 .PHONY: spacemacs spacemacs/daemon spacemacs/layer
 spacemacs: spacemacs/daemon spacemacs/layer
