@@ -22,14 +22,14 @@ private/mount/dst := $(HOME)/Private
 private/mount/src := $(HOME)/Dropbox/Private
 spacemacs/desktop := $(HOME)/.local/share/applications/emacsclient.desktop
 spacemacs/dotfile := $(HOME)/.spacemacs
-spacemacs/layer/git := $(HOME)/.emacs.d/private/hatsusato/.git
-spacemacs/layer/url := https://github.com/hatsusato/private-layer
-spacemacs/repo/git := $(HOME)/.emacs.d/.git
-spacemacs/repo/url := https://github.com/syl20bnr/spacemacs
+spacemacs/hatsusato/git := $(HOME)/.emacs.d/private/hatsusato/.git
+spacemacs/hatsusato/repo := https://github.com/hatsusato/private-layer
+spacemacs/syl20bnr/git := $(HOME)/.emacs.d/.git
+spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
 ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
 
-targets/git := $(pass/git) $(spacemacs/layer/git) $(spacemacs/repo/git) $(ssh/git)
+targets/git := $(pass/git) $(spacemacs/hatsusato/git) $(spacemacs/syl20bnr/git) $(ssh/git)
 
 all:
 
@@ -41,10 +41,10 @@ $(targets/git): apt/git
 $(targets/git): %/.git:
 	@test -d $@ || git clone $(git/flags) $(git/repository) $*
 $(pass/git): git/repository := $(pass/repo)
-$(spacemacs/layer/git): git/repository := $(spacemacs/layer/url)
-$(spacemacs/repo/git): git/repository := $(spacemacs/repo/url)
+$(spacemacs/hatsusato/git): git/repository := $(spacemacs/hatsusato/repo)
+$(spacemacs/syl20bnr/git): git/repository := $(spacemacs/syl20bnr/repo)
 $(ssh/git): git/repository := $(ssh/repo)
-$(spacemacs/repo/git): git/flags := --branch develop
+$(spacemacs/syl20bnr/git): git/flags := --branch develop
 
 .PHONY: chrome
 chrome: $(chrome/deb)
@@ -106,14 +106,14 @@ spacemacs/daemon: apt/emacs-bin-common
 spacemacs/daemon: $(spacemacs/desktop)
 	@systemctl --user enable emacs.service
 spacemacs/layer: apt/emacs-mozc
-spacemacs/layer: $(spacemacs/dotfile) | $(spacemacs/layer/git)
+spacemacs/layer: $(spacemacs/dotfile) | $(spacemacs/hatsusato/git)
 	@./patch.sh $<
 $(spacemacs/desktop): $(HOME)/%: %
 	@install -D -m644 $< $@
 $(spacemacs/dotfile): apt/emacs
-$(spacemacs/dotfile): $(HOME)/%: | $(spacemacs/repo/git)
+$(spacemacs/dotfile): $(HOME)/%: | $(spacemacs/syl20bnr/git)
 	@test -f $@ || emacs
-$(spacemacs/layer/git): | $(spacemacs/repo/git)
+$(spacemacs/hatsusato/git): | $(spacemacs/syl20bnr/git)
 
 .PHONY: ssh
 ssh: | $(ssh/git)
