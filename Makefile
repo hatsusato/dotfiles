@@ -17,11 +17,6 @@ grub/etc := /etc/default/grub
 im-config/title := 'im-config instructions'
 im-config/body := "$$(cat im-config.txt)"
 pass/git := $(HOME)/.password-store/.git
-pass/git/add := pass git remote add origin
-pass/git/fetch := pass git fetch
-pass/git/get := pass git remote get-url origin
-pass/git/merge := pass git merge --ff-only origin/master
-pass/git/reset := pass git reset origin/master
 pass/repo := $(HOME)/Private/.password-store.git
 spacemacs/desktop := $(HOME)/.local/share/applications/emacsclient.desktop
 spacemacs/dotfile := $(HOME)/.spacemacs
@@ -78,16 +73,10 @@ im-config: apt/fcitx apt/fcitx-mozc
 	@im-config
 
 .PHONY: pass
-pass: apt/git apt/pass apt/webext-browserpass
-pass: $(pass/repo)
-	@test -d $(pass/git) || make $(pass/git)
-	@$(pass/git/get) 2>/dev/null | grep -q '^$<$$' || $(pass/git/add) $<
-	@$(pass/git/fetch)
-	@$(pass/git/merge) 2>/dev/null || $(pass/git/reset) >/dev/null
-$(pass/git): apt/pass
+pass: apt/pass apt/webext-browserpass
+pass: $(pass/git)
 $(pass/git): %.git: $(pass/repo)
-	@mkdir -p $*
-	@pass git init
+	@test -d $@ || git clone $< $*
 $(pass/repo): private
 
 .PHONY: private private/patch private/mount
