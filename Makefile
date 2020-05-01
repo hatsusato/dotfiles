@@ -14,6 +14,8 @@ spacemacs/layer/git := $(HOME)/.emacs.d/private/hatsusato/.git
 spacemacs/layer/url := https://github.com/hatsusato/private-layer
 spacemacs/repo/git := $(HOME)/.emacs.d/.git
 spacemacs/repo/url := https://github.com/syl20bnr/spacemacs
+ssh/git := $(HOME)/.ssh/.git
+ssh/repo := $(HOME)/Private/.ssh.git
 
 all:
 
@@ -59,6 +61,9 @@ spacemacs/daemon: apt/emacs-bin-common $(spacemacs/desktop)
 spacemacs/layer: $(spacemacs/dotfile) apt/emacs-mozc | $(spacemacs/layer/git)
 	@./patch.sh $<
 
+.PHONY: ssh
+ssh: | $(ssh/git)
+
 $(dconf/config): $(HOME)/%: %
 	@install -m644 $< $@
 $(dconf/etc): /%: %
@@ -78,6 +83,9 @@ $(spacemacs/layer/git): %.git: apt/git | $(spacemacs/repo/git)
 	@test -d $@ || git clone $(spacemacs/layer/url) $*
 $(spacemacs/repo/git): %.git: apt/git
 	@test -d $@ || git clone --branch develop $(spacemacs/repo/url) $*
+$(ssh/git): %.git: $(ssh/repo) apt/git
+	@test -d $@ || git clone $< $*
+$(ssh/repo): private
 
 .PHONY: $(apt)
 $(apt): apt/%:
