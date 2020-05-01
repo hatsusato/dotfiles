@@ -8,6 +8,12 @@ mount-dst := $(HOME)/Private
 password-store := $(HOME)/.password-store
 dconf/config := $(HOME)/.config/dconf/user.txt
 dconf/etc := /etc/dconf/profile/user
+spacemacs/desktop := $(HOME)/.local/share/applications/emacsclient.desktop
+spacemacs/dotfile := $(HOME)/.spacemacs
+spacemacs/layer/git := $(HOME)/.emacs.d/private/hatsusato/.git
+spacemacs/layer/url := https://github.com/hatsusato/private-layer
+spacemacs/repo/git := $(HOME)/.emacs.d/.git
+spacemacs/repo/url := https://github.com/syl20bnr/spacemacs
 
 all:
 
@@ -46,6 +52,13 @@ private/patch: $(pam-mount)
 private/mount: apt/gocryptfs | $(mount-dst)
 	@./mount.sh $(mount-src) $(mount-dst)
 
+.PHONY: spacemacs spacemacs/daemon spacemacs/layer
+spacemacs: spacemacs/daemon spacemacs/layer
+spacemacs/daemon: apt/emacs-bin-common $(spacemacs/desktop)
+	@systemctl --user enable emacs.service
+spacemacs/layer: $(spacemacs/dotfile) apt/emacs-mozc | $(spacemacs/layer/git)
+	@./patch.sh $<
+
 $(dconf/config): $(HOME)/%: %
 	@install -m644 $< $@
 $(dconf/etc): /%: %
@@ -57,6 +70,14 @@ $(password-store).git: apt/git apt/pass | $(password-store)
 $(pam-mount): apt/libpam-mount
 $(mount-dst):
 	@mkdir -p $@
+$(spacemacs/desktop): $(HOME)/%: %
+	@install -m644 $< $@
+$(spacemacs/dotfile): $(HOME)/%: apt/emacs | $(spacemacs/repo/git)
+	@test -f $@ || emacs
+$(spacemacs/layer/git): %.git: apt/git | $(spacemacs/repo/git)
+	@test -d $@ || git clone $(spacemacs/layer/url) $*
+$(spacemacs/repo/git): %.git: apt/git
+	@test -d $@ || git clone --branch develop $(spacemacs/repo/url) $*
 
 .PHONY: $(apt)
 $(apt): apt/%:

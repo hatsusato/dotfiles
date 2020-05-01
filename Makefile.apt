@@ -1,6 +1,9 @@
 #!/usr/bin/make -f
 
 apt/packages := \
+emacs \
+emacs-bin-common \
+emacs-mozc \
 fcitx \
 fcitx-mozc \
 git \
