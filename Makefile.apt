@@ -3,9 +3,12 @@
 apt/packages := \
 fcitx \
 fcitx-mozc \
+git \
 gocryptfs \
 nautilus-dropbox \
 neovim \
 libpam-mount \
+pass \
+webext-browserpass \
 
 apt := $(addprefix apt/,$(apt/packages))
