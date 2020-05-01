@@ -94,7 +94,8 @@ im-config: apt/fcitx apt/fcitx-mozc
 pass: apt/pass apt/webext-browserpass
 pass: $(pass/git)
 $(pass/git): $(pass/repo)
-$(pass/repo): private
+$(pass/repo):
+	@test -d $@ || $(make) private
 
 .PHONY: private private/mount
 private: private/mount patch/$(private/conf)
@@ -119,4 +120,5 @@ $(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
 .PHONY: ssh
 ssh: | $(ssh/git)
 $(ssh/git): $(ssh/repo)
-$(ssh/repo): private
+$(ssh/repo):
+	@test -d $@ || $(make) private
