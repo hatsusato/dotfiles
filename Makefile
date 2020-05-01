@@ -1,9 +1,6 @@
 #!/usr/bin/make -f
 
 include Makefile.apt # apt := ...
-pam-mount := /etc/security/pam_mount.conf.xml
-mount-src := $(HOME)/Dropbox/Private
-mount-dst := $(HOME)/Private
 chrome/deb = $(chrome/deb/dir)/$(chrome/deb/name)
 chrome/deb/dir := /usr/local/src/$(USER)
 chrome/deb/name = $(chrome/package)_current_amd64.deb
@@ -18,6 +15,10 @@ im-config/title := 'im-config instructions'
 im-config/body := "$$(cat im-config.txt)"
 pass/git := $(HOME)/.password-store/.git
 pass/repo := $(HOME)/Private/.password-store.git
+private/conf := /etc/security/pam_mount.conf.xml
+private/list := awk '{print $$1,$$2}' /etc/mtab
+private/mount/dst := $(HOME)/Private
+private/mount/src := $(HOME)/Dropbox/Private
 spacemacs/desktop := $(HOME)/.local/share/applications/emacsclient.desktop
 spacemacs/dotfile := $(HOME)/.spacemacs
 spacemacs/layer/git := $(HOME)/.emacs.d/private/hatsusato/.git
@@ -87,15 +88,16 @@ $(pass/git): $(pass/repo)
 $(pass/repo): private
 
 .PHONY: private private/patch private/mount
-private: private/patch private/mount
-private/patch: $(pam-mount)
+private: private/mount private/patch
+private/patch: $(private/conf)
 	@./patch.sh $<
-private/mount: apt/gocryptfs
-private/mount: | $(mount-dst)
-	@./mount.sh $(mount-src) $(mount-dst)
-$(pam-mount): apt/libpam-mount
-$(mount-dst):
+private/mount: $(private/mount/src) $(private/mount/dst)
+	@$(private/list) | grep -F -q '$^' || gocryptfs $^
+$(private/conf): apt/libpam-mount
+$(private/mount/dst): apt/gocryptfs
 	@mkdir -p $@
+$(private/mount/src):
+	@test -d $@ || make dropbox
 
 .PHONY: spacemacs spacemacs/daemon spacemacs/layer
 spacemacs: spacemacs/daemon spacemacs/layer
