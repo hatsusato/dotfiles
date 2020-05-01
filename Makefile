@@ -5,6 +5,12 @@ grub := /etc/default/grub
 pam-mount := /etc/security/pam_mount.conf.xml
 mount-src := $(HOME)/Dropbox/Private
 mount-dst := $(HOME)/Private
+chrome/deb = $(chrome/deb/dir)/$(chrome/deb/name)
+chrome/deb/dir := /usr/local/src/$(USER)
+chrome/deb/name = $(chrome/package)_current_amd64.deb
+chrome/deb/url = $(chrome/deb/url/prefix)/$(chrome/deb/name)
+chrome/deb/url/prefix := https://dl.google.com/linux/direct
+chrome/package := google-chrome-stable
 dconf/config := $(HOME)/.config/dconf/user.txt
 dconf/etc := /etc/dconf/profile/user
 pass/git := $(HOME)/.password-store/.git
@@ -26,8 +32,8 @@ ssh/repo := $(HOME)/Private/.ssh.git
 all:
 
 .PHONY: chrome
-chrome:
-	@./chrome-install.sh
+chrome: $(chrome/deb)
+	@./apt-install.sh $(chrome/package) $<
 
 .PHONY: dconf
 dconf: $(dconf/config) $(dconf/etc)
@@ -73,6 +79,11 @@ spacemacs/layer: $(spacemacs/dotfile) apt/emacs-mozc | $(spacemacs/layer/git)
 .PHONY: ssh
 ssh: | $(ssh/git)
 
+$(chrome/deb):
+	@test -d $(@D) || make $(@D)
+	@wget -c -nv -O $@ $(chrome/deb/url)
+$(chrome/deb/dir):
+	@sudo install -o $(USER) -g $(USER) -d $(@D)
 $(dconf/config): $(HOME)/%: %
 	@install -m644 $< $@
 $(dconf/etc): /%: %
