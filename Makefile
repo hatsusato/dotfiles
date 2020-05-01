@@ -31,6 +31,8 @@ ssh/repo := $(HOME)/Private/.ssh.git
 
 targets/git := $(pass/git) $(spacemacs/hatsusato/git) $(spacemacs/syl20bnr/git) $(ssh/git)
 targets/patch := $(addprefix patch/,$(grub/etc) $(private/conf) $(spacemacs/dotfile))
+targets/install/home := $(addprefix install/,$(dconf/config) $(spacemacs/desktop))
+targets/install/sudo := $(addprefix install/,$(dconf/etc))
 
 all:
 
@@ -51,6 +53,12 @@ $(spacemacs/syl20bnr/git): git/flags := --branch develop
 $(targets/patch): patch/%: %
 	@./patch.sh $*
 
+.PHONY: $(targets/install/home) $(targets/install/sudo)
+$(targets/install/home): install/$(HOME)/%: %
+	@install -D -m644 $* $(HOME)/$*
+$(targets/install/sudo): install//%: %
+	@sudo install -D -m644 $* /$*
+
 .PHONY: chrome
 chrome: $(chrome/deb)
 	@./apt-install.sh $(chrome/package) $<
@@ -61,12 +69,8 @@ $(chrome/deb/dir):
 	@sudo install -D -o $(USER) -g $(USER) -d $(@D)
 
 .PHONY: dconf
-dconf: $(dconf/config) $(dconf/etc)
+dconf: install/$(dconf/config) install/$(dconf/etc)
 	@sudo dconf update
-$(dconf/config): $(HOME)/%: %
-	@install -D -m644 $< $@
-$(dconf/etc): /%: %
-	@sudo install -D -m644 $< $@
 
 .PHONY: dropbox
 dropbox: apt/nautilus-dropbox
@@ -105,7 +109,7 @@ $(private/mount/src):
 .PHONY: spacemacs spacemacs/daemon spacemacs/layer
 spacemacs: spacemacs/daemon spacemacs/layer
 spacemacs/daemon: apt/emacs-bin-common
-spacemacs/daemon: $(spacemacs/desktop)
+spacemacs/daemon: install/$(spacemacs/desktop)
 	@systemctl --user enable emacs.service
 spacemacs/layer: apt/emacs-mozc
 spacemacs/layer: patch/$(spacemacs/dotfile)
