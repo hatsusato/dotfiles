@@ -32,6 +32,8 @@ spacemacs/repo/url := https://github.com/syl20bnr/spacemacs
 ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
 
+dirs/git := $(pass/git) $(spacemacs/layer/git) $(spacemacs/repo/git) $(ssh/git)
+
 all:
 
 .PHONY: chrome
@@ -62,7 +64,8 @@ im-config: apt/fcitx apt/fcitx-mozc
 	@im-config
 
 .PHONY: pass
-pass: $(pass/repo) apt/git apt/pass apt/webext-browserpass
+pass: apt/git apt/pass apt/webext-browserpass
+pass: $(pass/repo)
 	@test -d $(pass/git) || make $(pass/git)
 	@$(pass/git/get) 2>/dev/null | grep -q '^$<$$' || $(pass/git/add) $<
 	@$(pass/git/fetch)
@@ -72,14 +75,17 @@ pass: $(pass/repo) apt/git apt/pass apt/webext-browserpass
 private: private/patch private/mount
 private/patch: $(pam-mount)
 	@./patch.sh $<
-private/mount: apt/gocryptfs | $(mount-dst)
+private/mount: apt/gocryptfs
+private/mount: | $(mount-dst)
 	@./mount.sh $(mount-src) $(mount-dst)
 
 .PHONY: spacemacs spacemacs/daemon spacemacs/layer
 spacemacs: spacemacs/daemon spacemacs/layer
-spacemacs/daemon: apt/emacs-bin-common $(spacemacs/desktop)
+spacemacs/daemon: apt/emacs-bin-common
+spacemacs/daemon: $(spacemacs/desktop)
 	@systemctl --user enable emacs.service
-spacemacs/layer: $(spacemacs/dotfile) apt/emacs-mozc | $(spacemacs/layer/git)
+spacemacs/layer: apt/emacs-mozc
+spacemacs/layer: $(spacemacs/dotfile) | $(spacemacs/layer/git)
 	@./patch.sh $<
 
 .PHONY: ssh
@@ -97,21 +103,25 @@ $(dconf/etc): /%: %
 $(pam-mount): apt/libpam-mount
 $(mount-dst):
 	@mkdir -p $@
-$(pass/git): %.git: $(pass/repo) apt/git apt/pass
+$(pass/git): apt/pass
+$(pass/git): %.git: $(pass/repo)
 	@mkdir -p $*
 	@pass git init
 $(pass/repo): private
 $(spacemacs/desktop): $(HOME)/%: %
 	@install -D -m644 $< $@
-$(spacemacs/dotfile): $(HOME)/%: apt/emacs | $(spacemacs/repo/git)
+$(spacemacs/dotfile): apt/emacs
+$(spacemacs/dotfile): $(HOME)/%: | $(spacemacs/repo/git)
 	@test -f $@ || emacs
-$(spacemacs/layer/git): %.git: apt/git | $(spacemacs/repo/git)
+$(spacemacs/layer/git): %.git: | $(spacemacs/repo/git)
 	@test -d $@ || git clone $(spacemacs/layer/url) $*
-$(spacemacs/repo/git): %.git: apt/git
+$(spacemacs/repo/git): %.git:
 	@test -d $@ || git clone --branch develop $(spacemacs/repo/url) $*
-$(ssh/git): %.git: $(ssh/repo) apt/git
+$(ssh/git): %.git: $(ssh/repo)
 	@test -d $@ || git clone $< $*
 $(ssh/repo): private
+
+$(dirs/git): apt/git
 
 .PHONY: $(apt)
 $(apt): apt/%:
