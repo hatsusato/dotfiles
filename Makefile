@@ -1,6 +1,7 @@
 #!/usr/bin/make -f
 
 include Makefile.apt # apt := ...
+grub := /etc/default/grub
 pam-mount := /etc/security/pam_mount.conf.xml
 mount-src := $(HOME)/Dropbox/Private
 mount-dst := $(HOME)/Private
@@ -20,8 +21,8 @@ editor: apt/neovim
 	@sudo update-alternatives --config editor
 
 .PHONY: grub
-grub:
-	@./patch.sh /etc/default/grub
+grub: $(grub)
+	@./patch.sh $<
 
 .PHONY: im-config
 im-config: apt/fcitx apt/fcitx-mozc
