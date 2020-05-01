@@ -5,9 +5,15 @@ grub := /etc/default/grub
 pam-mount := /etc/security/pam_mount.conf.xml
 mount-src := $(HOME)/Dropbox/Private
 mount-dst := $(HOME)/Private
-password-store := $(HOME)/.password-store
 dconf/config := $(HOME)/.config/dconf/user.txt
 dconf/etc := /etc/dconf/profile/user
+pass/git := $(HOME)/.password-store/.git
+pass/git/add := pass git remote add origin
+pass/git/fetch := pass git fetch
+pass/git/get := pass git remote get-url origin
+pass/git/merge := pass git merge --ff-only origin/master
+pass/git/reset := pass git reset origin/master
+pass/repo := $(HOME)/Private/.password-store.git
 spacemacs/desktop := $(HOME)/.local/share/applications/emacsclient.desktop
 spacemacs/dotfile := $(HOME)/.spacemacs
 spacemacs/layer/git := $(HOME)/.emacs.d/private/hatsusato/.git
@@ -18,10 +24,6 @@ ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
 
 all:
-
-.PHONY: browserpass
-browserpass: apt/git apt/pass apt/webext-browserpass | $(password-store).git
-	@./browserpass.sh $(HOME)/Private/.password-store.git
 
 .PHONY: chrome
 chrome:
@@ -47,6 +49,13 @@ grub: $(grub)
 im-config: apt/fcitx apt/fcitx-mozc
 	@./im-config.sh
 
+.PHONY: pass
+pass: $(pass/repo) apt/git apt/pass apt/webext-browserpass
+	@test -d $(pass/git) || make $(pass/git)
+	@$(pass/git/get) 2>/dev/null | grep -q '^$<$$' || $(pass/git/add) $<
+	@$(pass/git/fetch)
+	@$(pass/git/merge) 2>/dev/null || $(pass/git/reset) >/dev/null
+
 .PHONY: private private/patch private/mount
 private: private/patch private/mount
 private/patch: $(pam-mount)
@@ -68,13 +77,13 @@ $(dconf/config): $(HOME)/%: %
 	@install -m644 $< $@
 $(dconf/etc): /%: %
 	@sudo install -m644 $< $@
-$(password-store):
-	@mkdir -p $@
-$(password-store).git: apt/git apt/pass | $(password-store)
-	@pass git init
 $(pam-mount): apt/libpam-mount
 $(mount-dst):
 	@mkdir -p $@
+$(pass/git): %.git: $(pass/repo) apt/git apt/pass
+	@mkdir -p $*
+	@pass git init
+$(pass/repo): private
 $(spacemacs/desktop): $(HOME)/%: %
 	@install -m644 $< $@
 $(spacemacs/dotfile): $(HOME)/%: apt/emacs | $(spacemacs/repo/git)
