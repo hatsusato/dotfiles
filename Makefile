@@ -108,16 +108,13 @@ $(private/mount/src):
 
 .PHONY: spacemacs spacemacs/daemon spacemacs/layer
 spacemacs: spacemacs/daemon spacemacs/layer
-spacemacs/daemon: apt/emacs-bin-common
-spacemacs/daemon: install/$(spacemacs/desktop)
+spacemacs/daemon: apt/emacs-bin-common install/$(spacemacs/desktop)
 	@systemctl --user enable emacs.service
-spacemacs/layer: apt/emacs-mozc
-spacemacs/layer: patch/$(spacemacs/dotfile)
+spacemacs/layer: apt/emacs-mozc patch/$(spacemacs/dotfile)
 patch/$(spacemacs/dotfile): $(spacemacs/hatsusato/git)
-$(spacemacs/dotfile): apt/emacs
-$(spacemacs/dotfile): $(HOME)/%: | $(spacemacs/syl20bnr/git)
+$(spacemacs/dotfile): apt/emacs $(spacemacs/syl20bnr/git)
 	@test -f $@ || emacs
-$(spacemacs/hatsusato/git): | $(spacemacs/syl20bnr/git)
+$(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
 
 .PHONY: ssh
 ssh: | $(ssh/git)
