@@ -13,6 +13,7 @@ chrome/deb/url/prefix := https://dl.google.com/linux/direct
 chrome/package := google-chrome-stable
 dconf/config := $(HOME)/.config/dconf/user.txt
 dconf/etc := /etc/dconf/profile/user
+dropbox/msg := 最新の状態
 pass/git := $(HOME)/.password-store/.git
 pass/git/add := pass git remote add origin
 pass/git/fetch := pass git fetch
@@ -41,7 +42,8 @@ dconf: $(dconf/config) $(dconf/etc)
 
 .PHONY: dropbox
 dropbox: apt/nautilus-dropbox
-	@./dropbox-init.sh
+	@dropbox start 2>/dev/null
+	@dropbox status | grep -q '^$(dropbox/msg)$$'
 
 .PHONY: editor
 editor: apt/neovim
