@@ -83,11 +83,11 @@ $(chrome/deb):
 	@test -d $(@D) || make $(@D)
 	@wget -c -nv -O $@ $(chrome/deb/url)
 $(chrome/deb/dir):
-	@sudo install -o $(USER) -g $(USER) -d $(@D)
+	@sudo install -D -o $(USER) -g $(USER) -d $(@D)
 $(dconf/config): $(HOME)/%: %
-	@install -m644 $< $@
+	@install -D -m644 $< $@
 $(dconf/etc): /%: %
-	@sudo install -m644 $< $@
+	@sudo install -D -m644 $< $@
 $(pam-mount): apt/libpam-mount
 $(mount-dst):
 	@mkdir -p $@
@@ -96,7 +96,7 @@ $(pass/git): %.git: $(pass/repo) apt/git apt/pass
 	@pass git init
 $(pass/repo): private
 $(spacemacs/desktop): $(HOME)/%: %
-	@install -m644 $< $@
+	@install -D -m644 $< $@
 $(spacemacs/dotfile): $(HOME)/%: apt/emacs | $(spacemacs/repo/git)
 	@test -f $@ || emacs
 $(spacemacs/layer/git): %.git: apt/git | $(spacemacs/repo/git)
