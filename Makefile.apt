@@ -1,6 +1,6 @@
 #!/usr/bin/make -f
 
-apt-packages := \
+apt/packages := \
 fcitx \
 fcitx-mozc \
 gocryptfs \
@@ -8,4 +8,4 @@ nautilus-dropbox \
 neovim \
 libpam-mount \
 
-apt := $(addprefix apt/,$(apt-packages))
+apt := $(addprefix apt/,$(apt/packages))
