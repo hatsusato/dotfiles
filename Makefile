@@ -1,7 +1,6 @@
 #!/usr/bin/make -f
 
 include Makefile.apt # apt := ...
-grub := /etc/default/grub
 pam-mount := /etc/security/pam_mount.conf.xml
 mount-src := $(HOME)/Dropbox/Private
 mount-dst := $(HOME)/Private
@@ -14,6 +13,7 @@ chrome/package := google-chrome-stable
 dconf/config := $(HOME)/.config/dconf/user.txt
 dconf/etc := /etc/dconf/profile/user
 dropbox/msg := 最新の状態
+grub/etc := /etc/default/grub
 pass/git := $(HOME)/.password-store/.git
 pass/git/add := pass git remote add origin
 pass/git/fetch := pass git fetch
@@ -50,8 +50,9 @@ editor: apt/neovim
 	@sudo update-alternatives --config editor
 
 .PHONY: grub
-grub: $(grub)
+grub: $(grub/etc)
 	@./patch.sh $<
+	@sudo update-grub
 
 .PHONY: im-config
 im-config: apt/fcitx apt/fcitx-mozc
