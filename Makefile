@@ -2,8 +2,6 @@
 
 include Makefile.apt # apt := ...
 make := make --no-print-directory
-ssh/git := $(HOME)/.ssh/.git
-ssh/repo := $(HOME)/Private/.ssh.git
 
 all:
 
@@ -85,6 +83,8 @@ $(spacemacs/dotfile): apt/emacs $(spacemacs/syl20bnr/git)
 	@test -f $@ || emacs
 $(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
 
+ssh/git := $(HOME)/.ssh/.git
+ssh/repo := $(HOME)/Private/.ssh.git
 .PHONY: ssh
 ssh: $(ssh/git)
 $(ssh/repo):
