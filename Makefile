@@ -28,15 +28,15 @@ dconf: $(dconf/config) $(dconf/etc)
 
 # dotfile
 modules += dotfile
-dotfile/files := .bashrc .profile
+dotfile/append/files := .bashrc .profile
+dotfile/append := $(addprefix dotfile/append/,$(dotfile/append/files))
 dotfile/link/files := .bash_aliases .bash_completion .inputrc
 dotfile/link := $(addprefix $(HOME)/,$(dotfile/link/files))
 dotfile/local := $(HOME)/.config/local
-dotfile/target := $(addprefix dotfile/,$(dotfile/files))
-.PHONY: dotfile $(dotfile/target)
-dotfile: $(dotfile/link) $(dotfile/target)
-$(dotfile/target): dotfile/%: %
-	@./subsetof.sh $< $(HOME)/$< || cat $< | tee -a $(HOME)/$< >/dev/null
+.PHONY: dotfile $(dotfile/append)
+dotfile: $(dotfile/append) $(dotfile/link)
+$(dotfile/append): dotfile/append/%: $(HOME)/% %
+	@./subsetof.sh $* $< || cat $* | tee -a $< >/dev/null
 $(dotfile/link):
 	@test -h $@ || ln -s $(dotfile/local)/$(@F) $@
 
