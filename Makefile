@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 
-include Makefile.apt # apt := ...
 make := make --no-print-directory
+apt/check = dpkg --no-pager -l $(1) 2>/dev/null | grep -q '^ii'
 
 all:
 
@@ -13,7 +13,7 @@ chrome/deb/url/prefix := https://dl.google.com/linux/direct
 chrome/package := google-chrome-stable
 .PHONY: chrome
 chrome: $(chrome/deb)
-	@./apt-install.sh $(chrome/package) $<
+	@$(call apt/check,$(chrome/package)) || sudo apt install -qq $<
 $(chrome/deb):
 	@test -d $(@D) || $(make) $(@D)
 	@wget -c -nv -O $@ $(chrome/deb/url)
@@ -27,11 +27,13 @@ target/install += dconf/config dconf/etc
 dconf: $(dconf/config) $(dconf/etc)
 	@sudo dconf update
 
+target/apt += apt/nautilus-dropbox
 .PHONY: dropbox
 dropbox: apt/nautilus-dropbox
 	@dropbox start 2>/dev/null
 	@dropbox status | grep -F -q '最新の状態'
 
+target/apt += apt/neovim
 .PHONY: editor
 editor: apt/neovim
 	@sudo update-alternatives --config editor
@@ -44,6 +46,7 @@ grub: patch/grub/etc
 
 im-config/title := 'im-config instructions'
 im-config/body := im-config.txt
+target/apt += apt/fcitx apt/fcitx-mozc
 .PHONY: im-config
 im-config: $(im-config/body) apt/fcitx apt/fcitx-mozc
 	@notify-send -u critical $(im-config/title) "$$(cat $<)"
@@ -51,6 +54,7 @@ im-config: $(im-config/body) apt/fcitx apt/fcitx-mozc
 
 pass/git := $(HOME)/.password-store/.git
 pass/repo := $(HOME)/Private/.password-store.git
+target/apt += apt/pass apt/webext-browserpass
 target/clone += pass
 .PHONY: pass
 pass: $(pass/git) apt/pass apt/webext-browserpass
@@ -60,6 +64,7 @@ $(pass/repo):
 private/conf := /etc/security/pam_mount.conf.xml
 private/mount/dst := $(HOME)/Private
 private/mount/src := $(HOME)/Dropbox/Private
+target/apt += apt/gocryptfs apt/libpam-mount
 target/patch += patch/private/conf
 .PHONY: private private/mount
 private: private/mount patch/private/conf
@@ -77,6 +82,7 @@ spacemacs/hatsusato/git := $(HOME)/.emacs.d/private/hatsusato/.git
 spacemacs/hatsusato/repo := https://github.com/hatsusato/private-layer
 spacemacs/syl20bnr/git := $(HOME)/.emacs.d/.git
 spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
+target/apt += apt/emacs apt/emacs-bin-common apt/emacs-mozc
 target/install += spacemacs/desktop
 target/clone += spacemacs/hatsusato spacemacs/syl20bnr
 target/patch += patch/spacemacs/dotfile
@@ -98,12 +104,7 @@ ssh: $(ssh/git)
 $(ssh/repo):
 	@test -d $@ || $(make) private
 
-target/apt := $(addprefix apt/,$(apt/packages))
-
-.PHONY: $(target/apt)
-$(target/apt): apt/%:
-	@./apt-install.sh $*
-
+target/apt += apt/git
 define do/clone
 ifeq ($$(filter https://%,$$($(1)/repo)),)
 $$($(1)/git): $$($(1)/repo)
@@ -131,3 +132,10 @@ $(1): $$($(1:patch/%=%))
 	@./patch.sh $$<
 endef
 $(foreach var,$(target/patch),$(eval $(call do/patch,$(var))))
+
+define do/apt
+.PHONY: $(1)
+$(1): apt/%:
+	@$(call apt/check,$$*) || sudo apt install -qq $$*
+endef
+$(foreach var,$(target/apt),$(eval $(call do/apt,$(var))))
