@@ -2,10 +2,6 @@
 
 include Makefile.apt # apt := ...
 make := make --no-print-directory
-private/conf := /etc/security/pam_mount.conf.xml
-private/list := awk '{print $$1,$$2}' /etc/mtab
-private/mount/dst := $(HOME)/Private
-private/mount/src := $(HOME)/Dropbox/Private
 spacemacs/desktop := $(HOME)/.local/share/applications/emacsclient.desktop
 spacemacs/dotfile := $(HOME)/.spacemacs
 spacemacs/hatsusato/git := $(HOME)/.emacs.d/private/hatsusato/.git
@@ -66,10 +62,13 @@ pass: $(pass/git) apt/pass apt/webext-browserpass
 $(pass/repo):
 	@test -d $@ || $(make) private
 
+private/conf := /etc/security/pam_mount.conf.xml
+private/mount/dst := $(HOME)/Private
+private/mount/src := $(HOME)/Dropbox/Private
 .PHONY: private private/mount
 private: private/mount patch/$(private/conf)
 private/mount: $(private/mount/src) $(private/mount/dst)
-	@$(private/list) | grep -F -q '$^' || gocryptfs $^
+	@awk '{print $$1,$$2}' /etc/mtab | grep -F -q '$^' || gocryptfs $^
 $(private/conf): apt/libpam-mount
 $(private/mount/dst): apt/gocryptfs
 	@mkdir -p $@
