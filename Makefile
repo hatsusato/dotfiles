@@ -1,7 +1,6 @@
 #!/usr/bin/make -f
 
 make := make --no-print-directory
-apt/check = dpkg --no-pager -l $(1) 2>/dev/null | grep -q '^ii'
 
 all:
 	@echo modules: $(modules)
@@ -131,20 +130,23 @@ ssh: $(ssh/git)
 $(ssh/repo):
 	@test -d $@ || $(make) private
 
+# submodule
+## clone
 target/apt += apt/git
-define do/clone
+define clone/do
 ifeq ($$(filter https://%,$(2)),)
 $(1): $(2) apt/git
 	@test -d $$@ || git clone $$< $$(@D)
 else
 $(1): apt/git
-	@test -d $$@ || git clone $$(flags/clone) $(2) $$(@D)
+	@test -d $$@ || git clone $$(clone/flags) $(2) $$(@D)
 endif
 endef
 $(foreach var,$(target/clone),$(eval $(call do/clone,$($(var)),$($(var:%/git=%/repo)))))
-$(spacemacs/syl20bnr/git): flags/clone := --branch develop
+$(spacemacs/syl20bnr/git): clone/flags := --branch develop
 
-define do/install
+## install
+define install/do
 ifeq ($$(filter $(HOME)/%,$(1)),)
 $(1): /%: %
 	@test -f $$@ || sudo install -D -m644 $$< $$@
@@ -153,11 +155,13 @@ $(1): $(HOME)/%: %
 	@test -f $$@ || install -D -m644 $$< $$@
 endif
 endef
-$(foreach var,$(target/install),$(eval $(call do/install,$($(var)))))
+$(foreach var,$(target/install),$(eval $(call install/do,$($(var)))))
 
-define do/apt
+## apt
+apt/check = dpkg --no-pager -l $(1) 2>/dev/null | grep -q '^ii'
+define apt/do
 .PHONY: $(1)
 $(1): apt/%:
 	@$(call apt/check,$$*) || sudo apt install -qq $$*
 endef
-$(foreach var,$(target/apt),$(eval $(call do/apt,$(var))))
+$(foreach var,$(target/apt),$(eval $(call apt/do,$(var))))
