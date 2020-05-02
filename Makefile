@@ -2,7 +2,6 @@
 
 include Makefile.apt # apt := ...
 make := make --no-print-directory
-dropbox/msg := 最新の状態
 grub/etc := /etc/default/grub
 im-config/title := 'im-config instructions'
 im-config/body := "$$(cat im-config.txt)"
@@ -47,7 +46,7 @@ dconf: $(dconf/config) $(dconf/etc)
 .PHONY: dropbox
 dropbox: apt/nautilus-dropbox
 	@dropbox start 2>/dev/null
-	@dropbox status | grep -q '^$(dropbox/msg)$$'
+	@dropbox status | grep -F -q '最新の状態'
 
 .PHONY: editor
 editor: apt/neovim
