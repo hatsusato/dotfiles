@@ -50,7 +50,7 @@ im-config: $(im-config/body) apt/fcitx apt/fcitx-mozc
 pass/git := $(HOME)/.password-store/.git
 pass/repo := $(HOME)/Private/.password-store.git
 target/apt += apt/pass apt/webext-browserpass
-target/clone += pass
+target/clone += pass/git
 .PHONY: pass
 pass: $(pass/git) apt/pass apt/webext-browserpass
 $(pass/repo):
@@ -79,7 +79,7 @@ spacemacs/syl20bnr/git := $(HOME)/.emacs.d/.git
 spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
 target/apt += apt/emacs apt/emacs-bin-common apt/emacs-mozc
 target/install += spacemacs/desktop
-target/clone += spacemacs/hatsusato spacemacs/syl20bnr
+target/clone += spacemacs/hatsusato/git spacemacs/syl20bnr/git
 target/patch += patch/spacemacs/dotfile
 .PHONY: spacemacs spacemacs/daemon spacemacs/layer
 spacemacs: spacemacs/daemon spacemacs/layer
@@ -93,7 +93,7 @@ $(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
 
 ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
-target/clone += ssh
+target/clone += ssh/git
 .PHONY: ssh
 ssh: $(ssh/git)
 $(ssh/repo):
@@ -107,7 +107,7 @@ endif
 $$($(1)/git): %/.git: apt/git
 	@test -d $$@ || git clone $$(flags/clone) $$($(1)/repo) $$*
 endef
-$(foreach var,$(target/clone),$(eval $(call do/clone,$(var))))
+$(foreach var,$(target/clone),$(eval $(call do/clone,$(var:%/git=%))))
 $(spacemacs/syl20bnr/git): flags/clone := --branch develop
 
 define do/install
