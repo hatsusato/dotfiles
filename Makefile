@@ -2,12 +2,6 @@
 
 include Makefile.apt # apt := ...
 make := make --no-print-directory
-chrome/deb = $(chrome/deb/dir)/$(chrome/deb/name)
-chrome/deb/dir := /usr/local/src/$(USER)
-chrome/deb/name = $(chrome/package)_current_amd64.deb
-chrome/deb/url = $(chrome/deb/url/prefix)/$(chrome/deb/name)
-chrome/deb/url/prefix := https://dl.google.com/linux/direct
-chrome/package := google-chrome-stable
 dconf/config := $(HOME)/.config/dconf/user.txt
 dconf/etc := /etc/dconf/profile/user
 dropbox/msg := 最新の状態
@@ -66,6 +60,12 @@ $(foreach var,$(target/install),$(eval $(call install/file,$($(var)))))
 $(target/patch): patch/%: %
 	@./patch.sh $*
 
+chrome/deb = $(chrome/deb/dir)/$(chrome/deb/name)
+chrome/deb/dir := /usr/local/src/$(USER)
+chrome/deb/name = $(chrome/package)_current_amd64.deb
+chrome/deb/url = $(chrome/deb/url/prefix)/$(chrome/deb/name)
+chrome/deb/url/prefix := https://dl.google.com/linux/direct
+chrome/package := google-chrome-stable
 .PHONY: chrome
 chrome: $(chrome/deb)
 	@./apt-install.sh $(chrome/package) $<
