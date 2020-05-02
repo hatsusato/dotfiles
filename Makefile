@@ -5,20 +5,15 @@ apt/check = dpkg --no-pager -l $(1) 2>/dev/null | grep -q '^ii'
 
 all:
 
-chrome/deb = $(chrome/deb/dir)/$(chrome/deb/name)
-chrome/deb/dir := /usr/local/src/$(USER)
-chrome/deb/name = $(chrome/package)_current_amd64.deb
-chrome/deb/url = $(chrome/deb/url/prefix)/$(chrome/deb/name)
-chrome/deb/url/prefix := https://dl.google.com/linux/direct
-chrome/package := google-chrome-stable
+chrome/deb := google-chrome-stable_current_amd64.deb
+chrome/deb/path := /usr/local/src/$(USER)/$(chrome/deb)
+chrome/deb/url := https://dl.google.com/linux/direct/$(chrome/deb)
 .PHONY: chrome
-chrome: $(chrome/deb)
-	@$(call apt/check,$(chrome/package)) || sudo apt install -qq $<
-$(chrome/deb):
-	@test -d $(@D) || $(make) $(@D)
+chrome: $(chrome/deb/path)
+	@$(call apt/check,google-chrome-stable) || sudo apt install -qq $<
+$(chrome/deb/path):
+	@test -d $(@D) || sudo install -D -o $(USER) -g $(USER) -d $(@D)
 	@wget -c -nv -O $@ $(chrome/deb/url)
-$(chrome/deb/dir):
-	@sudo install -D -o $(USER) -g $(USER) -d $(@D)
 
 dconf/config := $(HOME)/.config/dconf/user.txt
 dconf/etc := /etc/dconf/profile/user
