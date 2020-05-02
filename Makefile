@@ -2,7 +2,6 @@
 
 include Makefile.apt # apt := ...
 make := make --no-print-directory
-grub/etc := /etc/default/grub
 im-config/title := 'im-config instructions'
 im-config/body := "$$(cat im-config.txt)"
 pass/git := $(HOME)/.password-store/.git
@@ -52,6 +51,7 @@ dropbox: apt/nautilus-dropbox
 editor: apt/neovim
 	@sudo update-alternatives --config editor
 
+grub/etc := /etc/default/grub
 .PHONY: grub
 grub: patch/$(grub/etc)
 	@sudo update-grub
