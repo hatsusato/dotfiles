@@ -50,6 +50,7 @@ im-config: $(im-config/body) apt/fcitx apt/fcitx-mozc
 
 pass/git := $(HOME)/.password-store/.git
 pass/repo := $(HOME)/Private/.password-store.git
+target/clone += pass
 .PHONY: pass
 pass: $(pass/git) apt/pass apt/webext-browserpass
 $(pass/repo):
@@ -75,6 +76,7 @@ spacemacs/hatsusato/git := $(HOME)/.emacs.d/private/hatsusato/.git
 spacemacs/hatsusato/repo := https://github.com/hatsusato/private-layer
 spacemacs/syl20bnr/git := $(HOME)/.emacs.d/.git
 spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
+target/clone += spacemacs/hatsusato spacemacs/syl20bnr
 target/patch += patch/$(spacemacs/dotfile)
 .PHONY: spacemacs spacemacs/daemon spacemacs/layer
 spacemacs: spacemacs/daemon spacemacs/layer
@@ -88,13 +90,13 @@ $(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
 
 ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
+target/clone += ssh
 .PHONY: ssh
 ssh: $(ssh/git)
 $(ssh/repo):
 	@test -d $@ || $(make) private
 
 target/apt := $(addprefix apt/,$(apt/packages))
-target/clone := pass spacemacs/hatsusato spacemacs/syl20bnr ssh
 target/install := dconf/config spacemacs/desktop dconf/etc
 
 .PHONY: $(target/apt)
