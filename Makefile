@@ -29,11 +29,11 @@ spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
 ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
 
+patch/files := $(grub/etc) $(private/conf) $(spacemacs/dotfile)
 target/apt := $(addprefix apt/,$(apt/packages))
 target/clone := pass spacemacs/hatsusato spacemacs/syl20bnr ssh
 target/install := dconf/config spacemacs/desktop dconf/etc
-target/files/patch := $(grub/etc) $(private/conf) $(spacemacs/dotfile)
-target/patch := $(addprefix patch/,$(target/files/patch))
+target/patch := $(addprefix patch/,$(patch/files))
 
 all:
 
@@ -51,10 +51,6 @@ endef
 $(foreach var,$(target/clone),$(eval $(call git/clone,$(var))))
 $(spacemacs/syl20bnr/git): git/flags := --branch develop
 
-.PHONY: $(target/patch)
-$(target/patch): patch/%: %
-	@./patch.sh $*
-
 define install/file
 ifeq ($$(filter $(HOME)/%,$(1)),)
 $(1): /%: %
@@ -65,6 +61,10 @@ $(1): $(HOME)/%: %
 endif
 endef
 $(foreach var,$(target/install),$(eval $(call install/file,$($(var)))))
+
+.PHONY: $(target/patch)
+$(target/patch): patch/%: %
+	@./patch.sh $*
 
 .PHONY: chrome
 chrome: $(chrome/deb)
