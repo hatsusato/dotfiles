@@ -2,8 +2,6 @@
 
 include Makefile.apt # apt := ...
 make := make --no-print-directory
-im-config/title := 'im-config instructions'
-im-config/body := "$$(cat im-config.txt)"
 pass/git := $(HOME)/.password-store/.git
 pass/repo := $(HOME)/Private/.password-store.git
 private/conf := /etc/security/pam_mount.conf.xml
@@ -56,9 +54,11 @@ grub/etc := /etc/default/grub
 grub: patch/$(grub/etc)
 	@sudo update-grub
 
+im-config/title := 'im-config instructions'
+im-config/body := im-config.txt
 .PHONY: im-config
-im-config: apt/fcitx apt/fcitx-mozc
-	@notify-send -u critical $(im-config/title) $(im-config/body)
+im-config: $(im-config/body) apt/fcitx apt/fcitx-mozc
+	@notify-send -u critical $(im-config/title) "$$(cat $<)"
 	@im-config
 
 .PHONY: pass
