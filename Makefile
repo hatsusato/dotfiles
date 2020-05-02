@@ -34,10 +34,11 @@ editor: apt/neovim
 	@sudo update-alternatives --config editor
 
 grub/etc := /etc/default/grub
-target/patch += patch/grub/etc
-.PHONY: grub
-grub: patch/grub/etc
+.PHONY: grub grub/patch
+grub: grub/patch
 	@sudo update-grub
+grub/patch: $(grub/etc)
+	@./patch.sh $<
 
 im-config/title := 'im-config instructions'
 im-config/body := im-config.txt
@@ -60,11 +61,12 @@ private/conf := /etc/security/pam_mount.conf.xml
 private/mount/dst := $(HOME)/Private
 private/mount/src := $(HOME)/Dropbox/Private
 target/apt += apt/gocryptfs apt/libpam-mount
-target/patch += patch/private/conf
-.PHONY: private private/mount
-private: private/mount patch/private/conf
+.PHONY: private private/mount private/patch
+private: private/mount private/patch
 private/mount: $(private/mount/src) $(private/mount/dst)
 	@awk '{print $$1,$$2}' /etc/mtab | grep -F -q '$^' || gocryptfs $^
+private/patch: $(private/conf)
+	@./patch.sh $<
 $(private/conf): apt/libpam-mount
 $(private/mount/dst): apt/gocryptfs
 	@mkdir -p $@
@@ -80,13 +82,13 @@ spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
 target/apt += apt/emacs apt/emacs-bin-common apt/emacs-mozc
 target/install += spacemacs/desktop
 target/clone += spacemacs/hatsusato/git spacemacs/syl20bnr/git
-target/patch += patch/spacemacs/dotfile
-.PHONY: spacemacs spacemacs/daemon spacemacs/layer
+.PHONY: spacemacs spacemacs/daemon spacemacs/layer spacemacs/patch
 spacemacs: spacemacs/daemon spacemacs/layer
 spacemacs/daemon: apt/emacs-bin-common $(spacemacs/desktop)
 	@systemctl --user enable emacs.service
-spacemacs/layer: apt/emacs-mozc patch/spacemacs/dotfile
-patch/spacemacs/dotfile: $(spacemacs/hatsusato/git)
+spacemacs/layer: apt/emacs-mozc spacemacs/patch
+spacemacs/patch: $(spacemacs/dotfile) $(spacemacs/hatsusato/git)
+	@./patch.sh $<
 $(spacemacs/dotfile): apt/emacs $(spacemacs/syl20bnr/git)
 	@test -f $@ || emacs
 $(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
@@ -122,13 +124,6 @@ $(1): $(HOME)/%: %
 endif
 endef
 $(foreach var,$(target/install),$(eval $(call do/install,$($(var)))))
-
-define do/patch
-.PHONY: $(1)
-$(1): $(2)
-	@./patch.sh $$<
-endef
-$(foreach var,$(target/patch),$(eval $(call do/patch,$(var),$($(var:patch/%=%)))))
 
 define do/apt
 .PHONY: $(1)
