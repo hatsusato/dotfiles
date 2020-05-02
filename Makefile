@@ -36,6 +36,7 @@ editor: apt/neovim
 	@sudo update-alternatives --config editor
 
 grub/etc := /etc/default/grub
+target/patch += patch/$(grub/etc)
 .PHONY: grub
 grub: patch/$(grub/etc)
 	@sudo update-grub
@@ -57,6 +58,7 @@ $(pass/repo):
 private/conf := /etc/security/pam_mount.conf.xml
 private/mount/dst := $(HOME)/Private
 private/mount/src := $(HOME)/Dropbox/Private
+target/patch += patch/$(private/conf)
 .PHONY: private private/mount
 private: private/mount patch/$(private/conf)
 private/mount: $(private/mount/src) $(private/mount/dst)
@@ -73,6 +75,7 @@ spacemacs/hatsusato/git := $(HOME)/.emacs.d/private/hatsusato/.git
 spacemacs/hatsusato/repo := https://github.com/hatsusato/private-layer
 spacemacs/syl20bnr/git := $(HOME)/.emacs.d/.git
 spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
+target/patch += patch/$(spacemacs/dotfile)
 .PHONY: spacemacs spacemacs/daemon spacemacs/layer
 spacemacs: spacemacs/daemon spacemacs/layer
 spacemacs/daemon: apt/emacs-bin-common $(spacemacs/desktop)
@@ -90,11 +93,9 @@ ssh: $(ssh/git)
 $(ssh/repo):
 	@test -d $@ || $(make) private
 
-patch/files := $(grub/etc) $(private/conf) $(spacemacs/dotfile)
 target/apt := $(addprefix apt/,$(apt/packages))
 target/clone := pass spacemacs/hatsusato spacemacs/syl20bnr ssh
 target/install := dconf/config spacemacs/desktop dconf/etc
-target/patch := $(addprefix patch/,$(patch/files))
 
 .PHONY: $(target/apt)
 $(target/apt): apt/%:
