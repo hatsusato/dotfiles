@@ -31,11 +31,8 @@ ssh/repo := $(HOME)/Private/.ssh.git
 
 target/apt := $(addprefix apt/,$(apt/packages))
 target/clone := pass spacemacs/hatsusato spacemacs/syl20bnr ssh
-target/files/install/home := $(dconf/config) $(spacemacs/desktop)
-target/files/install/sudo := $(dconf/etc)
+target/install := dconf/config spacemacs/desktop dconf/etc
 target/files/patch := $(grub/etc) $(private/conf) $(spacemacs/dotfile)
-target/install/home := $(addprefix install/,$(target/files/install/home))
-target/install/sudo := $(addprefix install/,$(target/files/install/sudo))
 target/patch := $(addprefix patch/,$(target/files/patch))
 
 all:
@@ -58,11 +55,16 @@ $(spacemacs/syl20bnr/git): git/flags := --branch develop
 $(target/patch): patch/%: %
 	@./patch.sh $*
 
-.PHONY: $(target/install/home) $(target/install/sudo)
-$(target/install/home): install/$(HOME)/%: %
-	@install -D -m644 $* $(HOME)/$*
-$(target/install/sudo): install//%: %
-	@sudo install -D -m644 $* /$*
+define install/file
+ifeq ($$(filter $(HOME)/%,$(1)),)
+$(1): /%: %
+	@sudo install -D -m644 $$* $$@
+else
+$(1): $(HOME)/%: %
+	@install -D -m644 $$* $$@
+endif
+endef
+$(foreach var,$(target/install),$(eval $(call install/file,$($(var)))))
 
 .PHONY: chrome
 chrome: $(chrome/deb)
@@ -74,7 +76,7 @@ $(chrome/deb/dir):
 	@sudo install -D -o $(USER) -g $(USER) -d $(@D)
 
 .PHONY: dconf
-dconf: install/$(dconf/config) install/$(dconf/etc)
+dconf: $(dconf/config) $(dconf/etc)
 	@sudo dconf update
 
 .PHONY: dropbox
@@ -113,7 +115,7 @@ $(private/mount/src):
 
 .PHONY: spacemacs spacemacs/daemon spacemacs/layer
 spacemacs: spacemacs/daemon spacemacs/layer
-spacemacs/daemon: apt/emacs-bin-common install/$(spacemacs/desktop)
+spacemacs/daemon: apt/emacs-bin-common $(spacemacs/desktop)
 	@systemctl --user enable emacs.service
 spacemacs/layer: apt/emacs-mozc patch/$(spacemacs/dotfile)
 patch/$(spacemacs/dotfile): $(spacemacs/hatsusato/git)
