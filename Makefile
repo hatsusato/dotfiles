@@ -23,42 +23,7 @@ spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
 ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
 
-patch/files := $(grub/etc) $(private/conf) $(spacemacs/dotfile)
-target/apt := $(addprefix apt/,$(apt/packages))
-target/clone := pass spacemacs/hatsusato spacemacs/syl20bnr ssh
-target/install := dconf/config spacemacs/desktop dconf/etc
-target/patch := $(addprefix patch/,$(patch/files))
-
 all:
-
-.PHONY: $(target/apt)
-$(target/apt): apt/%:
-	@./apt-install.sh $*
-
-define git/clone
-ifeq ($$(filter https://%,$$($(1)/repo)),)
-$$($(1)/git): $$($(1)/repo)
-endif
-$$($(1)/git): %/.git: apt/git
-	@test -d $$@ || git clone $$(git/flags) $$($(1)/repo) $$*
-endef
-$(foreach var,$(target/clone),$(eval $(call git/clone,$(var))))
-$(spacemacs/syl20bnr/git): git/flags := --branch develop
-
-define install/file
-ifeq ($$(filter $(HOME)/%,$(1)),)
-$(1): /%: %
-	@sudo install -D -m644 $$* $$@
-else
-$(1): $(HOME)/%: %
-	@install -D -m644 $$* $$@
-endif
-endef
-$(foreach var,$(target/install),$(eval $(call install/file,$($(var)))))
-
-.PHONY: $(target/patch)
-$(target/patch): patch/%: %
-	@./patch.sh $*
 
 chrome/deb = $(chrome/deb/dir)/$(chrome/deb/name)
 chrome/deb/dir := /usr/local/src/$(USER)
@@ -127,3 +92,38 @@ $(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
 ssh: $(ssh/git)
 $(ssh/repo):
 	@test -d $@ || $(make) private
+
+patch/files := $(grub/etc) $(private/conf) $(spacemacs/dotfile)
+target/apt := $(addprefix apt/,$(apt/packages))
+target/clone := pass spacemacs/hatsusato spacemacs/syl20bnr ssh
+target/install := dconf/config spacemacs/desktop dconf/etc
+target/patch := $(addprefix patch/,$(patch/files))
+
+.PHONY: $(target/apt)
+$(target/apt): apt/%:
+	@./apt-install.sh $*
+
+define git/clone
+ifeq ($$(filter https://%,$$($(1)/repo)),)
+$$($(1)/git): $$($(1)/repo)
+endif
+$$($(1)/git): %/.git: apt/git
+	@test -d $$@ || git clone $$(git/flags) $$($(1)/repo) $$*
+endef
+$(foreach var,$(target/clone),$(eval $(call git/clone,$(var))))
+$(spacemacs/syl20bnr/git): git/flags := --branch develop
+
+define install/file
+ifeq ($$(filter $(HOME)/%,$(1)),)
+$(1): /%: %
+	@sudo install -D -m644 $$* $$@
+else
+$(1): $(HOME)/%: %
+	@install -D -m644 $$* $$@
+endif
+endef
+$(foreach var,$(target/install),$(eval $(call install/file,$($(var)))))
+
+.PHONY: $(target/patch)
+$(target/patch): patch/%: %
+	@./patch.sh $*
