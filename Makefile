@@ -37,9 +37,9 @@ editor: apt/neovim
 	@sudo update-alternatives --config editor
 
 grub/etc := /etc/default/grub
-target/patch += patch/$(grub/etc)
+target/patch += patch/grub/etc
 .PHONY: grub
-grub: patch/$(grub/etc)
+grub: patch/grub/etc
 	@sudo update-grub
 
 im-config/title := 'im-config instructions'
@@ -60,9 +60,9 @@ $(pass/repo):
 private/conf := /etc/security/pam_mount.conf.xml
 private/mount/dst := $(HOME)/Private
 private/mount/src := $(HOME)/Dropbox/Private
-target/patch += patch/$(private/conf)
+target/patch += patch/private/conf
 .PHONY: private private/mount
-private: private/mount patch/$(private/conf)
+private: private/mount patch/private/conf
 private/mount: $(private/mount/src) $(private/mount/dst)
 	@awk '{print $$1,$$2}' /etc/mtab | grep -F -q '$^' || gocryptfs $^
 $(private/conf): apt/libpam-mount
@@ -79,13 +79,13 @@ spacemacs/syl20bnr/git := $(HOME)/.emacs.d/.git
 spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
 target/install += spacemacs/desktop
 target/clone += spacemacs/hatsusato spacemacs/syl20bnr
-target/patch += patch/$(spacemacs/dotfile)
+target/patch += patch/spacemacs/dotfile
 .PHONY: spacemacs spacemacs/daemon spacemacs/layer
 spacemacs: spacemacs/daemon spacemacs/layer
 spacemacs/daemon: apt/emacs-bin-common $(spacemacs/desktop)
 	@systemctl --user enable emacs.service
-spacemacs/layer: apt/emacs-mozc patch/$(spacemacs/dotfile)
-patch/$(spacemacs/dotfile): $(spacemacs/hatsusato/git)
+spacemacs/layer: apt/emacs-mozc patch/spacemacs/dotfile
+patch/spacemacs/dotfile: $(spacemacs/hatsusato/git)
 $(spacemacs/dotfile): apt/emacs $(spacemacs/syl20bnr/git)
 	@test -f $@ || emacs
 $(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
@@ -125,6 +125,9 @@ endif
 endef
 $(foreach var,$(target/install),$(eval $(call install/file,$($(var)))))
 
-.PHONY: $(target/patch)
-$(target/patch): patch/%: %
-	@./patch.sh $*
+define do/patch
+.PHONY: $(1)
+$(1): $$($(1:patch/%=%))
+	@./patch.sh $$<
+endef
+$(foreach var,$(target/patch),$(eval $(call do/patch,$(var))))
