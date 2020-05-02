@@ -22,6 +22,7 @@ $(chrome/deb/dir):
 
 dconf/config := $(HOME)/.config/dconf/user.txt
 dconf/etc := /etc/dconf/profile/user
+target/install += dconf/config dconf/etc
 .PHONY: dconf
 dconf: $(dconf/config) $(dconf/etc)
 	@sudo dconf update
@@ -76,6 +77,7 @@ spacemacs/hatsusato/git := $(HOME)/.emacs.d/private/hatsusato/.git
 spacemacs/hatsusato/repo := https://github.com/hatsusato/private-layer
 spacemacs/syl20bnr/git := $(HOME)/.emacs.d/.git
 spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
+target/install += spacemacs/desktop
 target/clone += spacemacs/hatsusato spacemacs/syl20bnr
 target/patch += patch/$(spacemacs/dotfile)
 .PHONY: spacemacs spacemacs/daemon spacemacs/layer
@@ -97,7 +99,6 @@ $(ssh/repo):
 	@test -d $@ || $(make) private
 
 target/apt := $(addprefix apt/,$(apt/packages))
-target/install := dconf/config spacemacs/desktop dconf/etc
 
 .PHONY: $(target/apt)
 $(target/apt): apt/%:
