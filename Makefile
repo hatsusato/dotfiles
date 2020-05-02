@@ -104,17 +104,17 @@ target/apt := $(addprefix apt/,$(apt/packages))
 $(target/apt): apt/%:
 	@./apt-install.sh $*
 
-define git/clone
+define do/clone
 ifeq ($$(filter https://%,$$($(1)/repo)),)
 $$($(1)/git): $$($(1)/repo)
 endif
 $$($(1)/git): %/.git: apt/git
-	@test -d $$@ || git clone $$(git/flags) $$($(1)/repo) $$*
+	@test -d $$@ || git clone $$(flags/clone) $$($(1)/repo) $$*
 endef
-$(foreach var,$(target/clone),$(eval $(call git/clone,$(var))))
-$(spacemacs/syl20bnr/git): git/flags := --branch develop
+$(foreach var,$(target/clone),$(eval $(call do/clone,$(var))))
+$(spacemacs/syl20bnr/git): flags/clone := --branch develop
 
-define install/file
+define do/install
 ifeq ($$(filter $(HOME)/%,$(1)),)
 $(1): /%: %
 	@sudo install -D -m644 $$* $$@
@@ -123,7 +123,7 @@ $(1): $(HOME)/%: %
 	@install -D -m644 $$* $$@
 endif
 endef
-$(foreach var,$(target/install),$(eval $(call install/file,$($(var)))))
+$(foreach var,$(target/install),$(eval $(call do/install,$($(var)))))
 
 define do/patch
 .PHONY: $(1)
