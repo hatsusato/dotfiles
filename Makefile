@@ -2,8 +2,6 @@
 
 include Makefile.apt # apt := ...
 make := make --no-print-directory
-pass/git := $(HOME)/.password-store/.git
-pass/repo := $(HOME)/Private/.password-store.git
 private/conf := /etc/security/pam_mount.conf.xml
 private/list := awk '{print $$1,$$2}' /etc/mtab
 private/mount/dst := $(HOME)/Private
@@ -61,9 +59,10 @@ im-config: $(im-config/body) apt/fcitx apt/fcitx-mozc
 	@notify-send -u critical $(im-config/title) "$$(cat $<)"
 	@im-config
 
+pass/git := $(HOME)/.password-store/.git
+pass/repo := $(HOME)/Private/.password-store.git
 .PHONY: pass
-pass: apt/pass apt/webext-browserpass
-pass: $(pass/git)
+pass: $(pass/git) apt/pass apt/webext-browserpass
 $(pass/repo):
 	@test -d $@ || $(make) private
 
