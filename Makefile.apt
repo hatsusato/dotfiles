@@ -13,5 +13,3 @@ neovim \
 libpam-mount \
 pass \
 webext-browserpass \
-
-apt := $(addprefix apt/,$(apt/packages))

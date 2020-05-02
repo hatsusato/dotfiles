@@ -29,15 +29,19 @@ spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
 ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
 
-targets/clone := pass spacemacs/hatsusato spacemacs/syl20bnr ssh
-targets/patch := $(addprefix patch/,$(grub/etc) $(private/conf) $(spacemacs/dotfile))
-targets/install/home := $(addprefix install/,$(dconf/config) $(spacemacs/desktop))
-targets/install/sudo := $(addprefix install/,$(dconf/etc))
+target/apt := $(addprefix apt/,$(apt/packages))
+target/clone := pass spacemacs/hatsusato spacemacs/syl20bnr ssh
+target/files/install/home := $(dconf/config) $(spacemacs/desktop)
+target/files/install/sudo := $(dconf/etc)
+target/files/patch := $(grub/etc) $(private/conf) $(spacemacs/dotfile)
+target/install/home := $(addprefix install/,$(target/files/install/home))
+target/install/sudo := $(addprefix install/,$(target/files/install/sudo))
+target/patch := $(addprefix patch/,$(target/files/patch))
 
 all:
 
-.PHONY: $(apt)
-$(apt): apt/%:
+.PHONY: $(target/apt)
+$(target/apt): apt/%:
 	@./apt-install.sh $*
 
 define git/clone
@@ -47,17 +51,17 @@ endif
 $$($(1)/git): %/.git: apt/git
 	@test -d $$@ || git clone $$(git/flags) $$($(1)/repo) $$*
 endef
-$(foreach target,$(targets/clone),$(eval $(call git/clone,$(target))))
+$(foreach var,$(target/clone),$(eval $(call git/clone,$(var))))
 $(spacemacs/syl20bnr/git): git/flags := --branch develop
 
-.PHONY: $(targets/patch)
-$(targets/patch): patch/%: %
+.PHONY: $(target/patch)
+$(target/patch): patch/%: %
 	@./patch.sh $*
 
-.PHONY: $(targets/install/home) $(targets/install/sudo)
-$(targets/install/home): install/$(HOME)/%: %
+.PHONY: $(target/install/home) $(target/install/sudo)
+$(target/install/home): install/$(HOME)/%: %
 	@install -D -m644 $* $(HOME)/$*
-$(targets/install/sudo): install//%: %
+$(target/install/sudo): install//%: %
 	@sudo install -D -m644 $* /$*
 
 .PHONY: chrome
