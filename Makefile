@@ -28,12 +28,17 @@ dconf: $(dconf/config) $(dconf/etc)
 
 # dotfile
 modules += dotfile
-dotfile/files := .bash_aliases .bash_completion .bashrc .inputrc .profile
+dotfile/files := .bashrc .profile
+dotfile/link/files := .bash_aliases .bash_completion .inputrc
+dotfile/link := $(addprefix $(HOME)/,$(dotfile/link/files))
+dotfile/local := $(HOME)/.config/local
 dotfile/target := $(addprefix dotfile/,$(dotfile/files))
 .PHONY: dotfile $(dotfile/target)
-dotfile: $(dotfile/target)
+dotfile: $(dotfile/link) $(dotfile/target)
 $(dotfile/target): dotfile/%: %
 	@./subsetof.sh $< $(HOME)/$< || cat $< | tee -a $(HOME)/$< >/dev/null
+$(dotfile/link):
+	@test -h $@ || ln -s $(dotfile/local)/$(@F) $@
 
 # dropbox
 modules += dropbox
