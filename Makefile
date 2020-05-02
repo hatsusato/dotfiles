@@ -28,17 +28,18 @@ dconf: $(dconf/config) $(dconf/etc)
 
 # dotfile
 modules += dotfile
+dotfile/append = $(addprefix dotfile/append/,$(dotfile/append/files))
 dotfile/append/files := .bashrc .profile
-dotfile/append := $(addprefix dotfile/append/,$(dotfile/append/files))
-dotfile/link/files := .bash_aliases .bash_completion .inputrc
-dotfile/link := $(addprefix $(HOME)/,$(dotfile/link/files))
-dotfile/local := $(HOME)/.config/local
-.PHONY: dotfile $(dotfile/append)
+dotfile/link = $(addprefix dotfile/link/,$(dotfile/link/files))
+dotfile/link/files := .bash_aliases .bash_completion .inputrc .netrc .wgetrc
+dotfile/link/prefix := $(HOME)/.config/local
+.PHONY: dotfile $(dotfile/append) $(dotfile/link)
 dotfile: $(dotfile/append) $(dotfile/link)
 $(dotfile/append): dotfile/append/%: $(HOME)/% %
 	@./subsetof.sh $* $< || cat $* | tee -a $< >/dev/null
-$(dotfile/link):
-	@test -h $@ || ln -s $(dotfile/local)/$(@F) $@
+$(dotfile/link): dotfile/link/%:
+	@test -h $(HOME)/$* || ln -s $(dotfile/link/prefix)/$* $(HOME)/$*
+dotfile/link/.netrc: dotfile/link/prefix := $(HOME)/Private
 
 # dropbox
 modules += dropbox
