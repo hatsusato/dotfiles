@@ -22,6 +22,13 @@ target/install += dconf/config dconf/etc
 dconf: $(dconf/config) $(dconf/etc)
 	@sudo dconf update
 
+dotfile/files := .bash_aliases .bash_completion .bashrc .inputrc .profile
+dotfile/target := $(addprefix dotfile/,$(dotfile/files))
+.PHONY: dotfile $(dotfile/target)
+dotfile: $(dotfile/target)
+$(dotfile/target): dotfile/%: %
+	@./subsetof.sh $< $(HOME)/$< || cat $< | tee -a $(HOME)/$< >/dev/null
+
 target/apt += apt/nautilus-dropbox
 .PHONY: dropbox
 dropbox: apt/nautilus-dropbox
