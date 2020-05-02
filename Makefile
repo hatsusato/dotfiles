@@ -2,8 +2,6 @@
 
 include Makefile.apt # apt := ...
 make := make --no-print-directory
-dconf/config := $(HOME)/.config/dconf/user.txt
-dconf/etc := /etc/dconf/profile/user
 dropbox/msg := 最新の状態
 grub/etc := /etc/default/grub
 im-config/title := 'im-config instructions'
@@ -40,6 +38,8 @@ $(chrome/deb):
 $(chrome/deb/dir):
 	@sudo install -D -o $(USER) -g $(USER) -d $(@D)
 
+dconf/config := $(HOME)/.config/dconf/user.txt
+dconf/etc := /etc/dconf/profile/user
 .PHONY: dconf
 dconf: $(dconf/config) $(dconf/etc)
 	@sudo dconf update
