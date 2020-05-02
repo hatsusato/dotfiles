@@ -101,32 +101,34 @@ $(ssh/repo):
 
 target/apt += apt/git
 define do/clone
-ifeq ($$(filter https://%,$$($(1)/repo)),)
-$$($(1)/git): $$($(1)/repo)
+ifeq ($$(filter https://%,$(2)),)
+$(1): $(2) apt/git
+	@test -d $$@ || git clone $$< $$(@D)
+else
+$(1): apt/git
+	@test -d $$@ || git clone $$(flags/clone) $(2) $$(@D)
 endif
-$$($(1)/git): %/.git: apt/git
-	@test -d $$@ || git clone $$(flags/clone) $$($(1)/repo) $$*
 endef
-$(foreach var,$(target/clone),$(eval $(call do/clone,$(var:%/git=%))))
+$(foreach var,$(target/clone),$(eval $(call do/clone,$($(var)),$($(var:%/git=%/repo)))))
 $(spacemacs/syl20bnr/git): flags/clone := --branch develop
 
 define do/install
 ifeq ($$(filter $(HOME)/%,$(1)),)
 $(1): /%: %
-	@sudo install -D -m644 $$* $$@
+	@test -f $$@ || sudo install -D -m644 $$< $$@
 else
 $(1): $(HOME)/%: %
-	@install -D -m644 $$* $$@
+	@test -f $$@ || install -D -m644 $$< $$@
 endif
 endef
 $(foreach var,$(target/install),$(eval $(call do/install,$($(var)))))
 
 define do/patch
 .PHONY: $(1)
-$(1): $$($(1:patch/%=%))
+$(1): $(2)
 	@./patch.sh $$<
 endef
-$(foreach var,$(target/patch),$(eval $(call do/patch,$(var))))
+$(foreach var,$(target/patch),$(eval $(call do/patch,$(var),$($(var:patch/%=%)))))
 
 define do/apt
 .PHONY: $(1)
