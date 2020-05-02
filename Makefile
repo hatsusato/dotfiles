@@ -2,12 +2,6 @@
 
 include Makefile.apt # apt := ...
 make := make --no-print-directory
-spacemacs/desktop := $(HOME)/.local/share/applications/emacsclient.desktop
-spacemacs/dotfile := $(HOME)/.spacemacs
-spacemacs/hatsusato/git := $(HOME)/.emacs.d/private/hatsusato/.git
-spacemacs/hatsusato/repo := https://github.com/hatsusato/private-layer
-spacemacs/syl20bnr/git := $(HOME)/.emacs.d/.git
-spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
 ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
 
@@ -75,6 +69,12 @@ $(private/mount/dst): apt/gocryptfs
 $(private/mount/src):
 	@test -d $@ || $(make) dropbox
 
+spacemacs/desktop := $(HOME)/.local/share/applications/emacsclient.desktop
+spacemacs/dotfile := $(HOME)/.spacemacs
+spacemacs/hatsusato/git := $(HOME)/.emacs.d/private/hatsusato/.git
+spacemacs/hatsusato/repo := https://github.com/hatsusato/private-layer
+spacemacs/syl20bnr/git := $(HOME)/.emacs.d/.git
+spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
 .PHONY: spacemacs spacemacs/daemon spacemacs/layer
 spacemacs: spacemacs/daemon spacemacs/layer
 spacemacs/daemon: apt/emacs-bin-common $(spacemacs/desktop)
