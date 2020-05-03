@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -eu
+
+parse() {
+  local msg=$(sed 's/\\/\\x5C/g;s/%/\\x/g')
+  [[ $msg == ERR* ]] && exit 255
+  printf "${msg#D }\n"
+}
+
+cat <<EOF | pinentry-gnome3 2>/dev/null | grep -v ^OK | parse
+SETPROMPT Authentication Required
+SETDESC Authentication is required to run the command as root
+SETOK Authenticate
+GETPIN
+EOF
