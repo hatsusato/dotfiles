@@ -1,0 +1,24 @@
+#!/bin/bash
+
+set -eu
+
+params() {
+    local IFS=, arr=()
+    arr+=(reconnect)
+    arr+=(ServerAliveInterval=5)
+    arr+=(ServerAliveCountMax=3)
+    cat <<<${arr[*]}
+}
+
+host=${1%%:*}
+src=${1#*:}
+dst=${2-}
+if [[ $1 == $host?(:) ]]; then
+    src=$(ssh -t "$host" 'echo -n "$HOME"' 2>/dev/null)
+fi
+if [[ -z $dst ]]; then
+    dst=/tmp/sshfs/$host
+    mkdir -m 700 -p /tmp/sshfs
+fi
+mkdir -p "$dst"
+command -p sshfs "$host:$src" "$dst" -o $(params)
