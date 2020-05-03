@@ -3,11 +3,12 @@
 set -eu
 
 params() {
-    local IFS=, arr=()
+    local arr=()
     arr+=(reconnect)
     arr+=(ServerAliveInterval=5)
     arr+=(ServerAliveCountMax=3)
-    cat <<<${arr[*]}
+    local IFS=,
+    echo ${arr[*]}
 }
 
 host=${1%%:*}

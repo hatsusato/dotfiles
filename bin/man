@@ -44,8 +44,8 @@ so=$(tput smso; tput setaf 5)
 ue=$(tput sgr0)
 # Start underlining
 us=$(tput smul; tput setaf 6)
-env=()
+vars=()
 for e in mb md me mh mk mr se so ue us; do
-    env+=("LESS_TERMCAP_$e=${!e}")
+    vars+=("LESS_TERMCAP_$e=${!e}")
 done
-env "${env[@]}" man "$@"
+env "${vars[@]}" "$(command -pv man)" "$@"

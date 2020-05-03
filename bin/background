@@ -2,5 +2,4 @@
 
 set -eu
 
-cmd=$(printf '%q ' "$@")
-eval "${cmd% }" &>/dev/null &
+exec "$@" &>/dev/null &
