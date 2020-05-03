@@ -1,15 +1,16 @@
 #!/usr/bin/make -f
 
-bin := $(shell git ls-files bin)
-local := $(shell git ls-files .local)
-target/bin := $(addprefix $(HOME)/,$(bin))
-target/local := $(addprefix $(HOME)/,$(local))
+bin/files := $(shell git ls-files bin)
+bin/target := $(addprefix $(HOME)/,$(bin/files))
+comp/files := $(shell git ls-files completions)
+comp/prefix := $(HOME)/.local/share/bash-completion
+comp/target := $(addprefix $(comp/prefix)/,$(comp/files))
 
 .PHONY: all
-all: $(target/bin) $(target/local)
+all: $(bin/target) $(comp/target)
 
-$(target/bin): $(HOME)/%: %
-	@install -D -m544 -T $< $@
+$(bin/target): $(HOME)/%: %
+	@install -C -D -m544 -v -T $< $@
 
-$(target/local): $(HOME)/%: %
-	@install -D -m444 -T $< $@
+$(comp/target): $(comp/prefix)/%: %
+	@install -C -D -m444 -v -T $< $@
