@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -eu
+
+if askpass=$(command -v pinentry-askpass); then
+    SUDO_ASKPASS=$askpass command -p sudo -A "$@"
+else
+    command -p sudo "$@"
+fi
