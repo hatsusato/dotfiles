@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -eu
+
+filter() {
+    grep -v -e '^ ' -e '^<' -e ':i386$' | sort
+}
+flags=(pre-depends recommends suggests conflicts breaks replaces enhances)
+flags=(recurse ${flags[@]/#/no-})
+apt-cache depends ${flags[@]/#/--} "$@" | filter
