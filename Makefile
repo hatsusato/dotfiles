@@ -29,7 +29,7 @@ spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
 ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
 
-targets/git := $(pass/git) $(spacemacs/hatsusato/git) $(spacemacs/syl20bnr/git) $(ssh/git)
+targets/clone := pass spacemacs/hatsusato spacemacs/syl20bnr ssh
 targets/patch := $(addprefix patch/,$(grub/etc) $(private/conf) $(spacemacs/dotfile))
 targets/install/home := $(addprefix install/,$(dconf/config) $(spacemacs/desktop))
 targets/install/sudo := $(addprefix install/,$(dconf/etc))
@@ -40,13 +40,14 @@ all:
 $(apt): apt/%:
 	@./apt-install.sh $*
 
-$(targets/git): apt/git
-$(targets/git): %/.git:
-	@test -d $@ || git clone $(git/flags) $(git/repository) $*
-$(pass/git): git/repository := $(pass/repo)
-$(spacemacs/hatsusato/git): git/repository := $(spacemacs/hatsusato/repo)
-$(spacemacs/syl20bnr/git): git/repository := $(spacemacs/syl20bnr/repo)
-$(ssh/git): git/repository := $(ssh/repo)
+define git/clone
+ifeq ($$(filter https://%,$$($(1)/repo)),)
+$$($(1)/git): $$($(1)/repo)
+endif
+$$($(1)/git): %/.git: apt/git
+	@test -d $$@ || git clone $$(git/flags) $$($(1)/repo) $$*
+endef
+$(foreach target,$(targets/clone),$(eval $(call git/clone,$(target))))
 $(spacemacs/syl20bnr/git): git/flags := --branch develop
 
 .PHONY: $(targets/patch)
@@ -93,7 +94,6 @@ im-config: apt/fcitx apt/fcitx-mozc
 .PHONY: pass
 pass: apt/pass apt/webext-browserpass
 pass: $(pass/git)
-$(pass/git): $(pass/repo)
 $(pass/repo):
 	@test -d $@ || $(make) private
 
@@ -118,7 +118,6 @@ $(spacemacs/dotfile): apt/emacs $(spacemacs/syl20bnr/git)
 $(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
 
 .PHONY: ssh
-ssh: | $(ssh/git)
-$(ssh/git): $(ssh/repo)
+ssh: $(ssh/git)
 $(ssh/repo):
 	@test -d $@ || $(make) private
