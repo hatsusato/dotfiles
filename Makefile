@@ -27,14 +27,22 @@ spacemacs/repo/url := https://github.com/syl20bnr/spacemacs
 ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
 
-dirs/git := $(pass/git) $(spacemacs/layer/git) $(spacemacs/repo/git) $(ssh/git)
+targets/git := $(pass/git) $(spacemacs/layer/git) $(spacemacs/repo/git) $(ssh/git)
 
 all:
 
 .PHONY: $(apt)
 $(apt): apt/%:
 	@./apt-install.sh $*
-$(dirs/git): apt/git
+
+$(targets/git): apt/git
+$(targets/git): %/.git:
+	@test -d $@ || git clone $(git/flags) $(git/repository) $*
+$(pass/git): git/repository := $(pass/repo)
+$(spacemacs/layer/git): git/repository := $(spacemacs/layer/url)
+$(spacemacs/repo/git): git/repository := $(spacemacs/repo/url)
+$(ssh/git): git/repository := $(ssh/repo)
+$(spacemacs/repo/git): git/flags := --branch develop
 
 .PHONY: chrome
 chrome: $(chrome/deb)
@@ -75,8 +83,7 @@ im-config: apt/fcitx apt/fcitx-mozc
 .PHONY: pass
 pass: apt/pass apt/webext-browserpass
 pass: $(pass/git)
-$(pass/git): %.git: $(pass/repo)
-	@test -d $@ || git clone $< $*
+$(pass/git): $(pass/repo)
 $(pass/repo): private
 
 .PHONY: private private/patch private/mount
@@ -103,13 +110,9 @@ $(spacemacs/desktop): $(HOME)/%: %
 $(spacemacs/dotfile): apt/emacs
 $(spacemacs/dotfile): $(HOME)/%: | $(spacemacs/repo/git)
 	@test -f $@ || emacs
-$(spacemacs/layer/git): %.git: | $(spacemacs/repo/git)
-	@test -d $@ || git clone $(spacemacs/layer/url) $*
-$(spacemacs/repo/git): %.git:
-	@test -d $@ || git clone --branch develop $(spacemacs/repo/url) $*
+$(spacemacs/layer/git): | $(spacemacs/repo/git)
 
 .PHONY: ssh
 ssh: | $(ssh/git)
-$(ssh/git): %.git: $(ssh/repo)
-	@test -d $@ || git clone $< $*
+$(ssh/git): $(ssh/repo)
 $(ssh/repo): private
