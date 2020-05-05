@@ -31,7 +31,7 @@ modules += dotfile
 dotfile/append = $(addprefix dotfile/append/,$(dotfile/append/files))
 dotfile/append/files := .bashrc .profile
 dotfile/link = $(addprefix dotfile/link/,$(dotfile/link/files))
-dotfile/link/files := .bash_aliases .bash_completion .inputrc .netrc .wgetrc
+dotfile/link/files := .bash_aliases .bash_completion .clang-format .inputrc .netrc .wgetrc
 dotfile/link/prefix := $(HOME)/.config/local
 .PHONY: dotfile $(dotfile/append) $(dotfile/link)
 dotfile: $(dotfile/append) $(dotfile/link)
