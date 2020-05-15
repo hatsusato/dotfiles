@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -eu
+
+source "${BASH_SOURCE%/*}"/yubikey.sh
+
+usage() {
+    echo "USAGE: $0 <encrypted filename> <decrypted filename>" >&2
+    exit 1
+}
+
+(($# == 2)) || usage
+yubikey-init
+gpg --output "$2" --decrypt "$1"

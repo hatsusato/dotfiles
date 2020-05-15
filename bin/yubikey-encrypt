@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -eu
+
+source "${BASH_SOURCE%/*}"/yubikey.sh
+
+usage() {
+    echo "USAGE: $0 <plaintext filename> <ciphertext filename>" >&2
+    exit 1
+}
+
+(($# == 2)) || usage
+yubikey-init
+opts=(--armor)
+opts+=(--output "$2")
+opts+=(--recipient $KEYID)
+opts+=(--trusted-key $KEYID)
+gpg "${opts[@]}" --encrypt "$1"
