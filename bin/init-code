@@ -3,36 +3,36 @@
 set -eu
 
 generate-source() {
-    local ext=${1##*.}
-    cat <<EOF | tee "$1"
+  local ext=${1##*.}
+  cat <<EOF | tee "$1"
 #include "${1%.*}.${ext/#c/h}"
 EOF
 }
 generate-header() {
-    local var comment
-    var=INCLUDE_GUARD_$(uuidgen -r | tr '[:lower:]-' '[:upper:]_')
-    if [[ $1 == *pp ]]; then
-        comment="// $var"
-    else
-        comment="/* $var */"
-    fi
-    cat <<EOF | tee "$1"
+  local var comment
+  var=INCLUDE_GUARD_$(uuidgen -r | tr '[:lower:]-' '[:upper:]_')
+  if [[ $1 == *pp ]]; then
+    comment="// $var"
+  else
+    comment="/* $var */"
+  fi
+  cat <<EOF | tee "$1"
 #ifndef $var
 #define $var
 #endif  $comment
 EOF
 }
 generate() {
-    if [[ $1 == *.c?(pp) ]]; then
-        generate-source "$1"
-    elif [[ $1 == *.h?(pp) ]]; then
-        generate-header "$1"
-    else
-        generate-source "$1".cpp
-        generate-header "$1".hpp
-    fi
+  if [[ $1 == *.c?(pp) ]]; then
+    generate-source "$1"
+  elif [[ $1 == *.h?(pp) ]]; then
+    generate-header "$1"
+  else
+    generate-source "$1".cpp
+    generate-header "$1".hpp
+  fi
 }
 
 for f in "$@"; do
-    generate "$f"
+  generate "$f"
 done

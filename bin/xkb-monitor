@@ -3,18 +3,18 @@
 set -eu
 
 check() {
-    local cmd
-    for cmd in "$@"; do
-        command -v "$1" >/dev/null && continue
-        echo "ERROR: Command '$1' not found" >&2
-        exit 1
-    done
+  local cmd
+  for cmd in "$@"; do
+    command -v "$1" >/dev/null && continue
+    echo "ERROR: Command '$1' not found" >&2
+    exit 1
+  done
 }
 debug() {
-    [[ -z ${DEBUG+x} ]] || echo "$@" >&2
+  [[ -z ${DEBUG+x} ]] || echo "$@" >&2
 }
 clean() {
-    kill $pid 2>/dev/null
+  kill $pid 2>/dev/null
 }
 
 check xkb-notify xkb-load
@@ -22,9 +22,9 @@ trap 'debug trigger' SIGUSR1
 xkb-notify & pid=$!
 trap clean EXIT
 while kill -n0 $pid 2>/dev/null; do
-    debug alive
-    wait $pid || (($? == 138)) || exit
-    debug awake
-    xkb-load || :
-    sleep 1
+  debug alive
+  wait $pid || (($? == 138)) || exit
+  debug awake
+  xkb-load || :
+  sleep 1
 done

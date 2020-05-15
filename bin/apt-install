@@ -3,19 +3,19 @@
 set -eu
 
 installed() {
-    dpkg -l --no-pager "$1" 2>/dev/null | grep -q ^ii
+  dpkg -l --no-pager "$1" 2>/dev/null | grep -q ^ii
 }
 append() {
-    local log=$HOME/.config/local/.install
-    mkdir -p "${log%/*}"
-    grep -q "^$1$" "$log" 2>/dev/null && return
-    echo "$1" >>"$log"
+  local log=$HOME/.config/local/.install
+  mkdir -p "${log%/*}"
+  grep -q "^$1$" "$log" 2>/dev/null && return
+  echo "$1" >>"$log"
 }
 
 todo=()
 for pkg in "$@"; do
-    installed "$pkg" && continue
-    [[ $pkg == -* ]] || append "$pkg"
-    todo+=("$pkg")
+  installed "$pkg" && continue
+  [[ $pkg == -* ]] || append "$pkg"
+  todo+=("$pkg")
 done
 ((${#todo[@]})) && sudo apt install "${todo[@]}"

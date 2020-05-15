@@ -3,25 +3,25 @@
 set -eu
 
 put3() {
-    local val=$((0x$3 + 0x${4:-0}))
-    val=$(printf %x $val)
-    printf "\x$1\x$2\x$val"
+  local val=$((0x$3 + 0x${4:-0}))
+  val=$(printf %x $val)
+  printf "\x$1\x$2\x$val"
 }
 convert() {
-    local i c x
-    local input=$(cat -)
-    for i in $(seq 1 ${#input}); do
-        c=${input:i-1:1}
-        x=$(printf %x "'$c")
-        case $x in
-            7f) echo -n "$c";;
-            20) put3 e3 80 80;;
-            [2345][0-9a-f]) put3 ef bc $x 60;;
-            [67][0-9a-f]) put3 ef bd $x 20;;
-            *) echo -n "$c";;
-        esac
-    done
-    echo
+  local i c x
+  local input=$(cat -)
+  for i in $(seq 1 ${#input}); do
+    c=${input:i-1:1}
+    x=$(printf %x "'$c")
+    case $x in
+      7f) echo -n "$c";;
+      20) put3 e3 80 80;;
+      [2345][0-9a-f]) put3 ef bc $x 60;;
+      [67][0-9a-f]) put3 ef bd $x 20;;
+      *) echo -n "$c";;
+    esac
+  done
+  echo
 }
 
 cat "$@" | convert

@@ -5,8 +5,8 @@ set -eu
 source "${BASH_SOURCE%/*}"/yubikey.sh
 
 usage() {
-    echo "USAGE: $0 <encrypted filename> <decrypted filename>" >&2
-    exit 1
+  echo "USAGE: $0 <encrypted filename> <decrypted filename>" >&2
+  exit 1
 }
 
 (($# == 2)) || usage
