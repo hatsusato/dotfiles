@@ -2,6 +2,8 @@
 
 set -eu
 
+source "${BASH_SOURCE%/*}"/tmp-user.sh
+
 params() {
     local arr=()
     arr+=(reconnect)
@@ -13,13 +15,9 @@ params() {
 
 host=${1%%:*}
 src=${1#*:}
-dst=${2-}
+dst=${2:-$(tmp-user "$host")}
 if [[ $1 == $host?(:) ]]; then
     src=$(ssh -t "$host" 'echo -n "$HOME"' 2>/dev/null)
 fi
-if [[ -z $dst ]]; then
-    dst=/tmp/sshfs/$host
-    mkdir -m 700 -p /tmp/sshfs
-fi
 mkdir -p "$dst"
-command -p sshfs "$host:$src" "$dst" -o $(params)
+/usr/bin/sshfs "$host:$src" "$dst" -o $(params)
