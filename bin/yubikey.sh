@@ -2,6 +2,8 @@
 
 set -eu
 
+source "${BASH_SOURCE%/*}"/tmp-user.sh
+
 yubikey-aid() {
     local pattern='match($1, /^Reader$/) {print $4}'
     AID=$(gpg --card-status --with-colons 2>/dev/null | awk -F: "$pattern")
@@ -20,8 +22,7 @@ yubikey-id() {
     return 1
 }
 yubikey-init() {
-    mkdir -m700 -p /tmp/$USER
-    export GNUPGHOME=/tmp/$USER/.gnupg
+    export GNUPGHOME=$(tmp-user .gnupg)
     until yubikey-aid; do
         read -n1 -p 'Insert YubiKey and Hit Any Key.' -s
         echo
