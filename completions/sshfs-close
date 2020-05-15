@@ -6,5 +6,4 @@ _sshfs-close() {
   local script='{ if ($3 ~ /^fuse.sshfs$/) print $2 }'
   local list=$(awk "$script" /etc/mtab 2>/dev/null)
   COMPREPLY=($(compgen -W "$list" -- "$cur"))
-}
-complete -F _sshfs-close sshfs-close
+} && complete -F _sshfs-close sshfs-close

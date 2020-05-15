@@ -49,7 +49,7 @@ _apt-install () {
         )
         COMPREPLY=($(compgen -W "${args[*]}" -- "$cur"))
     else
-        COMPREPLY=($(apt-cache --no-generate pkgnames "$cur" 2>/dev/null))
+        COMPREPLY=($(apt-cache --no-generate pkgnames "$cur"))
         [[ $cur == ?(.)/* ]] && _filedir deb
     fi
 } && complete -F _apt-install apt-install

@@ -3,6 +3,5 @@
 _apt-depends() {
     local cur prev words cword
     _init_completion || return
-    COMPREPLY=($(apt-cache --no-generate pkgnames "$cur" 2>/dev/null))
-}
-complete -F _apt-depends apt-depends
+    COMPREPLY=($(apt-cache --no-generate pkgnames "$cur"))
+} && complete -F _apt-depends apt-depends
