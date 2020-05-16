@@ -5,7 +5,7 @@ set -eu
 source "${BASH_SOURCE%/*}"/tmp-user.sh
 
 yubikey-aid() {
-  local pattern='match($1, /^Reader$/) {print $4}'
+  local pattern='match($1, /^Reader$/) {print $7}'
   AID=$(gpg --card-status --with-colons 2>/dev/null | awk -F: "$pattern")
   [[ -n $AID ]]
 }
