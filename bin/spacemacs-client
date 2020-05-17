@@ -1,0 +1,6 @@
+#!/bin/bash
+
+set -eu
+
+spacemacs-daemon
+exec emacsclient "$@"
