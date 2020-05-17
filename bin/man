@@ -2,6 +2,9 @@
 
 set -eu
 
-vars=()
-[[ -f $MAN_ENV_CONFIG ]] && vars+=($(cat "$MAN_ENV_CONFIG"))
-eval "${vars[@]}" /usr/bin/man "${@@Q}"
+cat-env() {
+  local conf=$HOME/.config/local/.man
+  [[ -f $conf ]] && cat "$conf"
+}
+
+eval $(cat-env) /usr/bin/man "${@@Q}"
