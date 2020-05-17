@@ -1,0 +1,36 @@
+#!/bin/bash
+
+set -eu
+
+source "${BASH_SOURCE%/*}"/spacemacs.sh
+
+elisp() {
+  local script
+  case $1 in
+    kill) script='(progn (defun yes-or-no-p (p) t) (kill-emacs))';;
+    sync) script='(dotspacemacs/sync-configuration-layers)';;
+    update) script='(configuration-layer/update-packages t)';;
+    *) return 1;;
+  esac
+  emacsclient -e "$script" | sed 's/\(.*\)/+ \1/'
+}
+git-pull() {
+  cd "$HOME"/.emacs.d
+  git fetch --prune
+  git merge --ff-only "$1"
+}
+wait-until() {
+  until exists-daemon; do
+    sleep 0.1
+  done
+}
+
+exec >&2
+set -v
+exists-daemon && elisp kill
+(git-pull "${1-origin/develop}")
+emacs --fg-daemon & wait-until
+elisp update
+elisp sync
+elisp kill
+spacemacs-daemon
