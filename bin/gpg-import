@@ -1,0 +1,21 @@
+#!/bin/bash
+
+set -eu
+
+source "${BASH_SOURCE%/*}"/yubikey.sh
+
+pubring() {
+  gpg --output - --dearmor "$@"
+}
+secrets() {
+  local GNUPGHOME
+  yubikey-init
+  gpg --output - --decrypt "$@"
+}
+usage() {
+  echo "USAGE: $0 <secret> <public>" >&2
+  exit 1
+}
+
+(($# == 2)) || usage
+paperkey --secrets <(secrets "$1") --pubring <(pubring "$2") | gpg --import
