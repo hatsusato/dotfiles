@@ -44,12 +44,8 @@ so=$(tput smso; tput setaf 5)
 ue=$(tput sgr0)
 # Start underlining
 us=$(tput smul; tput setaf 6)
-if [[ ${1-} == -i && -n ${MAN_ENV_CONFIG+x} ]]; then
-  mkdir -p "${MAN_ENV_CONFIG%/*}"
-  exec {output}>"$MAN_ENV_CONFIG"
-else
-  exec {output}>&1
-fi
+conf=$HOME/.config/local/.man
+[[ -f $conf ]] && exit
 for e in m{b,d,e,h,k,r} s{e,o} u{e,s}; do
   echo "LESS_TERMCAP_$e=${!e@Q}"
-done >&$output
+done | tee -a "$conf"
