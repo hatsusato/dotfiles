@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -eu
+
+source "${BASH_SOURCE%/*}"/spacemacs.sh
+
+lock=/tmp/$USER/spacemacs-daemon.lock
+log=/tmp/$USER/spacemacs-daemon.log
+exists-daemon && exit
+mkdir -p "${lock%/*}"
+if mkdir -m700 "$lock" 2>/dev/null; then
+  cat </dev/null >"$log"
+  emacs --daemon 2>"$log"
+  rmdir "$lock"
+fi
+[[ -e "$lock" ]] && notify 'WARNING: lock file detected'
+until exists-daemon; do
+  sleep 0.1
+done
