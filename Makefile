@@ -15,7 +15,7 @@ chrome: $(chrome/deb/path)
 	@$(call apt/check,google-chrome-stable) || sudo apt install -qq $<
 $(chrome/deb/path):
 	@test -d $(@D) || sudo install -D -o $(USER) -g $(USER) -d $(@D)
-	@wget -c -nv -O $@ $(chrome/deb/url)
+	@wget -nv --show-progress -O $@ $(chrome/deb/url)
 
 # dconf
 modules += dconf
