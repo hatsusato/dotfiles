@@ -38,7 +38,7 @@ dotfile: $(dotfile/append) $(dotfile/link)
 $(dotfile/append): dotfile/append/%: $(HOME)/% %
 	@./subsetof.sh $* $< || cat $* | tee -a $< >/dev/null
 $(dotfile/link): dotfile/link/%:
-	@test -h $(HOME)/$* || ln -s $(dotfile/link/prefix)/$* $(HOME)/$*
+	@ln -sfv $(dotfile/link/prefix)/$* $(HOME)/$*
 dotfile/link/.netrc: dotfile/link/prefix := $(HOME)/Private
 
 # dropbox
