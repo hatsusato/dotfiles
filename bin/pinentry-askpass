@@ -2,15 +2,27 @@
 
 set -eu
 
-parse() {
-  local msg=$(sed 's/\\/\\x5C/g;s/%/\\x/g')
-  [[ $msg == ERR* ]] && exit 255
-  printf "${msg#D }\n"
-}
-
-cat <<EOF | pinentry-gnome3 2>/dev/null | grep -v ^OK | parse
+input() {
+  cat <<EOF
 SETPROMPT Authentication Required
-SETDESC Authentication is required to run the command as root
+SETDESC ${1-Authentication is required to run the command as root}
 SETOK Authenticate
 GETPIN
+BYE
 EOF
+}
+output() {
+  local IFS= line
+  grep -v -e '^OK$' -e '^OK ' | while read -r line; do
+    [[ $line == @(ERR 83886179 )* ]] && exit 255
+    if [[ $line == @(D )* ]]; then
+      line=$(sed 's/\\/\\x5C/g;s/%/\\x/g' <<<"${line#D }")
+      echo -e "$line"
+    else
+      echo "$line" >&2
+      return 1
+    fi
+  done
+}
+
+input "$@" | pinentry-gnome3 | output
