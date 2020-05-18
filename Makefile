@@ -124,11 +124,13 @@ $(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
 
 # ssh
 modules += ssh
+ssh/find := -maxdepth 1 -name known_hosts -prune -o -type f -print
 ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
 target/clone += ssh/git
 .PHONY: ssh
 ssh: $(ssh/git)
+	find $(<D) $(ssh/find) | xargs chmod 400
 $(ssh/repo):
 	@test -d $@ || $(make) private
 
