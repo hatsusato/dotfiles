@@ -106,19 +106,15 @@ $(private/mount/src):
 
 # spacemacs
 modules += spacemacs
-spacemacs/desktop := $(HOME)/.local/share/applications/emacsclient.desktop
 spacemacs/dotfile := $(HOME)/.spacemacs
 spacemacs/hatsusato/git := $(HOME)/.emacs.d/private/hatsusato/.git
 spacemacs/hatsusato/repo := https://github.com/hatsusato/private-layer
 spacemacs/syl20bnr/git := $(HOME)/.emacs.d/.git
 spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
-target/apt += apt/emacs apt/emacs-bin-common apt/emacs-mozc
+target/apt += apt/emacs apt/emacs-mozc
 target/clone += spacemacs/hatsusato/git spacemacs/syl20bnr/git
-target/install += spacemacs/desktop
-.PHONY: spacemacs spacemacs/daemon spacemacs/layer spacemacs/patch
-spacemacs: spacemacs/daemon spacemacs/layer
-spacemacs/daemon: apt/emacs-bin-common $(spacemacs/desktop)
-	@systemctl --user enable emacs.service
+.PHONY: spacemacs spacemacs/layer spacemacs/patch
+spacemacs: spacemacs/layer
 spacemacs/layer: apt/emacs-mozc spacemacs/patch
 spacemacs/patch: $(spacemacs/dotfile) $(spacemacs/hatsusato/git)
 	@./patch.sh $<
