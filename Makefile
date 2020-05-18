@@ -78,14 +78,21 @@ im-config: $(im-config/body) apt/fcitx apt/fcitx-mozc
 
 # pass
 modules += pass
+pass/browser = $(pass/browser/dir)/$(pass/browser/json)
+pass/browser/dir := $(HOME)/.config/google-chrome/NativeMessagingHosts
+pass/browser/etc = $(pass/browser/etc/dir)/$(pass/browser/json)
+pass/browser/etc/dir := /etc/chromium/native-messaging-hosts
+pass/browser/json := com.github.browserpass.native.json
 pass/git := $(HOME)/.password-store/.git
 pass/repo := $(HOME)/Private/.password-store.git
 target/apt += apt/pass apt/webext-browserpass
 target/clone += pass/git
 .PHONY: pass
-pass: $(pass/git) apt/pass apt/webext-browserpass
+pass: $(pass/git) $(pass/browser) apt/pass apt/webext-browserpass
 $(pass/repo):
 	@test -d $@ || $(make) private
+$(pass/browser): $(pass/browser/etc)
+	@ln -sfv $< $@
 
 # private
 modules += private
