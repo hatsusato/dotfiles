@@ -46,7 +46,8 @@ modules += dropbox
 target/apt += apt/nautilus-dropbox
 .PHONY: dropbox
 dropbox: apt/nautilus-dropbox
-	@dropbox start 2>/dev/null
+	@dropbox start -i 2>/dev/null
+	@dropbox status
 	@dropbox status | grep -F -q '最新の状態'
 
 # editor
