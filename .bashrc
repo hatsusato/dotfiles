@@ -1,5 +1,5 @@
 
 # local configuration
-if [ -f "$HOME/.config/local/.bashrc" ]; then
-    . "$HOME/.config/local/.bashrc"
+if [ -f ~/.config/local/.bashrc ]; then
+    . ~/.config/local/.bashrc
 fi
