@@ -144,7 +144,7 @@ $(1): apt/git
 	@test -d $$@ || git clone $$(clone/flags) $(2) $$(@D)
 endif
 endef
-$(foreach var,$(target/clone),$(eval $(call do/clone,$($(var)),$($(var:%/git=%/repo)))))
+$(foreach var,$(target/clone),$(eval $(call clone/do,$($(var)),$($(var:%/git=%/repo)))))
 $(spacemacs/syl20bnr/git): clone/flags := --branch develop
 
 ## install
