@@ -13,7 +13,7 @@ expand() {
             echo "$0: \${$var}: unbound variable" >&2
             exit 1
         fi
-    done < <(grep -o '${[A-Z_]*}' "$1" | tr -d '${}' | sort -u)
+    done < <(grep -o '${[A-Z_]*}' "$patch" | tr -d '${}' | sort -u)
     sed -e "$script" "$patch"
 }
 
