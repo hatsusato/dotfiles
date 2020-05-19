@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -eu
+
+err=0
+timeout 1s emacsclient -a false -e t &>/dev/null || err=$?
+msg='ERROR: no response from spacemacs-daemon'
+((err == 124)) && spacemacs-notify "$msg"
+exit $err
