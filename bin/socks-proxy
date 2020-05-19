@@ -2,28 +2,33 @@
 
 set -eu
 
-dynamic-port() {
-  local IFS= line flag= b='[[:blank:]]'
-  local config="$HOME"/.ssh/config
-  local pattern="s/^$b\+DynamicForward$b\+\([0-9]*\)$b*$/\1/p"
+parse-config() {
+  local line flag= b='[[:blank:]]'
   while read line; do
-    if [[ $line == Host+( )* ]]; then
-      flag=
-      [[ $line == *+( )$1?( *) ]] && flag=on
+    if [[ $line == Host$b* ]]; then
+      [[ $line == Host*$b"$1"?($b*) ]] && flag=on || flag=
     fi
-    [[ -n $flag ]] && echo "$line"
-  done <"$config" | sed -n "$pattern"
+    [[ -n $flag ]] || continue
+    [[ $line == DynamicForward+($b)+([0-9]) ]] || continue
+    echo ${line##*$b}
+    return
+  done
+}
+dynamic-port() {
+  local line
+  while read line; do
+    line=$(cat "$line" | parse-config "$1")
+    [[ -n $line ]] || continue
+    echo "$line"
+    return
+  done < <(find "$HOME"/.ssh -name '*.config')
 }
 list() {
   lsof -a -c ssh -i :"$port" "$@"
 }
 
 cmd=(ssh -f -N -q "$1")
-if [[ -n ${2+x} ]]; then
-  port=$2
-else
-  port=$(dynamic-port "$1")
-fi
+port=${2-$(dynamic-port "$1")}
 if pgrep -fx "${cmd[*]}" >/dev/null; then
   list | grep -F -q '(CLOSE_WAIT)' || exit 0
   kill $(list -t)
