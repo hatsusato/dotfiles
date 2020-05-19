@@ -3,9 +3,10 @@
 set -eu
 
 source "${BASH_SOURCE%/*}"/spacemacs.sh
+source "${BASH_SOURCE%/*}"/tmp-user.sh
 
-lock=/tmp/$USER/spacemacs-daemon.lock
-log=/tmp/$USER/spacemacs-daemon.log
+lock=$(tmp-user spacemacs-daemon.lock)
+log=$(tmp-user spacemacs-daemon.log)
 exists-daemon && exit
 mkdir -p "${lock%/*}"
 if mkdir -m700 "$lock" 2>/dev/null; then
