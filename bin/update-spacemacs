@@ -2,8 +2,6 @@
 
 set -eu
 
-source "${BASH_SOURCE%/*}"/spacemacs.sh
-
 elisp() {
   local script
   case $1 in
@@ -20,14 +18,14 @@ git-pull() {
   git merge --ff-only "$1"
 }
 wait-until() {
-  until exists-daemon; do
+  until spacemacs-exists; do
     sleep 0.1
   done
 }
 
 exec >&2
 set -v
-exists-daemon && elisp kill
+spacemacs-exists && elisp kill
 (git-pull "${1-origin/develop}")
 emacs --fg-daemon & wait-until
 elisp update

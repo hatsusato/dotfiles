@@ -2,12 +2,11 @@
 
 set -eu
 
-source "${BASH_SOURCE%/*}"/spacemacs.sh
 source "${BASH_SOURCE%/*}"/tmp-user.sh
 
 lock=$(tmp-user spacemacs-daemon.lock)
 log=$(tmp-user spacemacs-daemon.log)
-exists-daemon && exit
+spacemacs-exists && exit
 mkdir -p "${lock%/*}"
 if mkdir -m700 "$lock" 2>/dev/null; then
   cat </dev/null >"$log"
@@ -15,6 +14,6 @@ if mkdir -m700 "$lock" 2>/dev/null; then
   rmdir "$lock"
 fi
 [[ -e "$lock" ]] && notify 'WARNING: lock file detected'
-until exists-daemon; do
+until spacemacs-exists; do
   sleep 0.1
 done
