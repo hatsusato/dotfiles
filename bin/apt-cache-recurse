@@ -1,0 +1,7 @@
+#!/bin/bash
+
+set -eu
+
+flags=(pre-depends recommends suggests conflicts breaks replaces enhances)
+opts=(-v -e '^ ' -e '^<' -e ':i386$')
+apt-cache --recurse ${flags[@]/#/--no-} "$@" | grep "${opts[@]}" | sort
