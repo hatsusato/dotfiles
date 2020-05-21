@@ -4,6 +4,13 @@ set -eu
 
 source "${BASH_SOURCE%/*}"/spacemacs.sh
 
+exec {prompt}>&2
+exec {log}> >(grep -vx '' >&$prompt)
+
+anykey() {
+  read -n1 -p 'Hit any key to proceed: ' -s 2>&$prompt
+  echo 2>&$prompt
+}
 elisp() {
   local script
   case $1 in
@@ -19,11 +26,23 @@ git-pull() {
   git fetch --prune
   git merge --ff-only "$1"
 }
+update-dot() {
+  local template=$HOME/.emacs.d/core/templates/.spacemacs.template
+  local dotfile=$HOME/.spacemacs
+  local b='[[:blank:]]'
+  local layers=dotspacemacs-configuration-layers
+  local pattern="^$b*$layers$b*$"
+  local subst='{n;s/$/hatsusato/}'
+  sed "/$pattern/$subst" "$template" >"$dotfile"
+  diff -u "$template" "$dotfile" || :
+}
 
-exec 2> >(grep -v '^$' >&2) >&2
+exec 2>&$log
 resolve-hup
 spacemacs-exists && elisp kill
 (git-pull "${1-origin/develop}")
+update-dot
+anykey
 emacs --fg-daemon &
 until spacemacs-exists; do
   sleep 0.1
