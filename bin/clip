@@ -2,6 +2,8 @@
 
 set -eu
 
+source "${BASH_SOURCE%/*}"/run-user.sh
+
 clip() {
   xclip -selection clipboard "$@"
 }
@@ -15,8 +17,7 @@ restore() {
 }
 clean() {
   restore
-  rm -f "$lock"/pid
-  rmdir "$lock"
+  clear-lock
 }
 
 if [[ ${1-} == -x ]]; then
@@ -24,9 +25,9 @@ if [[ ${1-} == -x ]]; then
   clip "$@"
   exit
 fi
-lock=${XDG_RUNTIME_DIR-/run/user/$UID}/clip.lock
-pid=$lock/pid
-until mkdir -m 700 "$lock" 2>/dev/null; do
+set-lock clip
+pid=$LOCK_DIR/pid
+until get-lock; do
   [[ -f $pid ]] && kill $(cat "$pid")
   sleep 0.1
 done
