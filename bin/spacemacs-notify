@@ -1,5 +1,0 @@
-#!/bin/bash
-
-set -eu
-
-notify-send -i emacs spacemacs-daemon "$1"
