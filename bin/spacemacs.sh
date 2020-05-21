@@ -8,5 +8,5 @@ resolve-hup() {
   spacemacs-exists || err=$?
   ((err == 124)) || return 0
   notify-send -u critical -i emacs spacemacs-daemon 'HUNG-UP DETECTED!'
-  pkill -9 -f 'spacemacs --daemon' || return 0
+  pkill -9 -fx 'spacemacs --daemon' || return 0
 }

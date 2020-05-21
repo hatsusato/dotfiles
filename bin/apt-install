@@ -8,7 +8,7 @@ installed() {
 append() {
   local log=$HOME/.config/local/.install
   mkdir -p "${log%/*}"
-  grep -q "^$1$" "$log" 2>/dev/null && return
+  grep -xq "$1" "$log" 2>/dev/null && return
   echo "$1" >>"$log"
 }
 
