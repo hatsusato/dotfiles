@@ -2,32 +2,32 @@
 
 set -eu
 
+source "${BASH_SOURCE%/*}"/spacemacs.sh
+
 elisp() {
   local script
   case $1 in
     kill) script='(progn (defun yes-or-no-p (p) t) (kill-emacs))';;
     sync) script='(dotspacemacs/sync-configuration-layers)';;
     update) script='(configuration-layer/update-packages t)';;
-    *) return 1;;
+    *) script=;;
   esac
-  emacsclient -e "$script" | sed 's/\(.*\)/+ \1/'
+  emacsclient -e "$script" >/dev/null || :
 }
 git-pull() {
   cd "$HOME"/.emacs.d
   git fetch --prune
   git merge --ff-only "$1"
 }
-wait-until() {
-  until spacemacs-exists; do
-    sleep 0.1
-  done
-}
 
-exec >&2
-set -v
+exec 2> >(grep -v '^$' >&2) >&2
+resolve-hup
 spacemacs-exists && elisp kill
 (git-pull "${1-origin/develop}")
-emacs --fg-daemon & wait-until
+emacs --fg-daemon &
+until spacemacs-exists; do
+  sleep 0.1
+done
 elisp update
 elisp sync
 elisp kill
