@@ -5,23 +5,35 @@ set -eu
 clip() {
   xclip -selection clipboard "$@"
 }
+clipout() {
+  clip -o | base64
+}
+restore() {
+  local now=$(clipout)
+  [[ $now == "$content" ]] || return 0
+  echo "$memory" | base64 -d | clip
+}
+clean() {
+  restore
+  rm -f "$lock"/pid
+  rmdir "$lock"
+}
 
-if [[ ${1-} != -s ]]; then
+if [[ ${1-} == -x ]]; then
+  shift
   clip "$@"
   exit
 fi
-shift
-uuid=56073f53-2dec-4232-a1ac-63f2d4c16e80
-if pkill -f ^$uuid; then
+lock=${XDG_RUNTIME_DIR-/run/user/$UID}/clip.lock
+pid=$lock/pid
+until mkdir -m 700 "$lock" 2>/dev/null; do
+  [[ -f $pid ]] && kill $(cat "$pid")
   sleep 0.1
-fi
-content=$(cat "$@" | base64)
-before=$(clip -o | base64)
-echo "$content" | base64 -d | clip
+done
+memory=$(clipout)
+clip "$@"
+content=$(clipout)
 (
-  (exec -a $uuid sleep 30) &
-  wait
-  now=$(clip -o | base64)
-  [[ $now == "$content" ]] || return 0
-  echo "$before" | base64 -d | clip
-) &
+  trap clean EXIT
+  sleep 30 & wait
+) & echo $! >"$pid"
