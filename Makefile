@@ -2,6 +2,10 @@
 
 make := make --no-print-directory
 
+.PHONY: apt
+apt:
+	@cat apt | ./apt-install.sh
+
 all:
 	@echo modules: $(modules)
 
