@@ -11,12 +11,13 @@ all:
 
 # chrome
 modules += chrome
+chrome/check = dpkg --no-pager -l $(1) 2>/dev/null | grep -q '^ii'
 chrome/deb := google-chrome-stable_current_amd64.deb
 chrome/deb/path := /usr/local/src/$(USER)/$(chrome/deb)
 chrome/deb/url := https://dl.google.com/linux/direct/$(chrome/deb)
 .PHONY: chrome
 chrome: $(chrome/deb/path)
-	@$(call apt/check,google-chrome-stable) || sudo apt install -qq $<
+	@$(call chrome/check,google-chrome-stable) || sudo apt install -qq $<
 $(chrome/deb/path):
 	@test -d $(@D) || sudo install -D -o $(USER) -g $(USER) -d $(@D)
 	@wget -nv --show-progress -O $@ $(chrome/deb/url)
@@ -47,18 +48,16 @@ dotfile/link/.netrc: dotfile/link/prefix := $(HOME)/Private
 
 # dropbox
 modules += dropbox
-target/apt += apt/nautilus-dropbox
 .PHONY: dropbox
-dropbox: apt/nautilus-dropbox
+dropbox:
 	@dropbox start -i 2>/dev/null
 	@dropbox status
 	@dropbox status | grep -F -q '最新の状態'
 
 # editor
 modules += editor
-target/apt += apt/neovim
 .PHONY: editor
-editor: apt/neovim
+editor:
 	@sudo update-alternatives --config editor
 
 # grub
@@ -74,9 +73,8 @@ grub/patch: $(grub/etc)
 modules += im-config
 im-config/title := 'im-config instructions'
 im-config/body := im-config.txt
-target/apt += apt/fcitx apt/fcitx-mozc
 .PHONY: im-config
-im-config: $(im-config/body) apt/fcitx apt/fcitx-mozc
+im-config: $(im-config/body)
 	@notify-send -u critical $(im-config/title) "$$(cat $<)"
 	@im-config
 
@@ -89,10 +87,9 @@ pass/browser/etc/dir := /etc/chromium/native-messaging-hosts
 pass/browser/json := com.github.browserpass.native.json
 pass/git := $(HOME)/.password-store/.git
 pass/repo := $(HOME)/Private/.password-store.git
-target/apt += apt/pass apt/webext-browserpass
 target/clone += pass/git
 .PHONY: pass
-pass: $(pass/git) $(pass/browser) apt/pass apt/webext-browserpass
+pass: $(pass/git) $(pass/browser)
 $(pass/repo):
 	@test -d $@ || $(make) private
 $(pass/browser): $(pass/browser/etc)
@@ -103,15 +100,14 @@ modules += private
 private/conf := /etc/security/pam_mount.conf.xml
 private/mount/dst := $(HOME)/Private
 private/mount/src := $(HOME)/Dropbox/Private
-target/apt += apt/gocryptfs apt/libpam-mount
 .PHONY: private private/mount private/patch
 private: private/mount private/patch
 private/mount: $(private/mount/src) $(private/mount/dst)
 	@awk '{print $$1,$$2}' /etc/mtab | grep -F -q '$^' || gocryptfs $^
 private/patch: $(private/conf)
 	@./patch.sh $<
-$(private/conf): apt/libpam-mount
-$(private/mount/dst): apt/gocryptfs
+$(private/conf):
+$(private/mount/dst):
 	@mkdir -p $@
 $(private/mount/src):
 	@test -d $@ || $(make) dropbox
@@ -123,14 +119,13 @@ spacemacs/hatsusato/git := $(HOME)/.emacs.d/private/hatsusato/.git
 spacemacs/hatsusato/repo := https://github.com/hatsusato/private-layer
 spacemacs/syl20bnr/git := $(HOME)/.emacs.d/.git
 spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
-target/apt += apt/emacs apt/emacs-mozc
 target/clone += spacemacs/hatsusato/git spacemacs/syl20bnr/git
 .PHONY: spacemacs spacemacs/layer spacemacs/patch
 spacemacs: spacemacs/layer
-spacemacs/layer: apt/emacs-mozc spacemacs/patch
+spacemacs/layer: spacemacs/patch
 spacemacs/patch: $(spacemacs/dotfile) $(spacemacs/hatsusato/git)
 	@./patch.sh $<
-$(spacemacs/dotfile): apt/emacs $(spacemacs/syl20bnr/git)
+$(spacemacs/dotfile): $(spacemacs/syl20bnr/git)
 	@test -f $@ || emacs
 $(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
 
@@ -148,13 +143,12 @@ $(ssh/repo):
 
 # submodule
 ## clone
-target/apt += apt/git
 define clone/do
 ifeq ($$(filter https://%,$(2)),)
-$(1): $(2) apt/git
+$(1): $(2)
 	@test -d $$@ || git clone $$< $$(@D)
 else
-$(1): apt/git
+$(1):
 	@test -d $$@ || git clone $$(clone/flags) $(2) $$(@D)
 endif
 endef
@@ -172,12 +166,3 @@ $(1): $(HOME)/%: %
 endif
 endef
 $(foreach var,$(target/install),$(eval $(call install/do,$($(var)))))
-
-## apt
-apt/check = dpkg --no-pager -l $(1) 2>/dev/null | grep -q '^ii'
-define apt/do
-.PHONY: $(1)
-$(1): apt/%:
-	@$$(call apt/check,$$*) || sudo apt install -qq $$*
-endef
-$(foreach var,$(target/apt),$(eval $(call apt/do,$(var))))
