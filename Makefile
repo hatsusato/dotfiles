@@ -106,13 +106,13 @@ $(spacemacs/dotfile): $(spacemacs/syl20bnr/git)
 $(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
 
 # ssh
-ssh/find := -maxdepth 1 -name known_hosts -prune -o -type f -print
+ssh/find = find $(1) -mindepth 2 -path $(2) -prune -o -print
 ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
 target/clone += ssh/git
 .PHONY: ssh
 ssh: $(ssh/git)
-	find $(<D) $(ssh/find) | xargs chmod 400
+	$(call ssh/find,$(<D),'$</*') | xargs chmod 400
 $(ssh/repo):
 	@test -d $@ || $(make) private
 
