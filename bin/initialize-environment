@@ -4,9 +4,8 @@ run() {
   command -v "$1" >/dev/null && "$@" &
 }
 
-mkdir -p "$HOME/sshfs"
-mkdir -m700 -p "/tmp/$USER"
-mkdir -m700 -p "/tmp/$USER/Downloads"
+mkdir -p "$HOME"/{sshfs,Private}
+mkdir -m700 -p "/tmp/$USER"/{,Downloads}
 run xkb-load
 run xkb-monitor
 run man-env
