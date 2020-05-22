@@ -3,5 +3,5 @@
 set -eu
 
 flags=(pre-depends recommends suggests conflicts breaks replaces enhances)
-opts=(-v -e '^ ' -e '^<' -e ':i386$')
-apt-cache --recurse ${flags[@]/#/--no-} "$@" | grep "${opts[@]}" | sort
+opts=(-v -e '^ ' -e '^<' -e ':i386$' -e '^Reverse Depends:$')
+apt-cache --recurse ${flags[@]/#/--no-} "$@" | grep "${opts[@]}" | sort -u
