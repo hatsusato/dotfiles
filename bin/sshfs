@@ -2,22 +2,14 @@
 
 set -eu
 
-source "${BASH_SOURCE%/*}"/tmp-user.sh
-
-params() {
-  local arr=()
-  arr+=(reconnect)
-  arr+=(ServerAliveInterval=5)
-  arr+=(ServerAliveCountMax=3)
-  local IFS=,
-  echo ${arr[*]}
-}
-
 host=${1%%:*}
 src=${1#*:}
-dst=${2:-$(tmp-user "$host")}
-if [[ $1 == $host?(:) ]]; then
+dst=${2:-$HOME/sshfs/$host}
+if [[ $1 == "$host"?(:) ]]; then
   src=$(ssh -t "$host" 'echo -n "$HOME"' 2>/dev/null)
 fi
 mkdir -p "$dst"
-/usr/bin/sshfs "$host:$src" "$dst" -o $(params)
+params=reconnect
+params+=,ServerAliveInterval=5
+params+=,ServerAliveCountMax=3
+/usr/bin/sshfs "$host:$src" "$dst" -o "$params"
