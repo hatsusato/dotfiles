@@ -26,18 +26,21 @@ dconf: $(dconf/config) $(dconf/etc)
 	@sudo dconf update
 
 # dotfile
-dotfile/append = $(addprefix dotfile/append/,$(dotfile/append/files))
-dotfile/append/files := .bashrc .profile
-dotfile/link = $(addprefix dotfile/link/,$(dotfile/link/files))
-dotfile/link/files := .bash_aliases .bash_completion .clang-format .inputrc .netrc .wgetrc
-dotfile/link/prefix := $(HOME)/.config/local
-.PHONY: dotfile $(dotfile/append) $(dotfile/link)
-dotfile: $(dotfile/append) $(dotfile/link)
-$(dotfile/append): dotfile/append/%: $(HOME)/% %
-	@./subsetof.sh $* $< || cat $* | tee -a $< >/dev/null
-$(dotfile/link): dotfile/link/%:
-	@ln -sfv $(dotfile/link/prefix)/$* $(HOME)/$*
-dotfile/link/.netrc: dotfile/link/prefix := $(HOME)/Private
+dotfile/append = cat $(1) | tee -a $(2) >/dev/null
+dotfile/files := .bash_aliases .bash_completion .clang-format .inputrc .netrc .wgetrc
+dotfile/link = $(addprefix dotfile/,$(dotfile/files))
+dotfile/prefix := $(HOME)/.config/local
+dotfile/.netrc := $(dotfile/prefix)/.netrc
+.PHONY: dotfile $(dotfile/link) dotfile/.bashrc
+dotfile: $(dotfile/link) dotfile/.bashrc $(dotfile/.netrc)
+$(dotfile/link): dotfile/%:
+	@ln -sfv $(dotfile/prefix)/$* $(HOME)/$*
+dotfile/.bashrc: .bashrc $(HOME)/.bashrc
+	@./subsetof.sh $< $(HOME)/$< || $(call dotfile/append,$<,$(HOME)/$<)
+$(dotfile/.netrc): $(HOME)/Private/.netrc
+	@install -C -D -m644 -T $< $@
+$(HOME)/Private/.netrc:
+	@test -f $@ || $(make) private
 
 # dropbox
 .PHONY: dropbox
