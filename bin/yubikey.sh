@@ -2,7 +2,7 @@
 
 set -eu
 
-source "${BASH_SOURCE%/*}"/tmp-user.sh
+source "${BASH_SOURCE%/*}"/run-user.sh
 
 yubikey-aid() {
   local pattern='match($1, /^Reader$/) {print $7}'
@@ -22,7 +22,7 @@ yubikey-id() {
   return 1
 }
 yubikey-init() {
-  export GNUPGHOME=$(tmp-user .gnupg)
+  export GNUPGHOME=$(run-user yubikey .gnupg)
   until yubikey-aid; do
     read -n1 -p 'Insert YubiKey and Hit Any Key.' -s
     echo
