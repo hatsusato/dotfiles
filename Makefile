@@ -81,19 +81,15 @@ $(pass/browser): $(pass/browser/etc)
 	@ln -sfv $< $@
 
 # private
-private/conf := /etc/security/pam_mount.conf.xml
-private/mount/dst := $(HOME)/Private
-private/mount/src := $(HOME)/Dropbox/Private
-.PHONY: private private/mount private/patch
-private: private/mount private/patch
-private/mount: $(private/mount/src) $(private/mount/dst)
-	@awk '{print $$1,$$2}' /etc/mtab | grep -Fqx '$^' || gocryptfs $^
-private/patch: $(private/conf)
-	@./patch.sh $<
-$(private/conf):
-$(private/mount/dst):
+private/dst := $(HOME)/Private
+private/src := $(HOME)/Dropbox/Private
+.PHONY: private private/mount
+private: private/mount
+private/mount: $(private/src) $(private/dst)
+	@./mount.sh $^
+$(private/dst):
 	@mkdir -p $@
-$(private/mount/src):
+$(private/src):
 	@test -d $@ || $(make) dropbox
 
 # spacemacs
