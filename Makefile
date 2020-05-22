@@ -47,7 +47,7 @@ $(HOME)/Private/.netrc:
 dropbox:
 	@dropbox start -i 2>/dev/null
 	@dropbox status
-	@dropbox status | grep -F -q '最新の状態'
+	@dropbox status | grep -Fqx '最新の状態'
 
 # grub
 grub/etc := /etc/default/grub
@@ -88,7 +88,7 @@ private/mount/src := $(HOME)/Dropbox/Private
 .PHONY: private private/mount private/patch
 private: private/mount private/patch
 private/mount: $(private/mount/src) $(private/mount/dst)
-	@awk '{print $$1,$$2}' /etc/mtab | grep -F -q '$^' || gocryptfs $^
+	@awk '{print $$1,$$2}' /etc/mtab | grep -Fqx '$^' || gocryptfs $^
 private/patch: $(private/conf)
 	@./patch.sh $<
 $(private/conf):
