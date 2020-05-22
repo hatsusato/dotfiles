@@ -99,11 +99,8 @@ spacemacs/hatsusato/repo := https://github.com/hatsusato/private-layer
 spacemacs/syl20bnr/git := $(HOME)/.emacs.d/.git
 spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
 target/clone += spacemacs/hatsusato/git spacemacs/syl20bnr/git
-.PHONY: spacemacs spacemacs/layer spacemacs/patch
-spacemacs: spacemacs/layer
-spacemacs/layer: spacemacs/patch
-spacemacs/patch: $(spacemacs/dotfile) $(spacemacs/hatsusato/git)
-	@./patch.sh $<
+.PHONY: spacemacs
+spacemacs: $(spacemacs/dotfile) $(spacemacs/hatsusato/git)
 $(spacemacs/dotfile): $(spacemacs/syl20bnr/git)
 	@test -f $@ || emacs
 $(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
