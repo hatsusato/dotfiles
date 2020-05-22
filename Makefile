@@ -6,11 +6,7 @@ make := make --no-print-directory
 apt:
 	@cat apt | ./apt-install.sh
 
-all:
-	@echo modules: $(modules)
-
 # chrome
-modules += chrome
 chrome/check = dpkg --no-pager -l $(1) 2>/dev/null | grep -q '^ii'
 chrome/deb := google-chrome-stable_current_amd64.deb
 chrome/deb/path := /usr/local/src/$(USER)/$(chrome/deb)
@@ -23,7 +19,6 @@ $(chrome/deb/path):
 	@wget -nv --show-progress -O $@ $(chrome/deb/url)
 
 # dconf
-modules += dconf
 dconf/config := $(HOME)/.config/dconf/user.txt
 dconf/etc := /etc/dconf/profile/user
 target/install += dconf/config dconf/etc
@@ -32,7 +27,6 @@ dconf: $(dconf/config) $(dconf/etc)
 	@sudo dconf update
 
 # dotfile
-modules += dotfile
 dotfile/append = $(addprefix dotfile/append/,$(dotfile/append/files))
 dotfile/append/files := .bashrc .profile
 dotfile/link = $(addprefix dotfile/link/,$(dotfile/link/files))
@@ -47,7 +41,6 @@ $(dotfile/link): dotfile/link/%:
 dotfile/link/.netrc: dotfile/link/prefix := $(HOME)/Private
 
 # dropbox
-modules += dropbox
 .PHONY: dropbox
 dropbox:
 	@dropbox start -i 2>/dev/null
@@ -55,13 +48,11 @@ dropbox:
 	@dropbox status | grep -F -q '最新の状態'
 
 # editor
-modules += editor
 .PHONY: editor
 editor:
 	@sudo update-alternatives --config editor
 
 # grub
-modules += grub
 grub/etc := /etc/default/grub
 .PHONY: grub grub/patch
 grub: grub/patch
@@ -70,7 +61,6 @@ grub/patch: $(grub/etc)
 	@./patch.sh $<
 
 # im-config
-modules += im-config
 im-config/title := 'im-config instructions'
 im-config/body := im-config.txt
 .PHONY: im-config
@@ -79,7 +69,6 @@ im-config: $(im-config/body)
 	@im-config
 
 # pass
-modules += pass
 pass/browser = $(pass/browser/dir)/$(pass/browser/json)
 pass/browser/dir := $(HOME)/.config/google-chrome/NativeMessagingHosts
 pass/browser/etc = $(pass/browser/etc/dir)/$(pass/browser/json)
@@ -96,7 +85,6 @@ $(pass/browser): $(pass/browser/etc)
 	@ln -sfv $< $@
 
 # private
-modules += private
 private/conf := /etc/security/pam_mount.conf.xml
 private/mount/dst := $(HOME)/Private
 private/mount/src := $(HOME)/Dropbox/Private
@@ -113,7 +101,6 @@ $(private/mount/src):
 	@test -d $@ || $(make) dropbox
 
 # spacemacs
-modules += spacemacs
 spacemacs/dotfile := $(HOME)/.spacemacs
 spacemacs/hatsusato/git := $(HOME)/.emacs.d/private/hatsusato/.git
 spacemacs/hatsusato/repo := https://github.com/hatsusato/private-layer
@@ -130,7 +117,6 @@ $(spacemacs/dotfile): $(spacemacs/syl20bnr/git)
 $(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
 
 # ssh
-modules += ssh
 ssh/find := -maxdepth 1 -name known_hosts -prune -o -type f -print
 ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
