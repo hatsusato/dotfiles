@@ -5,7 +5,7 @@ set -eu
 source "${BASH_SOURCE%/*}"/run-user.sh
 
 clip() {
-  xclip -selection clipboard "$@"
+  /usr/bin/xclip -selection clipboard "$@"
 }
 clipout() {
   clip -o | base64
