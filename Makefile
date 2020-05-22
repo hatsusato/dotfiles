@@ -7,15 +7,14 @@ apt:
 	@cat apt | ./apt-install.sh
 
 # chrome
-chrome/check = dpkg --no-pager -l $(1) 2>/dev/null | grep -q '^ii'
 chrome/deb := google-chrome-stable_current_amd64.deb
 chrome/deb/path := /usr/local/src/$(USER)/$(chrome/deb)
 chrome/deb/url := https://dl.google.com/linux/direct/$(chrome/deb)
 .PHONY: chrome
 chrome: $(chrome/deb/path)
-	@$(call chrome/check,google-chrome-stable) || sudo apt install -qq $<
+	@sudo apt install -qq $<
 $(chrome/deb/path):
-	@test -d $(@D) || sudo install -D -o $(USER) -g $(USER) -d $(@D)
+	@sudo install -D -o $(USER) -g $(USER) -d $(@D)
 	@wget -nv --show-progress -O $@ $(chrome/deb/url)
 
 # dconf
