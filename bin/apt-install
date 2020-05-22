@@ -3,9 +3,11 @@
 set -eu
 
 installed() {
+  [[ $1 == -* ]] && return
   dpkg -l --no-pager "$1" 2>/dev/null | grep -q ^ii
 }
 append() {
+  [[ $1 == -* ]] && return
   local log=$HOME/.config/local/.install
   mkdir -p "${log%/*}"
   grep -xq "$1" "$log" 2>/dev/null && return
@@ -15,7 +17,7 @@ append() {
 todo=()
 for pkg in "$@"; do
   installed "$pkg" && continue
-  [[ $pkg == -* ]] || append "$pkg"
+  append "$pkg"
   todo+=("$pkg")
 done
 ((${#todo[@]})) && sudo apt install "${todo[@]}"
