@@ -1,6 +1,7 @@
 #!/usr/bin/make -f
 
 make := make --no-print-directory
+opt/install := -C -D -m644 -T
 
 .PHONY: apt
 apt:
@@ -14,16 +15,19 @@ chrome/deb/url := https://dl.google.com/linux/direct/$(chrome/deb)
 chrome: $(chrome/deb/path)
 	@sudo apt install -qq $<
 $(chrome/deb/path):
-	@sudo install -D -o $(USER) -g $(USER) -d $(@D)
+	@sudo install -C -D -o $(USER) -g $(USER) -d $(@D)
 	@wget -nv --show-progress -O $@ $(chrome/deb/url)
 
 # dconf
 dconf/config := $(HOME)/.config/dconf/user.txt
 dconf/etc := /etc/dconf/profile/user
-target/install += dconf/config dconf/etc
 .PHONY: dconf
 dconf: $(dconf/config) $(dconf/etc)
 	@sudo dconf update
+$(dconf/config): $(HOME)/%: %
+	@install $(opt/install) $< $@
+$(dconf/etc): /%: %
+	@sudo install $(opt/install) $< $@
 
 # dotfile
 dotfile/files := .bash_aliases .bash_completion .clang-format .inputrc .netrc .wgetrc
@@ -37,7 +41,7 @@ $(dotfile/link): dotfile/%:
 dotfile/.bashrc: .bashrc $(HOME)/.bashrc
 	@./append.sh $^
 $(dotfile/.netrc): $(HOME)/Private/.netrc
-	@install -C -D -m644 -T $< $@
+	@install $(opt/install) $< $@
 $(HOME)/Private/.netrc:
 	@test -f $@ || $(make) private
 
@@ -129,15 +133,3 @@ endif
 endef
 $(foreach var,$(target/clone),$(eval $(call clone/do,$($(var)),$($(var:%/git=%/repo)))))
 $(spacemacs/syl20bnr/git): clone/flags := --branch develop
-
-## install
-define install/do
-ifeq ($$(filter $(HOME)/%,$(1)),)
-$(1): /%: %
-	@test -f $$@ || sudo install -D -m644 $$< $$@
-else
-$(1): $(HOME)/%: %
-	@test -f $$@ || install -D -m644 $$< $$@
-endif
-endef
-$(foreach var,$(target/install),$(eval $(call install/do,$($(var)))))
