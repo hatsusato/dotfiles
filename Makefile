@@ -49,11 +49,6 @@ dropbox:
 	@dropbox status
 	@dropbox status | grep -F -q '最新の状態'
 
-# editor
-.PHONY: editor
-editor:
-	@sudo update-alternatives --config editor
-
 # grub
 grub/etc := /etc/default/grub
 .PHONY: grub grub/patch
