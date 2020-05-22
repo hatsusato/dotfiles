@@ -22,7 +22,6 @@ elisp() {
   emacsclient -e "$script" >/dev/null || :
 }
 git-pull() {
-  cd "$HOME"/.emacs.d
   git fetch --prune
   git merge --ff-only "$1"
 }
@@ -40,7 +39,8 @@ update-dot() {
 exec 2>&$log
 resolve-hup
 spacemacs-exists && elisp kill
-(git-pull "${1-origin/develop}")
+(cd "$HOME"/.emacs.d; git-pull origin/develop)
+(cd "$HOME"/.emacs.d/private/hatsusato; git-pull master)
 update-dot
 anykey
 emacs --fg-daemon &
