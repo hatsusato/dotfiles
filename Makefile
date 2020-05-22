@@ -76,7 +76,7 @@ pass/browser/etc/dir := /etc/chromium/native-messaging-hosts
 pass/browser/json := com.github.browserpass.native.json
 pass/git := $(HOME)/.password-store/.git
 pass/repo := $(HOME)/Private/.password-store.git
-target/clone += pass/git
+target/clone += pass
 .PHONY: pass
 pass: $(pass/git) $(pass/browser)
 $(pass/repo):
@@ -102,7 +102,7 @@ spacemacs/hatsusato/git := $(HOME)/.emacs.d/private/hatsusato/.git
 spacemacs/hatsusato/repo := https://github.com/hatsusato/private-layer
 spacemacs/syl20bnr/git := $(HOME)/.emacs.d/.git
 spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
-target/clone += spacemacs/hatsusato/git spacemacs/syl20bnr/git
+target/clone += spacemacs/hatsusato spacemacs/syl20bnr
 .PHONY: spacemacs
 spacemacs: $(spacemacs/dotfile) $(spacemacs/hatsusato/git)
 $(spacemacs/dotfile): $(spacemacs/syl20bnr/git)
@@ -113,7 +113,7 @@ $(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
 ssh/find = find $(1) -mindepth 2 -path $(2) -prune -o -print
 ssh/git := $(HOME)/.ssh/.git
 ssh/repo := $(HOME)/Private/.ssh.git
-target/clone += ssh/git
+target/clone += ssh
 .PHONY: ssh
 ssh: $(ssh/git)
 	$(call ssh/find,$(<D),'$</*') | xargs chmod 400
@@ -125,11 +125,9 @@ $(ssh/repo):
 define clone/do
 ifeq ($$(filter https://%,$(2)),)
 $(1): $(2)
-	@test -d $$@ || git clone $$< $$(@D)
-else
+endif
 $(1):
 	@test -d $$@ || git clone $$(clone/flags) $(2) $$(@D)
-endif
 endef
-$(foreach var,$(target/clone),$(eval $(call clone/do,$($(var)),$($(var:%/git=%/repo)))))
+$(foreach var,$(target/clone),$(eval $(call clone/do,$($(var)/git),$($(var)/repo))))
 $(spacemacs/syl20bnr/git): clone/flags := --branch develop
