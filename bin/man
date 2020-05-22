@@ -2,9 +2,6 @@
 
 set -eu
 
-cat-env() {
-  local conf=$HOME/.config/local/.man
-  [[ -f $conf ]] && cat "$conf"
-}
-
-eval $(cat-env) /usr/bin/man "${@@Q}"
+conf=$HOME/.config/local/.man
+[[ -f $conf ]] && source "$conf"
+/usr/bin/man "$@"
