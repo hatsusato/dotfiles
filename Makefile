@@ -26,7 +26,6 @@ dconf: $(dconf/config) $(dconf/etc)
 	@sudo dconf update
 
 # dotfile
-dotfile/append = cat $(1) | tee -a $(2) >/dev/null
 dotfile/files := .bash_aliases .bash_completion .clang-format .inputrc .netrc .wgetrc
 dotfile/link = $(addprefix dotfile/,$(dotfile/files))
 dotfile/prefix := $(HOME)/.config/local
@@ -36,7 +35,7 @@ dotfile: $(dotfile/link) dotfile/.bashrc $(dotfile/.netrc)
 $(dotfile/link): dotfile/%:
 	@ln -sfv $(dotfile/prefix)/$* $(HOME)/$*
 dotfile/.bashrc: .bashrc $(HOME)/.bashrc
-	@./subsetof.sh $< $(HOME)/$< || $(call dotfile/append,$<,$(HOME)/$<)
+	@./append.sh $^
 $(dotfile/.netrc): $(HOME)/Private/.netrc
 	@install -C -D -m644 -T $< $@
 $(HOME)/Private/.netrc:
