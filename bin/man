@@ -2,6 +2,6 @@
 
 set -eu
 
-conf=$HOME/.config/local/.man
-[[ -f $conf ]] && source "$conf"
+env=$HOME/.config/local/.man-env
+[[ -f $env ]] && source "$env"
 /usr/bin/man "$@"
