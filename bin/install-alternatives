@@ -1,0 +1,20 @@
+#!/bin/bash
+
+set -eu
+
+usage() {
+  echo "USAGE: $0 <command>" >&2
+  exit 1
+}
+prompt() {
+  local var
+  read -r -p "$1" var
+  echo "$var"
+}
+
+(($#)) || usage
+path=$(command -v "$1")
+name=$(prompt "'$path' will be installed on: /usr/bin/")
+link=/usr/bin/$name
+priority=$(prompt "priority for '$path': ")
+sudo update-alternatives --install "$link" "$name" "$path" "$priority"
