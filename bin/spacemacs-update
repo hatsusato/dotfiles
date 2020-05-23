@@ -25,14 +25,17 @@ git-pull() {
   git fetch --prune
   git merge --ff-only "$1"
 }
-update-dot() {
-  local template=$HOME/.emacs.d/core/templates/.spacemacs.template
-  local dotfile=$HOME/.spacemacs
+insert-layer() {
   local b='[[:blank:]]'
   local layers=dotspacemacs-configuration-layers
   local pattern="^$b*$layers$b*$"
   local subst='{n;s/$/hatsusato/}'
-  sed "/$pattern/$subst" "$template" >"$dotfile"
+  sed "/$pattern/$subst" "$1"
+}
+update-dot() {
+  local template=$HOME/.emacs.d/core/templates/.spacemacs.template
+  local dotfile=$HOME/.spacemacs
+  insert-layer "$template" >"$dotfile"
   diff -u "$template" "$dotfile" || :
 }
 
