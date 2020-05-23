@@ -33,10 +33,13 @@ insert-layer() {
   sed "/$pattern/$subst" "$1"
 }
 update-dot() {
-  local template=$HOME/.emacs.d/core/templates/.spacemacs.template
-  local dotfile=$HOME/.spacemacs
-  insert-layer "$template" >"$dotfile"
-  diff -u "$template" "$dotfile" || :
+  local src=$HOME/.emacs.d/core/templates/.spacemacs.template
+  local dst=$HOME/.spacemacs
+  local tmp=$(mktemp -p /tmp/"$USER")
+  insert-layer "$src" >"$tmp"
+  diff -u "$tmp" "$dst" && return
+  cp "$tmp" "$dst"
+  anykey
 }
 
 exec 2>&$log
@@ -45,7 +48,6 @@ spacemacs-exists && elisp kill
 (cd "$HOME"/.emacs.d; git-pull origin/develop)
 (cd "$HOME"/.emacs.d/private/hatsusato; git-pull master)
 update-dot
-anykey
 emacs --fg-daemon &
 until spacemacs-exists; do
   sleep 0.1
