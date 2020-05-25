@@ -5,11 +5,15 @@ set -eu
 clean() {
   kill $pid 2>/dev/null
 }
+loop() {
+  trap : SIGUSR1
+  trap clean EXIT
+  xkb-notify & pid=$!
+  while kill -n0 $pid 2>/dev/null; do
+    wait $pid || (($? == 138)) || exit
+    xkb-load || :
+    sleep 1
+  done
+}
 
-xkb-notify & pid=$!
-trap clean EXIT
-while kill -n0 $pid 2>/dev/null; do
-  wait $pid || (($? == 138)) || exit
-  xkb-load || :
-  sleep 1
-done
+loop &

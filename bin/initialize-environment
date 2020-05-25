@@ -10,4 +10,4 @@ mkdir -p "$HOME"/{sshfs,Private}
 mkdir -m700 -p "/tmp/$USER"/{,Downloads}
 run man-env
 run xkb-load
-pgrep xkb-monitor >/dev/null || run xkb-monitor &
+pgrep xkb-monitor >/dev/null || run xkb-monitor
