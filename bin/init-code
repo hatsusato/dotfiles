@@ -3,9 +3,10 @@
 set -eu
 
 generate-source() {
-  local ext=${1##*.}
+  local name=${1##*/}
+  local ext=${name##*.}
   cat <<EOF | tee "$1"
-#include "${1%.*}.${ext/#c/h}"
+#include "${name%.*}.${ext/#c/h}"
 EOF
 }
 generate-header() {
