@@ -23,9 +23,8 @@ filter() {
   local pkg
   args=()
   for pkg in "$@"; do
-    installed "$pkg" && continue
     append "$pkg"
-    args+=("$pkg")
+    installed "$pkg" || args+=("$pkg")
   done
 }
 

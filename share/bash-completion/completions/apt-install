@@ -49,6 +49,9 @@ _apt-install () {
     )
     COMPREPLY=($(compgen -W "${args[*]}" -- "$cur"))
   else
+    if [[ ! -f /var/cache/apt/pkgcache.bin ]]; then
+      sudo apt-cache gencaches &>/dev/null
+    fi
     COMPREPLY=($(apt-cache --no-generate pkgnames "$cur"))
     [[ $cur == ?(.)/* ]] && _filedir deb
   fi
