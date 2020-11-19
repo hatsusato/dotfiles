@@ -13,14 +13,14 @@ generate-header() {
   local var comment
   var=INCLUDE_GUARD_$(uuidgen -r | tr '[:lower:]-' '[:upper:]_')
   if [[ $1 == *pp ]]; then
-    comment="// $var"
+    comment=" // $var"
   else
     comment="/* $var */"
   fi
   cat <<EOF | tee "$1"
 #ifndef $var
 #define $var
-#endif  $comment
+#endif $comment
 EOF
 }
 generate() {
