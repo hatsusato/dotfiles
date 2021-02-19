@@ -2,7 +2,16 @@
 
 set -eu
 
-xkb=$HOME/.config/xkb
-keymap=$xkb/default.xkb
-[[ -f $keymap ]]
-xkbcomp -I"$xkb" "$keymap" "$DISPLAY" 2>/dev/null
+error() {
+  echo "$@" >&2
+  exit 1
+}
+
+xkbdir=$HOME/.config/xkb
+default=$xkbdir/default.xkb
+if [[ ! -f $default ]] || (($#)); then
+  keymap=$xkbdir/${1-$(hostname)}.xkb
+  [[ -f $keymap ]] || error "$keymap: No such file or directory"
+  cp -f "$keymap" "$default"
+fi
+xkbcomp -I"$xkbdir" "$default" "$DISPLAY" 2>/dev/null

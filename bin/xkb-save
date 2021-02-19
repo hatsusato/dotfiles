@@ -1,8 +1,0 @@
-#!/bin/bash
-
-set -eu
-
-xkb=$HOME/.config/xkb
-keymap=$xkb/${1-$(hostname)}.xkb
-[[ -f $keymap ]]
-cp -f "$keymap" "$xkb"/default.xkb
