@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -eu
+
+if timeout 1s emacsclient -a false -e t &>/dev/null; then
+  pgrep -af ^spacemacs
+else
+  exit $?
+fi
