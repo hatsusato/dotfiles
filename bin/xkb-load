@@ -2,10 +2,7 @@
 
 set -eu
 
-error() {
-  echo "$@" >&2
-  exit 1
-}
+source "${BASH_SOURCE%/*}"/util.sh
 
 xkbdir=$HOME/.config/xkb
 default=$xkbdir/default.xkb
