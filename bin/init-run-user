@@ -1,0 +1,28 @@
+#!/bin/bash
+
+set -eu
+
+usage() {
+  local tab=$'\t'
+  cat <<EOF
+USAGE: $0 PATH
+    Create a directory under /run/user/$UID and echo its path
+
+    PATH${tab}relative path from /run/user/$UID
+EOF
+  exit 1
+}
+make-dir() {
+  [[ $1 == $prefix ]] && return
+  make-dir "${1%/*}"
+  mkdir -m700 -p "$1"
+}
+main() {
+  local prefix=${XDB_RUNTIME_DIR-/run/user/$UID}
+  local dir=$prefix/$1
+  make-dir "$dir"
+  echo "$dir"
+}
+
+(($# == 1)) || usage
+main "$1"
