@@ -2,6 +2,11 @@
 
 set -eu
 
-flags=(pre-depends recommends suggests conflicts breaks replaces enhances)
-opts=(-v -e '^ ' -e '^<' -e ':i386$' -e '^Reverse Depends:$')
-apt-cache --recurse ${flags[@]/#/--no-} "$@" | grep "${opts[@]}" | sort -u
+main() {
+  local -a flags filter
+  flags=(pre-depends recommends suggests conflicts breaks replaces enhances)
+  filter=(grep -v -e '^ ' -e '^<' -e ':i386$' -e '^Reverse Depends:$')
+  apt-cache --recurse ${flags[@]/#/--no-} "$@" | "${filter[@]}" | sort -u
+}
+
+main "$@"
