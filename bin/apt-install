@@ -2,33 +2,33 @@
 
 set -eu
 
-installed() {
-  [[ $1 == -* ]] && return
-  dpkg -l --no-pager "$1" 2>/dev/null | grep -q ^ii
+apt-install() {
+  (($#)) || exit
+  local -i n=$(dpkg --no-pager -l "$@" 2>/dev/null | grep ^ii | wc -l)
+  (($# == n)) && exit
+  sudo apt install "$@"
 }
 append() {
-  [[ $1 == -* ]] && return
-  local log=$HOME/.config/local/.install
-  mkdir -p "${log%/*}"
-  grep -xq "$1" "$log" 2>/dev/null && return
-  echo "$1" >>"$log"
+  local pkg log=$HOME/.config/local/.install
+  if [[ ! -f $log ]]; then
+    mkdir -p "${log%/*}"
+    touch "$log"
+  fi
+  for pkg; do
+    grep -xq "$pkg" "$log" &>/dev/null && continue
+    echo "$pkg"
+  done >>"$log"
 }
-from-stdin() {
-  local line
-  while read -r line; do
-    args+=("$line")
+main() {
+  local opt
+  for opt; do
+    if [[ $opt == -* ]]; then
+      echo "ERROR: $opt cannot be used" >&2
+      exit 1
+    fi
   done
-}
-filter() {
-  local pkg
-  args=()
-  for pkg in "$@"; do
-    append "$pkg"
-    installed "$pkg" || args+=("$pkg")
-  done
+  apt-install "$@"
+  append "$@"
 }
 
-args=("$@")
-[[ -t 0 ]] || from-stdin
-filter "${args[@]}"
-((${#args[@]})) && sudo apt install "${args[@]}"
+main "$@"
