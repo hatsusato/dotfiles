@@ -2,17 +2,21 @@
 
 set -eu
 
-source "${BASH_SOURCE%/*}"/yubikey.sh
-
 usage() {
-  echo "USAGE: $0 <plaintext filename> <ciphertext filename>" >&2
+  echo "USAGE: $0 PLAINTEXT CIPHERTEXT" >&2
   exit 1
+}
+main() {
+  local keyid=$(yubikey-init)
+  [[ -n $keyid ]] || exit
+  local -a gpg=(gpg)
+  gpg+=(--armor)
+  gpg+=(--output "$2")
+  gpg+=(--recipient "$keyid")
+  gpg+=(--trusted-key "$keyid")
+  gpg+=(--encrypt "$1")
+  "${gpg[@]}"
 }
 
 (($# == 2)) || usage
-yubikey-init
-opts=(--armor)
-opts+=(--output "$2")
-opts+=(--recipient $KEYID)
-opts+=(--trusted-key $KEYID)
-gpg "${opts[@]}" --encrypt "$1"
+main "$@"

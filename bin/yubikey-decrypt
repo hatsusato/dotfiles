@@ -2,13 +2,18 @@
 
 set -eu
 
-source "${BASH_SOURCE%/*}"/yubikey.sh
-
 usage() {
-  echo "USAGE: $0 <encrypted filename> <decrypted filename>" >&2
+  echo "USAGE: $0 ENCRYPTED DECRYPTED" >&2
   exit 1
+}
+main() {
+  local keyid=$(yubikey-init)
+  [[ -n $keyid ]] || exit
+  local -a gpg=(gpg)
+  gpg+=(--output "$2")
+  gpg+=(--decrypt "$1")
+  "${gpg[@]}"
 }
 
 (($# == 2)) || usage
-yubikey-init
-gpg --output "$2" --decrypt "$1"
+main "$@"
