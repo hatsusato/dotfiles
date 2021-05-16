@@ -1,4 +1,5 @@
 #!/bin/bash
+# apt: gpg
 
 set -eu
 
