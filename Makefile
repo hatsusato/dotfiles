@@ -1,20 +1,21 @@
 #!/usr/bin/make -f
 
-files/bin := $(shell git ls-files bin) bin/xkb-notify
-files/exec := $(filter-out %.sh,$(files/bin))
-files/share := $(shell git ls-files share)
-files := $(files/bin) $(files/share)
 prefix := $(HOME)/.local
-target/exec := $(addprefix $(prefix)/,$(files/exec))
-target := $(addprefix $(prefix)/,$(files))
-mode = -m444
+files := $(shell git ls-files bin share)
+install/files := $(files:%=install/%)
+clean/files := $(wildcard bin/*.bak share/*.bak)
 
 .PHONY: all
-all: $(target)
+all:
+	@./install.sh $(files)
 
-$(target/exec): mode = -m544
-$(target): $(prefix)/%: %
-	@install -C -D $(mode) -v -T $< $@
+.PHONY: $(install/files)
+$(install/files): install/%: %
+	@./install.sh $*
+.PHONY: install/bin/xkb-notify
+install/bin/xkb-notify: src/xkb-notify.c
+	gcc -O2 $< -lX11 -o $(@:install/%=$(prefix)/%)
 
-bin/xkb-notify: bin/%: src/%.c
-	@gcc -O2 $< -lX11 -o $@
+.PHONY: clean
+clean:
+	$(RM) $(clean/files)
