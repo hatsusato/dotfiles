@@ -1,40 +1,60 @@
 #!/bin/bash
+# apt: xclip
 
 set -eu
 
-source "${BASH_SOURCE%/*}"/run-user.sh
+usage() {
+  cat <<EOF
+USAGE: $0 [-x] [ARG]...
+    Copy to clipboard from files or stdin
 
+    When -x is specified, xclip is invoked instead
+        xclip -selection clipboard ARG...
+EOF
+  exit 1
+}
 clip() {
   /usr/bin/xclip -selection clipboard "$@"
 }
 clipout() {
   clip -o | base64
 }
-restore() {
-  local now=$(clipout)
-  [[ $now == "$content" ]] || return 0
-  echo "$memory" | base64 -d | clip
+clipin() {
+  base64 -d | clip
+}
+get-lock() {
+  mkdir -m700 "$lock" 2>/dev/null
 }
 clean() {
-  restore
-  clear-lock
+  [[ $(clipout) == $after ]] || return 0
+  clipin <<<"$before"
+  rm -fr "$lock"
+}
+prepare-lock() {
+  local dir=$(init-run-user bin/clip)
+  [[ -d $dir ]] || exit
+  lock=$dir/lock
+  pid=$lock/pid
+  until get-lock; do
+    [[ -f $pid ]] && kill $(cat "$pid")
+    sleep 0.1
+  done
+}
+main() {
+  case ${1-} in
+    -x) shift
+        clip "$@"
+        exit;;
+    -*) usage;;
+  esac
+  local lock pid before after
+  prepare-lock
+  before=$(clipout)
+  clip "$@"
+  after=$(clipout)
+  ( trap clean EXIT
+    sleep 30 & wait
+  ) & echo $! >"$pid"
 }
 
-if [[ ${1-} == -x ]]; then
-  shift
-  clip "$@"
-  exit
-fi
-set-lock clip
-pid=$LOCK_DIR/pid
-until get-lock; do
-  [[ -f $pid ]] && kill $(cat "$pid")
-  sleep 0.1
-done
-memory=$(clipout)
-clip "$@"
-content=$(clipout)
-(
-  trap clean EXIT
-  sleep 30 & wait
-) & echo $! >"$pid"
+main "$@"
