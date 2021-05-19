@@ -8,10 +8,11 @@ put3() {
   printf "\x$1\x$2\x$val"
 }
 convert() {
-  local i c x
-  local input=$(cat -)
-  for i in $(seq 1 ${#input}); do
-    c=${input:i-1:1}
+  local -i i x
+  local c input=$(cat "$@")
+  while [[ -n $input ]]; do
+    c=${input:0:1}
+    input=${input:1}
     x=$(printf %x "'$c")
     case $x in
       7f) echo -n "$c";;
@@ -24,4 +25,4 @@ convert() {
   echo
 }
 
-cat "$@" | convert
+convert "$@"
