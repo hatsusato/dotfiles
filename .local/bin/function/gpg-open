@@ -1,0 +1,16 @@
+#!/bin/bash
+
+gpg-open() {
+  local home=$(init-run-user bin/.gnupg)
+  if [[ ! -d $home ]]; then
+    echo "ERROR: failed to open local .gnupg" >&2
+    return 1
+  fi
+  home=${home@Q}
+  echo "gpg-open: enter into $home" >&2
+  bash --init-file <(
+    echo source "$HOME/.bashrc";
+    echo export GNUPGHOME="$home";
+  )
+  echo "gpg-open: Leave from $home" >&2
+}
