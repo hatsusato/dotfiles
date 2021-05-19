@@ -9,8 +9,11 @@ yubikey-status() {
 yubikey-list() {
   gpg --list-secret-keys --with-colons
 }
+yubikey-card-edit() {
+  gpg --batch --command-fd 0 --card-edit
+}
 yubikey-fetch() {
-  cat <<EOF | gpg --batch --command-fd 0 --card-edit 2> >(grep ^gpg: >&2)
+  cat <<EOF | yubikey-card-edit 2> >(grep ^gpg: >&2)
 fetch
 quit
 EOF
@@ -19,39 +22,38 @@ prompt-insert() {
   read -n1 -p 'Insert YubiKey and Hit Any Key.' -s
   echo >&2
 }
-parse-aid() {
-  awk -F: 'match($1, /^Reader$/) {print $4}'
+read-aid() {
+  yubikey-status | awk -F: 'match($1, /^Reader$/) {print $4}'
 }
 read-keyid() {
-  local aid=$(yubikey-status | parse-aid)
-  [[ -n $aid ]] || return 1
-  local line ifs=$IFS
+  local aid=$1 keyid line ifs=$IFS
+  local -a words
   while read line; do
     IFS=:
-    set -- $line
+    words=($line)
     IFS=$ifs
-    case $1 in
-      sec) KEYID=$5;;
-      ssb) [[ ${15} == $aid && -n $KEYID ]] && return;;
+    case ${words[0]} in
+      sec) keyid=${words[4]};;
+      ssb)
+        if [[ ${words[14]} == $aid && -n $keyid ]]; then
+          echo "$keyid"
+          return
+        fi;;
     esac
   done < <(yubikey-list)
-  return 2
 }
 main() {
-  while true; do
-    KEYID=
-    local -i err=0
-    read-keyid || err=$?
-    case $err in
-      1) prompt-insert;;
-      2) yubikey-fetch;;
-      *) return $err;;
-    esac
+  local aid keyid=
+  until [[ -n $keyid ]]; do
+    aid=$(read-aid)
+    if [[ -n $aid ]]; then
+      keyid=$(read-keyid "$aid")
+      [[ -n $keyid ]] || yubikey-fetch
+    else
+      prompt-insert
+    fi
   done
+  echo "$keyid"
 }
 
-export GNUPGHOME=$(init-run-user bin/yubikey/.gnupg)
-[[ -d $GNUPGHOME ]] || exit
-declare -g KEYID
-main || exit
-echo "$KEYID"
+main
