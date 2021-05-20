@@ -1,0 +1,25 @@
+#!/bin/bash
+# apt: gpg
+
+set -eu
+
+usage() {
+  cat <<EOF >&2
+USAGE: $0 KEYID CIPHERTEXT
+    encrypt contents of stdin with KEYID and save it to CIPHERTEXT
+EOF
+  exit 1
+}
+main() {
+  local -a gpg=(gpg)
+  gpg+=(--armor)
+  gpg+=(--recipient "$1")
+  gpg+=(--trusted-key "$1")
+  gpg+=(--output "$2")
+  gpg+=(--encrypt -)
+  "${gpg[@]}"
+}
+
+(($# == 2)) || usage
+[[ -t 0 ]] && usage
+main "$@"
