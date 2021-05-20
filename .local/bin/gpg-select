@@ -1,0 +1,67 @@
+#!/bin/bash
+# apt: gpg
+
+set -eu
+
+usage() {
+  cat <<EOF
+USAGE: $0 [-h] [-v]
+    select gpg key ID from its comment
+
+    -h  print this help
+    -v  verbose mode
+EOF
+  exit 1
+}
+error() {
+  cat <<EOF
+ERROR: $@
+EOF
+  exit 1
+}
+gpg-list() {
+  gpg --list-keys --with-colon "$@"
+}
+gpg-parse() {
+  awk -F: "match(\$1, /^$1\$/) {print \$$2}"
+}
+prompt() {
+  local var
+  select var; do
+    if [[ -n $var ]]; then
+      index=$REPLY
+      return
+    fi
+  done
+  echo >&2
+  exit 1
+}
+parse() {
+  local -a comment
+  local var
+  for var; do
+    var=$(gpg-list $var | gpg-parse uid 10)
+    comment+=("$var")
+  done
+  prompt "${comment[@]}"
+}
+main() {
+  local -a keyid=('')
+  local -i index
+  local var verbose=
+  while getopts hv var; do
+    case $var in
+      h) usage;;
+      v) verbose=on;;
+      \?) usage;;
+    esac
+  done
+  shift $((OPTIND - 1))
+  keyid+=($(gpg-list | gpg-parse pub 5))
+  parse "${keyid[@]:1}"
+  [[ -n $verbose ]] && gpg -K "${keyid[$index]}" >&2
+  echo "${keyid[$index]}"
+}
+
+[[ -t 0 ]] || error 'illegal input from stdin'
+main "$@"
