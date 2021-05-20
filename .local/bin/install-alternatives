@@ -3,18 +3,21 @@
 set -eu
 
 usage() {
-  echo "USAGE: $0 <command>" >&2
+  cat <<EOF >&2
+USAGE: $0 COMMAND
+    interactive 'update-alternative --install'
+EOF
   exit 1
 }
-prompt() {
-  local var
-  read -r -p "$1" var
-  echo "$var"
+main() {
+  local path name link priority
+  local -a prompt=(read -r -p)
+  path=$(command -v "$1")
+  ${prompt[@]} "${path@Q} will be installed on: /usr/bin/" name
+  link=/usr/bin/$name
+  ${prompt[@]} "priority for ${path@Q}: " priority
+  sudo update-alternatives --install "$link" "$name" "$path" "$priority"
 }
 
-(($#)) || usage
-path=$(command -v "$1")
-name=$(prompt "'$path' will be installed on: /usr/bin/")
-link=/usr/bin/$name
-priority=$(prompt "priority for '$path': ")
-sudo update-alternatives --install "$link" "$name" "$path" "$priority"
+(($# == 1)) || usage
+main "$@"
