@@ -22,38 +22,22 @@ prompt-insert() {
   read -n1 -p 'Insert YubiKey and Hit Any Key.' -s
   echo >&2
 }
-read-aid() {
-  yubikey-status | awk -F: 'match($1, /^Reader$/) {print $4}'
+find-aid() {
+  yubikey-status | grep ^Reader: | cut -d: -f4
 }
-read-keyid() {
-  local aid=$1 keyid line ifs=$IFS
-  local -a words
-  while read line; do
-    IFS=:
-    words=($line)
-    IFS=$ifs
-    case ${words[0]} in
-      sec) keyid=${words[4]};;
-      ssb)
-        if [[ ${words[14]} == $aid && -n $keyid ]]; then
-          echo "$keyid"
-          return
-        fi;;
-    esac
-  done < <(yubikey-list)
+find-keyid() {
+  yubikey-list | grep ^ssb: | cut -d: -f15
 }
 main() {
-  local aid keyid=
-  until [[ -n $keyid ]]; do
-    aid=$(read-aid)
-    if [[ -n $aid ]]; then
-      keyid=$(read-keyid "$aid")
-      [[ -n $keyid ]] || yubikey-fetch
+  local aid
+  while true; do
+    if aid=$(find-aid); then
+      find-keyid | grep -q "$aid" && return
+      yubikey-fetch
     else
       prompt-insert
     fi
   done
-  echo "$keyid"
 }
 
 main
