@@ -5,21 +5,20 @@ set -eu
 
 usage() {
   cat <<EOF >&2
-USAGE: $0 KEYID CIPHERTEXT
-    encrypt contents of stdin with KEYID and save it to CIPHERTEXT
+USAGE: $0 PLAINTEXT
+    print encrypted PLAINTEXT
 EOF
   exit 1
 }
 main() {
+  local id
+  id=$(gpg-select) || exit
   local -a gpg=(gpg)
   gpg+=(--armor)
-  gpg+=(--recipient "$1")
-  gpg+=(--trusted-key "$1")
-  gpg+=(--output "$2")
-  gpg+=(--encrypt -)
-  "${gpg[@]}"
+  gpg+=(--output -)
+  gpg+=(--recipient "$id")
+  "${gpg[@]}" --encrypt "$1"
 }
 
-(($# == 2)) || usage
-[[ -t 0 ]] && usage
+(($# == 1)) || usage
 main "$@"
