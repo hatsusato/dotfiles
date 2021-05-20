@@ -7,10 +7,17 @@ gpg-open() {
     return 1
   fi
   home=${home@Q}
-  echo "gpg-open: enter into $home" >&2
-  bash --init-file <(
-    echo source "$HOME/.bashrc";
-    echo export GNUPGHOME="$home";
-  )
-  echo "gpg-open: Leave from $home" >&2
+  if [[ -n ${GNUPGHOME+set} ]]; then
+    echo "gpg-open: already inside of $home" >&2
+  else
+    local bashrc=$HOME/.bashrc
+    local ps1='(gpg-open)'$PS1
+    echo "gpg-open: enter into $home" >&2
+    bash --init-file <(
+      echo source "${bashrc@Q}"
+      echo export PS1="${ps1@Q}"
+      echo export GNUPGHOME="$home"
+    )
+    echo "gpg-open: Leave from $home" >&2
+  fi
 }
