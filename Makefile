@@ -1,21 +1,21 @@
 #!/usr/bin/make -f
 
-prefix := $(HOME)/.local
-files := $(shell git ls-files bin share)
+files := $(shell git ls-files .local)
 install/files := $(files:%=install/%)
-clean/files := $(wildcard bin/*.bak share/*.bak)
+xkb-notify := install/.local/bin/xkb-notify
 
 .PHONY: all
-all:
+all: $(xkb-notify)
 	@./install.sh $(files)
 
 .PHONY: $(install/files)
 $(install/files): install/%: %
 	@./install.sh $*
-.PHONY: install/bin/xkb-notify
-install/bin/xkb-notify: src/xkb-notify.c
-	gcc -O2 $< -lX11 -o $(@:install/%=$(prefix)/%)
+
+.PHONY: $(xkb-notify)
+$(xkb-notify): src/xkb-notify.c
+	gcc -O2 $< -lX11 -o $(@:install/%=$(HOME)/%)
 
 .PHONY: clean
 clean:
-	$(RM) $(clean/files)
+	$(RM) $(wildcard *.patch)
