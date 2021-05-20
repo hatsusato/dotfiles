@@ -3,7 +3,7 @@
 set -eu
 
 apt-install() {
-  (($#)) || exit
+  (($# == 0)) && exit
   local -i n=$(dpkg --no-pager -l "$@" 2>/dev/null | grep ^ii | wc -l)
   (($# == n)) && exit
   sudo apt install "$@"
@@ -19,16 +19,20 @@ append() {
     echo "$pkg"
   done >>"$log"
 }
-main() {
+has-option() {
   local opt
   for opt; do
-    if [[ $opt == -* ]]; then
-      echo "ERROR: $opt cannot be used" >&2
-      exit 1
-    fi
+    [[ $opt == -* ]] && return
   done
-  apt-install "$@"
-  append "$@"
+  return 1
+}
+main() {
+  if has-option "$@"; then
+    sudo apt install "$@"
+  else
+    apt-install "$@"
+    append "$@"
+  fi
 }
 
 main "$@"
