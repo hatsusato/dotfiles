@@ -1,7 +1,0 @@
-#!/bin/bash
-
-set -eu
-
-env=$HOME/.config/local/.man-env
-[[ -f $env ]] && source "$env"
-/usr/bin/man "$@"
