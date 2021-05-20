@@ -1,0 +1,32 @@
+#!/bin/bash
+
+set -eu
+
+usage() {
+  cat <<EOF >&2
+USAGE: $0 OUTPUT
+    export public and secret keys by paperkey
+EOF
+  exit 1
+}
+export-public() {
+  gpg --armor --export "$id"
+}
+export-secret() {
+  gpg --export-secret-keys "$id" | paperkey --output-width 60
+}
+main() {
+  local id out
+  id=$(gpg-select) || exit
+  if [[ $1 == - ]]; then
+    exec {out}>&1
+  else
+    exec {out}>"$1"
+  fi
+  export-secret >&$out
+  export-public >&$out
+  exec {out}>&-
+}
+
+(($# == 1)) || usage
+main "$@"
