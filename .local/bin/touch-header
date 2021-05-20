@@ -1,39 +1,64 @@
 #!/bin/bash
+# apt: uuid-runtime
 
 set -eu
 
-generate-source() {
-  local name=${1##*/}
-  local ext=${name##*.}
-  cat <<EOF | tee "$1"
-#include "${name%.*}.${ext/#c/h}"
+usage() {
+  cat <<EOF >&2
+USAGE: $0 [-c] [-h] [-x] FILE...
+    initialize FILEs with include guard
+
+    -c  force C mode
+    -x  force C++ mode
+    -h  print this help
 EOF
+  exit 1
 }
-generate-header() {
-  local var comment
-  var=INCLUDE_GUARD_$(uuidgen -r | tr '[:lower:]-' '[:upper:]_')
-  if [[ $1 == *pp ]]; then
-    comment=" // $var"
-  else
-    comment="/* $var */"
-  fi
-  cat <<EOF | tee "$1"
-#ifndef $var
-#define $var
+set-guard() {
+  guard=$(uuidgen -r | tr '[:lower:]-' '[:upper:]_')
+  guard=INCLUDE_GUARD_$guard
+}
+set-comment() {
+  case ${mode-} in
+    c) comment="/* $guard */";;
+    x) comment="// $guard";;
+    *)
+      if [[ ${header-} == *.h ]]; then
+        comment="/* $guard */"
+      else
+        comment="// $guard"
+      fi;;
+  esac
+}
+generate() {
+  local guard comment
+  set-guard
+  set-comment
+  cat <<EOF
+#ifndef $guard
+#define $guard
 #endif $comment
 EOF
 }
-generate() {
-  if [[ $1 == *.c?(pp) ]]; then
-    generate-source "$1"
-  elif [[ $1 == *.h?(pp) ]]; then
-    generate-header "$1"
-  else
-    generate-source "$1".cpp
-    generate-header "$1".hpp
-  fi
+main() {
+  local var mode header
+  while getopts chx var; do
+    case $var in
+      c) mode=c;;
+      h) usage;;
+      x) mode=x;;
+      \?) usage;;
+    esac
+  done
+  shift $((OPTIND - 1))
+  for header; do
+    if [[ -s $header ]]; then
+      touch "$header"
+    else
+      generate | tee "$header"
+    fi
+  done
+  [[ -n ${header+set} ]] || generate
 }
 
-for f in "$@"; do
-  generate "$f"
-done
+main "$@"
