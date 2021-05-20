@@ -4,7 +4,7 @@
 set -eu
 
 usage() {
-  cat <<EOF
+  cat <<EOF >&2
 USAGE: $0 [-x] [ARG]...
     Copy to clipboard from files or stdin
 
