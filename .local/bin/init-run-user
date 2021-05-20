@@ -3,12 +3,12 @@
 set -eu
 
 usage() {
-  local tab=$'\t'
-  cat <<EOF
+  local prefix=${XDB_RUNTIME_DIR-/run/user/$UID}
+  cat <<EOF >&2
 USAGE: $0 PATH
-    Create a directory under /run/user/$UID and echo its path
+    Create a directory under $prefix and echo its path
 
-    PATH${tab}relative path from /run/user/$UID
+    PATH  relative path from $prefix
 EOF
   exit 1
 }
@@ -25,4 +25,4 @@ main() {
 }
 
 (($# == 1)) || usage
-main "$1"
+main "$@"
