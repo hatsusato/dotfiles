@@ -4,15 +4,15 @@
 set -eu
 
 usage() {
-  echo "USAGE: $0 ENCRYPTED DECRYPTED" >&2
+  cat <<EOF >&2
+USAGE: $0 ENCRYPTED
+    print decrypted contents to stdout
+EOF
   exit 1
 }
 main() {
-  local -a gpg=(gpg)
-  gpg+=(--output "$2")
-  gpg+=(--decrypt "$1")
-  "${gpg[@]}"
+  gpg --output - --decrypt "$1"
 }
 
-(($# == 2)) || usage
+(($# == 1)) || usage
 main "$@"
