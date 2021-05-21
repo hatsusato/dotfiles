@@ -87,16 +87,30 @@ update() {
     esac
   done
 }
-main() {
-  local template=$HOME/.emacs.d/core/templates/.spacemacs.template
-  local dotfile=$HOME/.spacemacs
+prepare() {
+  local dir=$(init-run-user bin/spacemacs)
+  [[ -d $dir ]] || exit
+  log=$dir/daemon.log
+}
+stop-spacemacs() {
   spacemacs-exists && spacemacs-kill
   spacemacs-exists && error failed to stop spacemacs
+  return 0
+}
+run-spacemacs() {
   trap spacemacs-kill EXIT
-  (exec -a spacemacs emacs --fg-daemon) &
+  (exec -a spacemacs emacs --fg-daemon 2> >(tee "$log" >&2)) &
   until spacemacs-exists; do
     sleep 0.1
   done
+}
+main() {
+  local template dotfile log
+  template=$HOME/.emacs.d/core/templates/.spacemacs.template
+  dotfile=$HOME/.spacemacs
+  prepare
+  stop-spacemacs
+  run-spacemacs
   update
 }
 
