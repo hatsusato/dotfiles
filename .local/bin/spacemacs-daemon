@@ -18,20 +18,18 @@ is-running() {
   esac
 }
 prepare() {
-  dir=$(init-run-user bin/spacemacs)
+  local dir=$(init-run-user bin/spacemacs)
   [[ -d $dir ]] || exit
   lock=$dir/lock
+  log=$dir/daemon.log
   mkdir -m700 "$lock" 2>/dev/null
-}
-start() {
-  trap "rm -fr ${lock@Q}" EXIT
-  (exec -a spacemacs emacs --daemon 2>"$dir"/daemon.log)
 }
 main() {
   is-running
-  local dir lock
+  local lock log
   prepare || error failed to retrieve lock: "$lock"
-  start
+  trap "rm -fr ${lock@Q}" EXIT
+  (exec -a spacemacs emacs --daemon 2>"$log")
 }
 
 main
