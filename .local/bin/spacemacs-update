@@ -1,58 +1,93 @@
 #!/bin/bash
+# apt: emacs git
 
 set -eu
 
-source "${BASH_SOURCE%/*}"/spacemacs.sh
-
-exec {prompt}>&2
-exec {log}> >(grep -vx '' >&$prompt)
-
-anykey() {
-  read -n1 -p 'Hit any key to proceed: ' -s 2>&$prompt
-  echo 2>&$prompt
-}
-elisp() {
-  local script
-  case $1 in
-    kill) script='(progn (defun yes-or-no-p (p) t) (kill-emacs))';;
-    sync) script='(dotspacemacs/sync-configuration-layers)';;
-    update) script='(configuration-layer/update-packages t)';;
-    *) script=;;
-  esac
-  emacsclient -e "$script" >/dev/null || :
+error() {
+  cat <<EOF >&2
+ERROR: $@
+EOF
+  exit 1
 }
 git-pull() {
   git fetch --prune
   git merge --ff-only "$1"
 }
-insert-layer() {
-  local b='[[:blank:]]'
-  local layers=dotspacemacs-configuration-layers
-  local pattern="^$b*$layers$b*$"
-  local subst='{n;s/$/hatsusato/}'
-  sed "/$pattern/$subst" "$1"
+backup() {
+  cp -abfT -S.bak "$1" "$1"
 }
-update-dot() {
-  local src=$HOME/.emacs.d/core/templates/.spacemacs.template
-  local dst=$HOME/.spacemacs
-  local tmp=$(mktemp -p /tmp/"$USER")
-  insert-layer "$src" >"$tmp"
-  diff -u "$tmp" "$dst" && return
-  cp "$tmp" "$dst"
-  anykey
+modify-input() {
+  sed -e "/$match/$1" "$input"
+}
+insert-layer() {
+  local input=$template
+  local layers=dotspacemacs-configuration-layers
+  local blank='[[:blank:]]*'
+  local match=^$blank$layers$blank$
+  if modify-input '{n;p}' | grep -xq "$blank'($blank"; then
+    modify-input '{n;s/$/hatsusato/}'
+  else
+    error failed to insert private layer to "'$layers"
+  fi
+}
+remove-custom() {
+  local input=$dotfile
+  local match='defun dotspacemacs\/emacs-custom-settings'
+  modify-input ',$d'
+}
+show-diff() {
+  local -a diff=(diff -u)
+  diff+=(--label "$dotfile")
+  diff+=(--label "$template")
+  insert-layer >/dev/null
+  "${diff[@]}" <(remove-custom) <(insert-layer)
+}
+update-origin() {
+  cd "$HOME"/.emacs.d
+  git-pull origin/develop
+}
+update-private() {
+  cd "$HOME"/.emacs.d/private/hatsusato
+  git-pull master
+}
+show-dotfile() {
+  show-diff &>/dev/null && return
+  show-diff | less
+}
+update-dotfile() {
+  insert-layer >/dev/null
+  backup "$dotfile"
+  insert-layer >"$dotfile"
+}
+update() {
+  local template dotfile var
+  local -a cmd
+  template=$HOME/.emacs.d/core/templates/.spacemacs.template
+  dotfile=$HOME/.spacemacs
+  cmd+=('git pull origin develop')
+  cmd+=('git pull private master')
+  cmd+=('show diff of .spacemacs')
+  cmd+=('update .spacemacs')
+  cmd+=('dotspacemacs/sync-configuration-layers')
+  cmd+=('configuration-layer/update-packages')
+  select var in "${cmd[@]}"; do
+    case $REPLY in
+      1) (update-origin);;
+      2) (update-private);;
+      3) show-dotfile;;
+      4) update-dotfile;;
+      5) emacsclient -e "($var)";;
+      6) emacsclient -e "($var t)";;
+    esac
+  done
 }
 
-exec 2>&$log
-resolve-hup
-spacemacs-exists && elisp kill
-(cd "$HOME"/.emacs.d; git-pull origin/develop)
-(cd "$HOME"/.emacs.d/private/hatsusato; git-pull master)
-update-dot
-emacs --fg-daemon &
-until spacemacs-exists; do
-  sleep 0.1
-done
-elisp update
-elisp sync
-elisp kill
-spacemacs-daemon
+main() {
+  spacemacs-exists && spacemacs-kill
+  spacemacs-exists && error failed to stop spacemacs
+  spacemacs-daemon
+  spacemacs-exists || error failed to start spacemacs
+  update
+}
+
+main
