@@ -14,7 +14,7 @@ git-pull() {
   git merge --ff-only "$1"
 }
 backup() {
-  cp -abfT -S.bak "$1" "$1"
+  cp -abf -S.bak -Tv "$1" "$1"
 }
 modify-input() {
   sed -e "/$match/$1" "$input"
@@ -51,19 +51,25 @@ update-private() {
   git-pull master
 }
 show-dotfile() {
-  show-diff &>/dev/null && return
-  show-diff | less
+  if show-diff &>/dev/null; then
+    echo no change >&2
+  else
+    show-diff | less
+  fi
 }
 update-dotfile() {
-  insert-layer >/dev/null
-  backup "$dotfile"
-  insert-layer >"$dotfile"
+  if show-diff &>/dev/null; then
+    echo no change >&2
+  else
+    insert-layer >/dev/null
+    backup "$dotfile"
+    insert-layer >"$dotfile"
+    echo "$dotfile" updated >&2
+  fi
 }
 update() {
-  local template dotfile var
+  local var
   local -a cmd
-  template=$HOME/.emacs.d/core/templates/.spacemacs.template
-  dotfile=$HOME/.spacemacs
   cmd+=('git pull origin develop')
   cmd+=('git pull private master')
   cmd+=('show diff of .spacemacs')
@@ -81,12 +87,16 @@ update() {
     esac
   done
 }
-
 main() {
+  local template=$HOME/.emacs.d/core/templates/.spacemacs.template
+  local dotfile=$HOME/.spacemacs
   spacemacs-exists && spacemacs-kill
   spacemacs-exists && error failed to stop spacemacs
-  spacemacs-daemon
-  spacemacs-exists || error failed to start spacemacs
+  trap spacemacs-kill EXIT
+  (exec -a spacemacs emacs --fg-daemon) &
+  until spacemacs-exists; do
+    sleep 0.1
+  done
   update
 }
 
