@@ -1,27 +1,37 @@
 #!/bin/bash
+# apt: emacs
 
 set -eu
 
-source "${BASH_SOURCE%/*}"/run-user.sh
-source "${BASH_SOURCE%/*}"/spacemacs.sh
-
-clean() {
-  resolve-hup
-  clear-lock
+error() {
+  cat <<EOF >&2
+ERROR: $@
+EOF
+  exit 1
 }
-start-daemon(){
-  local log=$(run-user spacemacs daemon.log)
-  cat </dev/null >"$log"
-  (
-    trap clean EXIT
-    (exec -a spacemacs emacs --daemon 2>"$log")
-  )
+is-running() {
+  local -i err=0
+  spacemacs-exists || err=$?
+  case $err in
+    0) exit;;
+    124) error spacemacs hung up;;
+  esac
+}
+prepare() {
+  dir=$(init-run-user bin/spacemacs)
+  [[ -d $dir ]] || exit
+  lock=$dir/lock
+  mkdir -m700 "$lock" 2>/dev/null
+}
+start() {
+  trap "rm -fr ${lock@Q}" EXIT
+  (exec -a spacemacs emacs --daemon 2>"$dir"/daemon.log)
+}
+main() {
+  is-running
+  local dir lock
+  prepare || error failed to retrieve lock: "$lock"
+  start
 }
 
-spacemacs-exists && exit
-resolve-hup
-set-lock spacemacs
-get-lock && start-daemon
-until spacemacs-exists; do
-  sleep 0.1
-done
+main
