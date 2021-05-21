@@ -1,0 +1,18 @@
+#!/bin/bash
+# apt: emacs
+
+set -eu
+
+error() {
+  cat <<EOF >&2
+ERROR: $@
+EOF
+  exit 1
+}
+main() {
+  local script='(progn (defun yes-or-no-p (p) t) (kill-emacs))'
+  spacemacs-exists || error spacemacs not running
+  emacsclient -e "$script"
+}
+
+main
