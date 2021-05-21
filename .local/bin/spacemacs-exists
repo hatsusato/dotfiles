@@ -13,6 +13,12 @@ USAGE: $0 [-h] [-v]
 EOF
   exit 1
 }
+print() {
+  local -i count=0
+  pgrep -afx 'spacemacs --daemon' || count+=1
+  pgrep -afx 'spacemacs --fg-daemon' || count+=1
+  ((count < 2))
+}
 main() {
   local var verbose= out
   while getopts hv var; do
@@ -22,13 +28,8 @@ main() {
     esac
   done
   timeout 1s emacsclient -a false -e t &>/dev/null || exit
-  if [[ -n $verbose ]]; then
-    exec {out}>&1
-  else
-    exec {out}>/dev/null
-  fi
-  pgrep -axf 'spacemacs --daemon' >&$out
-  exec {out}>&-
+  [[ -n $verbose ]] && print
+  return 0
 }
 
 main "$@"
