@@ -32,7 +32,7 @@ main() {
   local aid
   while true; do
     if aid=$(find-aid); then
-      find-keyid | grep -q "$aid" && return
+      find-keyid | grep -xq "$aid" && return
       yubikey-fetch
     else
       prompt-insert

@@ -12,7 +12,7 @@ EOF
 }
 filter() {
   local begin='BEGIN PGP PUBLIC KEY BLOCK'
-  sed -n -e "/$begin/$1"p <"$input"
+  sed -n -e "/$begin/$1"p "$input"
 }
 secrets() {
   filter 'q;'
