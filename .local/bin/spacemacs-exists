@@ -1,9 +1,34 @@
 #!/bin/bash
+# apt: emacs
 
 set -eu
 
-if timeout 1s emacsclient -a false -e t &>/dev/null; then
-  pgrep -af ^spacemacs
-else
-  exit $?
-fi
+usage() {
+  cat <<EOF >&2
+USAGE: $0 [-h] [-v]
+    check whether spacemacs daemon is running
+
+    -h  print this help
+    -v  verbose mode
+EOF
+  exit 1
+}
+main() {
+  local var verbose= out
+  while getopts hv var; do
+    case $var in
+      h) usage;;
+      v) verbose=on;;
+    esac
+  done
+  timeout 1s emacsclient -a false -e t &>/dev/null || exit
+  if [[ -n $verbose ]]; then
+    exec {out}>&1
+  else
+    exec {out}>/dev/null
+  fi
+  pgrep -axf 'spacemacs --daemon' >&$out
+  exec {out}>&-
+}
+
+main "$@"
