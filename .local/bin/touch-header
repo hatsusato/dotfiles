@@ -19,15 +19,11 @@ set-guard() {
   guard=INCLUDE_GUARD_$guard
 }
 set-comment() {
-  case ${mode-} in
+  local style=x
+  [[ ${header-} == *.h ]] && style=c
+  case ${mode-$style} in
     c) comment="/* $guard */";;
     x) comment="// $guard";;
-    *)
-      if [[ ${header-} == *.h ]]; then
-        comment="/* $guard */"
-      else
-        comment="// $guard"
-      fi;;
   esac
 }
 generate() {
