@@ -8,16 +8,16 @@ apt-install() {
   (($# == n)) && exit
   sudo apt install "$@"
 }
+prepare() {
+  mkdir -p "${log%/*}"
+  touch "$log"
+}
 append() {
   local pkg log=$HOME/.config/local/.install
-  if [[ ! -f $log ]]; then
-    mkdir -p "${log%/*}"
-    touch "$log"
-  fi
+  [[ -f $log ]] || prepare
   for pkg; do
-    grep -xq "$pkg" "$log" &>/dev/null && continue
-    echo "$pkg"
-  done >>"$log"
+    grep -xq "$pkg" "$log" &>/dev/null || echo "$pkg" >>"$log"
+  done
 }
 has-option() {
   local opt
