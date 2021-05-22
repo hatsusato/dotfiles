@@ -9,13 +9,15 @@ ERROR: $@
 EOF
   exit 1
 }
-is-running() {
-  local -i err=0
-  spacemacs-exists || err=$?
-  case $err in
-    0) exit;;
-    124) error spacemacs hung up;;
+check-running() {
+  spacemacs-exists && :
+  case $? in
+    1) return 0;;
+    *) exit;;
   esac
+}
+clean() {
+  rm -fr "$lock"
 }
 prepare() {
   local dir=$(init-run-user bin/spacemacs)
@@ -25,10 +27,10 @@ prepare() {
   mkdir -m700 "$lock" 2>/dev/null
 }
 main() {
-  is-running
   local lock log
+  check-running
   prepare || error failed to retrieve lock: "$lock"
-  trap "rm -fr ${lock@Q}" EXIT
+  trap clean EXIT
   (exec -a spacemacs emacs --daemon 2>"$log")
 }
 
