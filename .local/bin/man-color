@@ -46,7 +46,7 @@ export-env() {
   me=$(print-tput sgr0)
   # Start half bright mode
   mh=$(print-tput dim setaf 4)
-  # Dark mode (Characters invisible"
+  # Dark mode (Characters invisible)
   mk=$(print-tput invis)
   # Start reverse mode
   mr=$(print-tput rev)
@@ -62,8 +62,11 @@ export-env() {
     export LESS_TERMCAP_$v="${!v}"
   done
 }
+is-color() {
+  [[ -x /usr/bin/tput ]] && tput setaf 1 &>/dev/null
+}
 main() {
-  export-env
+  is-color && export-env
   man "$@"
 }
 
