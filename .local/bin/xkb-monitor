@@ -3,17 +3,38 @@
 set -eu
 
 clean() {
-  kill $pid 2>/dev/null
+  rm -fr "$lock"
+  kill ${pid--l} &>/dev/null
 }
 loop() {
-  trap : SIGUSR1
-  trap clean EXIT
-  xkb-notify & pid=$!
-  while kill -n0 $pid 2>/dev/null; do
-    wait $pid || (($? == 138)) || exit
-    xkb-load || :
-    sleep 1
+  while kill -n0 $pid; do
+    wait $pid && :
+    case $? in
+      0|138) ;;
+      *) exit;;
+    esac
+    sleep 0.5
+    xkb-load
+    sleep 0.5
   done
 }
+prepare() {
+  local dir=$(init-run-user bin/xkb-monitor)
+  [[ -d $dir ]]
+  lock=$dir/lock
+  mkdir -m700 "$lock" &>/dev/null
+}
+main() {
+  local -i pid
+  local lock
+  xkb-load
+  prepare || exit 0
+  (
+    trap : SIGUSR1
+    trap clean EXIT
+    xkb-notify & pid=$!
+    loop
+  ) &
+}
 
-loop &
+main
