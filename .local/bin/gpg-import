@@ -5,7 +5,7 @@ set -eu
 
 usage() {
   cat <<EOF >&2
-USAGE: $0 PAPERKEY
+USAGE: ${0##*/} PAPERKEY
     import secret and public keys
 EOF
   exit 1

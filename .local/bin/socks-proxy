@@ -8,7 +8,7 @@ readonly PROXY=$HOME/.config/local/.proxy
 
 usage() {
   cat <<EOF >&2
-USAGE: $0 HOST [PORT]
+USAGE: ${0##*/} HOST [PORT]
     construct dynamic forward tunnel
 
     read PORT from $PROXY if omitted

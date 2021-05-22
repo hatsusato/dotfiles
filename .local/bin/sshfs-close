@@ -4,7 +4,7 @@ set -eu
 
 usage() {
   cat <<EOF >&2
-USAGE: $0 MOUNTPOINT
+USAGE: ${0##*/} MOUNTPOINT
     unmount sshfs
 EOF
   exit 1

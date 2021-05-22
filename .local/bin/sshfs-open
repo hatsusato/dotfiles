@@ -6,7 +6,7 @@ set -eu
 usage() {
   local t=$'\t'
   cat <<EOF >&2
-USAGE: $0 HOST[:REMOTE] [LOCAL]
+USAGE: ${0##*/} HOST[:REMOTE] [LOCAL]
     open sshfs connection
 
 OPTIONS:

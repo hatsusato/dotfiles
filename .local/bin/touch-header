@@ -5,7 +5,7 @@ set -eu
 
 usage() {
   cat <<EOF >&2
-USAGE: $0 [-c] [-h] [-x] FILE...
+USAGE: ${0##*/} [-c] [-h] [-x] FILE...
     initialize FILEs with include guard
 
     -c  force C mode

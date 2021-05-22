@@ -5,7 +5,7 @@ set -eu
 usage() {
   local prefix=${XDB_RUNTIME_DIR-/run/user/$UID}
   cat <<EOF >&2
-USAGE: $0 PATH
+USAGE: ${0##*/} PATH
     Create a directory under $prefix and echo its path
 
     PATH  relative path from $prefix

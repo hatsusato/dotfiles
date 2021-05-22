@@ -5,7 +5,7 @@ set -eu
 
 usage() {
   cat <<EOF >&2
-USAGE: $0 ENCRYPTED
+USAGE: ${0##*/} ENCRYPTED
     print decrypted contents to stdout
 EOF
   exit 1

@@ -4,7 +4,7 @@ set -eu
 
 usage() {
   cat <<EOF >&2
-USAGE: $0 OUTPUT
+USAGE: ${0##*/} OUTPUT
     export public and secret keys by paperkey
 EOF
   exit 1

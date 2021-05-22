@@ -4,7 +4,7 @@ set -eu
 
 usage() {
   cat <<EOF >&2
-USAGE: $0 COMMAND
+USAGE: ${0##*/} COMMAND
     interactive 'update-alternative --install'
 EOF
   exit 1

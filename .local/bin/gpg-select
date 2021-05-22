@@ -6,7 +6,7 @@ source ${BASH_SOURCE%/*}/function/error
 
 usage() {
   cat <<EOF >&2
-USAGE: $0 [-h] [-v]
+USAGE: ${0##*/} [-h] [-v]
     select gpg key ID from its comment
 
     -h  print this help

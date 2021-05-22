@@ -7,7 +7,7 @@ readonly xkbdir=$HOME/.config/local/.xkb
 
 usage() {
   cat <<EOF >&2
-USAGE: $0 [KEYMAP]
+USAGE: ${0##*/} [KEYMAP]
     load KEYMAP file
     load last keymap if KEYMAP is omitted
     KEYMAP is at '$xkbdir' if relative
