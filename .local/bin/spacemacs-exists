@@ -2,6 +2,7 @@
 # apt: emacs
 
 set -eu
+source ${BASH_SOURCE%/*}/function/error
 
 usage() {
   cat <<EOF >&2
@@ -12,14 +13,6 @@ USAGE: $0 [-h] [-v]
     -v  verbose mode
 EOF
   exit 1
-}
-error() {
-  local -i err=$?
-  ((err == 0)) && err=1
-  cat <<EOF >&2
-ERROR: $@
-EOF
-  exit $err
 }
 print() {
   local -i count=0

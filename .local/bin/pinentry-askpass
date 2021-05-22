@@ -2,13 +2,8 @@
 # apt: pinentry-gnome3
 
 set -eu
+source ${BASH_SOURCE%/*}/function/error
 
-error() {
-  cat <<EOF >&2
-ERROR: $@
-EOF
-  exit 1
-}
 protocol() {
   local desc="[sudo] password for $USER: "
   cat <<EOF

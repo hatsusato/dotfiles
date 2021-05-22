@@ -2,13 +2,8 @@
 # apt: emacs git
 
 set -eu
+source ${BASH_SOURCE%/*}/function/error
 
-error() {
-  cat <<EOF >&2
-ERROR: $@
-EOF
-  exit 1
-}
 git-pull() {
   git fetch --prune
   git merge --ff-only "$1"

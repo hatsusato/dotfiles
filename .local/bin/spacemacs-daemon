@@ -2,13 +2,8 @@
 # apt: emacs
 
 set -eu
+source ${BASH_SOURCE%/*}/function/error
 
-error() {
-  cat <<EOF >&2
-ERROR: $@
-EOF
-  exit 1
-}
 check-running() {
   spacemacs-exists && :
   case $? in

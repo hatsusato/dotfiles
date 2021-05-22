@@ -2,6 +2,7 @@
 # apt: openssh-client
 
 set -eu
+source ${BASH_SOURCE%/*}/function/error
 
 readonly PROXY=$HOME/.config/local/.proxy
 
@@ -15,12 +16,6 @@ USAGE: $0 HOST [PORT]
         HOST0: PORT0
         HOST1: PORT1
         ...
-EOF
-  exit 1
-}
-error() {
-  cat <<EOF >&2
-ERROR: $@
 EOF
   exit 1
 }
