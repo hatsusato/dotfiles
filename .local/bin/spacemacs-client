@@ -2,5 +2,9 @@
 
 set -eu
 
-spacemacs-daemon
-exec emacsclient "$@"
+main() {
+  spacemacs-daemon
+  exec -a spacemacs-client emacsclient "$@"
+}
+
+main "$@"
