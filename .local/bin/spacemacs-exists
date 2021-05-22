@@ -13,11 +13,25 @@ USAGE: $0 [-h] [-v]
 EOF
   exit 1
 }
+error() {
+  local -i err=$?
+  ((err == 0)) && err=1
+  cat <<EOF >&2
+ERROR: $@
+EOF
+  exit $err
+}
 print() {
   local -i count=0
   pgrep -afx 'spacemacs --daemon' || count+=1
   pgrep -afx 'spacemacs --fg-daemon' || count+=1
   ((count < 2))
+}
+check() {
+  case $? in
+    124) error spacemacs hung up;;
+    *) exit;;
+  esac
 }
 main() {
   local var verbose= out
@@ -27,7 +41,7 @@ main() {
       v) verbose=on;;
     esac
   done
-  timeout 1s emacsclient -a false -e t &>/dev/null || exit
+  timeout 1s emacsclient -a false -e t &>/dev/null || check
   [[ -n $verbose ]] && print
   return 0
 }
