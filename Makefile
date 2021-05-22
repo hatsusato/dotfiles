@@ -13,8 +13,12 @@ $(install/files): install/%: %
 	@./install.sh $*
 
 .PHONY: $(xkb-notify)
-$(xkb-notify): src/xkb-notify.c
+$(xkb-notify): src/xkb-notify.c install/libx11-dev
 	gcc -O2 $< -lX11 -o $(@:install/%=$(HOME)/%)
+
+.PHONY: install/libx11-dev
+install/libx11-dev: install/%:
+	@dpkg --no-pager -l $* 2>/dev/null | grep -q ^ii || sudo apt install -y $*
 
 .PHONY: clean
 clean:
