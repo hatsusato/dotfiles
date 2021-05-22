@@ -6,7 +6,7 @@ apt-install() {
   (($# == 0)) && exit
   local -i n=$(dpkg --no-pager -l "$@" 2>/dev/null | grep ^ii | wc -l)
   (($# == n)) && exit
-  sudo apt install "$@"
+  sudo apt install ${APT_OPTION-} "$@"
 }
 prepare() {
   mkdir -p "${log%/*}"
@@ -27,12 +27,10 @@ has-option() {
   return 1
 }
 main() {
-  if has-option "$@"; then
-    sudo apt install "$@"
-  else
-    apt-install "$@"
-    append "$@"
-  fi
+  [[ ${1-} == install ]] || sudo apt "$@"
+  has-option "$@" || sudo apt "$@"
+  apt-install "$@"
+  append "$@"
 }
 
 main "$@"
