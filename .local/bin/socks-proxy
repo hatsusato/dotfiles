@@ -4,15 +4,15 @@
 set -eu
 source ${BASH_SOURCE%/*}/function/error
 
-readonly PROXY=$HOME/.config/local/.proxy
+readonly proxy=$HOME/.config/local/.proxy
 
 usage() {
   cat <<EOF >&2
 USAGE: ${0##*/} HOST [PORT]
     construct dynamic forward tunnel
 
-    read PORT from $PROXY if omitted
-    format of ${PROXY##*/} is as follows:
+    read PORT from $proxy if omitted
+    format of ${proxy##*/} is as follows:
         HOST0: PORT0
         HOST1: PORT1
         ...
@@ -23,12 +23,12 @@ is-integer() {
   test "$1" -eq "$1" &>/dev/null
 }
 load-port() {
-  [[ -f $PROXY ]] || error config file not found: "$PROXY"
+  [[ -f $proxy ]] || error config file not found: "$proxy"
   local blank='[[:blank:]]*'
   local match=/^"$blank$host$blank"$/
   local script="match(\$1, $match) {print \$2}"
-  local num=$(awk -F: "$script" "$PROXY")
-  echo "load port from $PROXY" >&2
+  local num=$(awk -F: "$script" "$proxy")
+  echo "load port from $proxy" >&2
   [[ -n $num ]] || error host not found: "$host"
   is-integer "$num" || error invalid port: "${num# }"
   echo $num
