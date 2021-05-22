@@ -5,16 +5,13 @@ set -eu
 
 usage() {
   cat <<EOF >&2
-USAGE: $0 [-x] [ARG]...
+USAGE: $0 [FILE]...
     Copy to clipboard from files or stdin
-
-    When -x is specified, xclip is invoked instead
-        xclip -selection clipboard ARG...
 EOF
   exit 1
 }
 clip() {
-  /usr/bin/xclip -selection clipboard "$@"
+  xclip -selection clipboard "$@"
 }
 clipout() {
   clip -o | base64
@@ -22,39 +19,31 @@ clipout() {
 clipin() {
   base64 -d | clip
 }
-get-lock() {
-  mkdir -m700 "$lock" 2>/dev/null
-}
-clean() {
-  [[ $(clipout) == $after ]] || return 0
-  clipin <<<"$before"
-  rm -fr "$lock"
-}
-prepare-lock() {
+prepare() {
   local dir=$(init-run-user bin/clip)
   [[ -d $dir ]] || exit
   lock=$dir/lock
   pid=$lock/pid
-  until get-lock; do
+  until mkdir -m700 "$lock" 2>/dev/null; do
     [[ -f $pid ]] && kill $(cat "$pid")
     sleep 0.1
   done
 }
+clean() {
+  [[ $(clipout) == $next ]] && clipin <<<"$prev"
+  rm -fr "$lock"
+}
 main() {
-  case ${1-} in
-    -x) shift
-        clip "$@"
-        exit;;
-    -*) usage;;
-  esac
-  local lock pid before after
-  prepare-lock
-  before=$(clipout)
-  clip "$@"
-  after=$(clipout)
-  ( trap clean EXIT
-    sleep 30 & wait
+  local lock pid prev next=
+  prepare
+  (
+    prev=$(clipout)
+    trap clean EXIT
+    clip "$@"
+    next=$(clipout)
+    sleep 45
   ) & echo $! >"$pid"
 }
 
+[[ ${1-} == -* ]] && usage
 main "$@"
