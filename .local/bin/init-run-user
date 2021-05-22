@@ -6,9 +6,10 @@ readonly prefix=${XDB_RUNTIME_DIR-/run/user/$UID}
 
 usage() {
   cat <<EOF >&2
-USAGE: ${0##*/} PATH
+USAGE: ${0##*/} [-r] PATH
     Create a directory under $prefix and echo its path
 
+    -r    random suffix XXXXXX is appended to PATH
     PATH  relative path from $prefix
 EOF
   exit 1
@@ -18,11 +19,24 @@ make-dir() {
   make-dir "${1%/*}"
   mkdir -m700 -p "$1"
 }
+suffix() {
+  [[ -n $random ]] && mktemp -u -- -XXXXXX
+  return 0
+}
 main() {
-  local dir=$prefix/$1
+  local var dir random=
+  while getopts r var; do
+    case $var in
+      r) random=on;;
+      \?) usage;;
+    esac
+  done
+  shift $((OPTIND - 1))
+  (($# == 1)) || usage
+  dir=$prefix/$1
+  dir+=$(suffix)
   make-dir "$dir"
   echo "$dir"
 }
 
-(($# == 1)) || usage
 main "$@"
