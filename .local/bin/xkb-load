@@ -2,13 +2,45 @@
 
 set -eu
 
-source "${BASH_SOURCE%/*}"/util.sh
+readonly xkbdir=$HOME/.config/local/.xkb
 
-xkbdir=$HOME/.config/xkb
-default=$xkbdir/default.xkb
-if [[ ! -f $default ]] || (($#)); then
-  keymap=$xkbdir/${1-$(hostname)}.xkb
-  [[ -f $keymap ]] || error "$keymap: No such file or directory"
-  cp -f "$keymap" "$default"
-fi
-xkbcomp -I"$xkbdir" "$default" "$DISPLAY" 2>/dev/null
+usage() {
+  cat <<EOF >&2
+USAGE: $0 [KEYMAP]
+    load KEYMAP file
+    load last keymap if KEYMAP is omitted
+    KEYMAP is at '$xkbdir' if relative
+EOF
+  exit 1
+}
+error() {
+  cat <<EOF >&2
+ERROR: $@
+EOF
+  exit 1
+}
+set-default() {
+  local keymap
+  case $1 in
+    -*) usage;;
+    /*) keymap=$1;;
+    *) keymap=$xkbdir/$1;;
+  esac
+  [[ -f $keymap ]] || error file not found: "$keymap"
+  rm -f "$default"
+  ln -s "$keymap" "$default"
+}
+load() {
+  local dir=$(init-run-user bin/xkb-load)
+  [[ -d $dir ]] || exit
+  [[ -f $default ]] || error file not found: "$default"
+  xkbcomp -I"$xkbdir" "$default" "$DISPLAY" 2>"$dir"/log
+}
+main() {
+  local default=$xkbdir/.default.xkb
+  (($# == 1)) && set-default "$1"
+  load
+}
+
+(($# == 0 || $# == 1)) || usage
+main "$@"
