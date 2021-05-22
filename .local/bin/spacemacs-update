@@ -98,7 +98,6 @@ stop-spacemacs() {
   return 0
 }
 run-spacemacs() {
-  trap spacemacs-kill EXIT
   (exec -a spacemacs emacs --fg-daemon 2> >(tee "$log" >&2)) &
   until spacemacs-exists; do
     sleep 0.1
@@ -110,8 +109,12 @@ main() {
   dotfile=$HOME/.spacemacs
   prepare
   stop-spacemacs
-  run-spacemacs
-  update
+  (
+    trap spacemacs-kill EXIT
+    run-spacemacs
+    update
+  )
+  spacemacs-daemon
 }
 
 main
