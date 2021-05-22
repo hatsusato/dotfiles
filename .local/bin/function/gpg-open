@@ -1,23 +1,22 @@
 #!/bin/bash
 
 gpg-open() {
-  local home=$(init-run-user bin/.gnupg)
-  if [[ ! -d $home ]]; then
-    echo "ERROR: failed to open local .gnupg" >&2
-    return 1
-  fi
-  home=${home@Q}
+  local home bashrc=$HOME/.bashrc
   if [[ -n ${GNUPGHOME+set} ]]; then
-    echo "gpg-open: already inside of $home" >&2
-  else
-    local bashrc=$HOME/.bashrc
-    local ps1='(gpg-open)'$PS1
-    echo "gpg-open: enter into $home" >&2
+    echo gpg-open: GNUPGHOME is already set: "${GNUPGHOME@Q}" >&2
+    return 0
+  fi
+  home=$(init-run-user -r bin/gnupg)
+  [[ -d $home ]] || return
+  home=${home@Q}
+  echo gpg-open: enter into "$home" >&2
+  (
+    trap "rm -fr $home" EXIT
     bash --init-file <(
-      echo source "${bashrc@Q}"
-      echo export PS1="${ps1@Q}"
+      [[ -f $bashrc ]] && echo source "${bashrc@Q}"
+      echo export PS1="'(gpg-open)'${PS1@Q}"
       echo export GNUPGHOME="$home"
     )
-    echo "gpg-open: Leave from $home" >&2
-  fi
+  )
+  echo gpg-open: Leave from "$home" >&2
 }
