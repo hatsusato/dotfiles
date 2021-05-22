@@ -5,14 +5,14 @@ set -eu
 
 usage() {
   cat <<EOF >&2
-USAGE: ${0##*/} ENCRYPTED
-    print decrypted contents to stdout
+USAGE: ${0##*/} ENCRYPTED [OUTPUT]
+    print decrypted contents to OUTPUT (or stdout if omitted)
 EOF
   exit 1
 }
 main() {
-  gpg --output - --decrypt "$1"
+  gpg --output "${2--}" --decrypt "$1"
 }
 
-(($# == 1)) || usage
+(($# == 1 || $# == 2)) || usage
 main "$@"

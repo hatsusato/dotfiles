@@ -5,20 +5,20 @@ set -eu
 
 usage() {
   cat <<EOF >&2
-USAGE: ${0##*/} PLAINTEXT
-    print encrypted PLAINTEXT
+USAGE: ${0##*/} PLAINTEXT [CIPHERTEXT]
+    print encrypted PLAINTEXT to CIPHERTEXT (or stdout if omitted)
 EOF
   exit 1
 }
 main() {
   local id
-  id=$(gpg-select) || exit
+  id=$(gpg-select)
   local -a gpg=(gpg)
   gpg+=(--armor)
-  gpg+=(--output -)
+  gpg+=(--output "${2--}")
   gpg+=(--recipient "$id")
   "${gpg[@]}" --encrypt "$1"
 }
 
-(($# == 1)) || usage
+(($# == 1 || $# == 2)) || usage
 main "$@"
