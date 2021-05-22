@@ -2,8 +2,9 @@
 
 set -eu
 
+readonly prefix=${XDB_RUNTIME_DIR-/run/user/$UID}
+
 usage() {
-  local prefix=${XDB_RUNTIME_DIR-/run/user/$UID}
   cat <<EOF >&2
 USAGE: ${0##*/} PATH
     Create a directory under $prefix and echo its path
@@ -18,7 +19,6 @@ make-dir() {
   mkdir -m700 -p "$1"
 }
 main() {
-  local prefix=${XDB_RUNTIME_DIR-/run/user/$UID}
   local dir=$prefix/$1
   make-dir "$dir"
   echo "$dir"
