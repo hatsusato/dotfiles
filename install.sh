@@ -8,8 +8,9 @@ apt-comment() {
   grep '^#' "$src" | grep -m1 'apt:' | cut -d: -f2
 }
 apt-install() {
-  local -a apt=("$TOP_DIR"/.local/bin/apt-install)
+  local -a apt=("$TOP_DIR"/.local/bin/apt-wrapper install)
   apt+=($(apt-comment))
+  export APT_OPTION=--yes
   "${apt[@]}"
 }
 backup() {

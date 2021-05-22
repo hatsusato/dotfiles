@@ -29,7 +29,7 @@ has-option() {
 main() {
   [[ ${1-} == install ]] || sudo apt "$@"
   shift
-  has-option "$@" || sudo apt install "$@"
+  has-option "$@" && sudo apt install "$@"
   apt-install "$@"
   append "$@"
 }
