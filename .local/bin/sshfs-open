@@ -2,14 +2,38 @@
 
 set -eu
 
-host=${1%%:*}
-src=${1#*:}
-dst=${2:-$HOME/sshfs/$host}
-if [[ $1 == "$host"?(:) ]]; then
-  src=$(ssh -t "$host" 'echo -n "$HOME"' 2>/dev/null)
-fi
-mkdir -p "$dst"
-params=reconnect
-params+=,ServerAliveInterval=5
-params+=,ServerAliveCountMax=3
-/usr/bin/sshfs "$host:$src" "$dst" -o "$params"
+usage() {
+  local t=$'\t'
+  cat <<EOF >&2
+USAGE: $0 HOST[:REMOTE] [LOCAL]
+    open sshfs connection
+
+OPTIONS:
+    HOST${t}target host name
+    REMOTE${t}remote directory to be connected
+    ${t}${t}default: home directory on HOST
+    LOCAL${t}local mount point
+    ${t}${t}default: $HOME/.sshfs/HOST
+EOF
+  exit 1
+}
+connect() {
+  local opts=reconnect
+  opts+=,ServerAliveInterval=5
+  opts+=,ServerAliveCountMax=3
+  sshfs "$host:$remote" "$mount" -o "$opts"
+}
+main() {
+  local host remote mount
+  host=${1%%:*}
+  remote=${1#*:}
+  mount=${2:-$HOME/.sshfs/$host}
+  if [[ $1 == $host?(:) ]]; then
+    remote=$(ssh -t "$host" 'echo -n "$HOME"' 2>/dev/null)
+  fi
+  mkdir -p "$mount"
+  connect
+}
+
+(($# == 1 || $# == 2)) || usage
+main "$@"
