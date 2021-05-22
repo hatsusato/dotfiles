@@ -34,12 +34,13 @@ clean() {
   rm -fr "$lock"
 }
 main() {
-  local lock pid prev next=
+  local text lock pid prev next=
+  text=$(cat "$@")
   prepare
   (
     prev=$(clipout)
     trap clean EXIT
-    clip "$@"
+    clip <<<"$text"
     next=$(clipout)
     sleep 45
   ) & echo $! >"$pid"
