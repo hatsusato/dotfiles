@@ -29,7 +29,7 @@ load() {
   local dir=$(init-run-user bin/xkb-load)
   [[ -d $dir ]] || exit
   [[ -f $default ]] || error file not found: "$default"
-  xkbcomp -I"$xkbdir" "$default" "$DISPLAY" 2>"$dir"/log
+  xkbcomp -I"$xkbdir" "$default" "$DISPLAY" 2>"$dir"/log &
 }
 main() {
   local default=$xkbdir/.default.xkb
