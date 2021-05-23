@@ -19,6 +19,7 @@ backup() {
   diff+=(--label "$src")
   diff+=(--label "$src")
   diff+=("$src" "$dst")
+  [[ $src -nt $dst ]] && return
   "${diff[@]}" &>/dev/null && return
   echo "generate patch: ${patch@Q}"
   "${diff[@]}" >"$patch" || :
@@ -32,7 +33,7 @@ main() {
   local src dst
   for src; do
     [[ -f $src ]] || continue
-    apt-install
+    [[ $src == .local/bin/* ]] && apt-install
     dst=$HOME/$src
     [[ -f $dst ]] && backup
     copy
