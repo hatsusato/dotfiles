@@ -20,7 +20,7 @@ clipin() {
   base64 -d | clip
 }
 prepare() {
-  local dir=$(init-run-user bin/clip)
+  local dir=$(mkdir-custom -b clip)
   [[ -d $dir ]] || exit
   lock=$dir/lock
   pid=$lock/pid

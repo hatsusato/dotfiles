@@ -19,7 +19,7 @@ loop() {
   done
 }
 prepare() {
-  local dir=$(init-run-user bin/xkb-monitor)
+  local dir=$(mkdir-custom -b xkb-monitor)
   [[ -d $dir ]]
   lock=$dir/lock
   mkdir -m700 "$lock" &>/dev/null

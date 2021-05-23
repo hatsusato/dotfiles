@@ -6,7 +6,7 @@ gpg-open() {
     echo gpg-open: GNUPGHOME is already set: "${GNUPGHOME@Q}" >&2
     return 0
   fi
-  home=$(init-run-user -r bin/gnupg)
+  home=$(mkdir-custom -br gnupg)
   [[ -d $home ]] || return
   home=${home@Q}
   echo gpg-open: enter into "$home" >&2

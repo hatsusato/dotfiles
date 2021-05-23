@@ -15,7 +15,7 @@ clean() {
   rm -fr "$lock"
 }
 prepare() {
-  local dir=$(init-run-user bin/spacemacs)
+  local dir=$(mkdir-custom -b spacemacs)
   [[ -d $dir ]] || exit
   lock=$dir/lock
   log=$dir/daemon.log

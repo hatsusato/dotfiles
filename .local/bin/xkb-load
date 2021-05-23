@@ -26,7 +26,7 @@ set-default() {
   ln -s "$keymap" "$default"
 }
 load() {
-  local dir=$(init-run-user bin/xkb-load)
+  local dir=$(mkdir-custom -b xkb-load)
   [[ -d $dir ]] || exit
   [[ -f $default ]] || error file not found: "$default"
   xkbcomp -I"$xkbdir" "$default" "$DISPLAY" 2>"$dir"/log &

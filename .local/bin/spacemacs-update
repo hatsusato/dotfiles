@@ -83,7 +83,7 @@ update() {
   done
 }
 prepare() {
-  local dir=$(init-run-user bin/spacemacs)
+  local dir=$(mkdir-custom -b spacemacs)
   [[ -d $dir ]] || exit
   log=$dir/daemon.log
 }
