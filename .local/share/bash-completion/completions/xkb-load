@@ -1,0 +1,14 @@
+#!/bin/bash
+
+_xkb-load() {
+  local cur prev words cword
+  _init_completion || return
+  local IFS=$'\n' xkbdir=$HOME/.config/local/.xkb keymap
+  local -a list
+  [[ -d $xkbdir ]] || return
+  while read keymap; do
+    [[ $keymap == *.xkb ]] && list+=("$keymap")
+  done < <(cd "$xkbdir"; compgen -f)
+  list=($(compgen -W "${list[*]}" -- "$cur"))
+  ((${#list[@]})) && COMPREPLY+=($(printf '%q\n' "${list[@]}"))
+} && complete -F _xkb-load xkb-load
