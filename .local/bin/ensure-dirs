@@ -2,12 +2,21 @@
 
 set -eu
 
+replace() {
+  local match subst
+  while read match; do
+    match=${match#\$}
+    subst=${!match-}
+    line=${line//\$$match/$subst}
+  done < <(grep -o '$[[:alpha:]][[:alnum:]]*' <<<"$line")
+}
 main() {
   local line conf=$HOME/.config/local/.ensure-dirs
   [[ -f $conf ]] || touch "$conf"
-  while read -r line; do
+  while read line; do
     [[ $line == '#'* ]] && continue
-    eval mkdir -m700 -p "$line"
+    replace
+    mkdir-custom -m700 "$line"
   done <"$conf"
 }
 
