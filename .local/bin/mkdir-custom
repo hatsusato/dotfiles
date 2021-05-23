@@ -1,0 +1,45 @@
+#!/bin/bash
+
+set -eu
+
+readonly userbin=${XDB_RUNTIME_DIR-/run/user/$UID/bin}
+
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} [-b] [-m MODE] [-r] [-u] PATH
+    Create a directory and echo its path
+
+    -b    relative path to $userbin
+    -m    set file mode
+    -r    random suffix XXXXXX
+    -u    dry run
+EOF
+  exit 1
+}
+make-dir() {
+  [[ -d $1 ]] && return
+  [[ $1 == */* ]] && make-dir "${1%/*}"
+  mkdir "${mode[@]}" "$1"
+}
+main() {
+  local var dir bin= random= dry=
+  local -a mode
+  while getopts bm:ru var; do
+    case $var in
+      b) bin=$userbin;;
+      m) mode+=(-m "$OPTARG");;
+      r) random=$(mktemp -u -- -XXXXXX);;
+      u) dry=on;;
+      \?) usage;;
+    esac
+  done
+  shift $((OPTIND - 1))
+  (($# == 1)) || usage
+  [[ -n $bin ]] && mode+=(-m 700)
+  [[ $1 != /* && -n $bin ]] && bin+=/
+  dir=$bin$1$random
+  [[ -n $dry ]] || make-dir "$dir"
+  echo "$dir"
+}
+
+main "$@"
