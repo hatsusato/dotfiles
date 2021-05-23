@@ -1,0 +1,39 @@
+#!/bin/bash
+
+_dropbox() {
+  local -a list cmds
+  local cur prev words cword
+  _init_completion || return
+  cmds=(autostart exclude filestatus stat help lansync ls proxy puburl
+        running sharelink start status stop throttle update version)
+  case ${words[1]-} in
+    autostart|lansync)
+      list=(y n);;
+    exclude)
+      ((cword == 2)) && list=(list add remove)
+      case ${words[2]-} in
+        add|remove) _filedir -d;;
+      esac;;
+    filestatus|stat)
+      list=(-l --list -a --all)
+      _filedir;;
+    ''|help)
+      list=(${cmds[@]});;
+    ls)
+      _filedir;;
+    proxy)
+      ((cword == 2)) && list=(none auto manual)
+      if [[ ${words[2]-} == manual ]]; then
+        ((cword == 3)) && list=(http socks4 socks5)
+      fi;;
+    puburl|sharelink)
+      ((cword == 3)) || _filedir;;
+    running|status|stop|update|version);;
+    start)
+      ((cword == 2)) && list=(-i --install);;
+    throttle)
+      ((cword == 2)) && list=(unlimited)
+      ((cword == 3)) && list=(unlimited auto);;
+  esac
+  COMPREPLY+=($(compgen -W "${list[*]}" -- "$cur"))
+} && complete -F _dropbox dropbox
