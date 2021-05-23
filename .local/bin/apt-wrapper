@@ -2,11 +2,15 @@
 
 set -eu
 
+sudo-apt() {
+  sudo-askpass apt "$@"
+  exit
+}
 apt-install() {
   (($# == 0)) && exit
   local -i n=$(dpkg --no-pager -l "$@" 2>/dev/null | grep ^ii | wc -l)
   (($# == n)) && exit
-  sudo apt install ${APT_OPTION-} "$@"
+  sudo-apt install ${APT_OPTION-} "$@"
 }
 prepare() {
   mkdir -p "${log%/*}"
@@ -27,10 +31,10 @@ has-option() {
   return 1
 }
 main() {
-  [[ ${1-} == install ]] || sudo apt "$@"
+  [[ ${1-} == install ]] || sudo-apt "$@"
   shift
-  has-option "$@" && sudo apt install "$@"
-  apt-install "$@"
+  has-option "$@" && sudo-apt install "$@"
+  (apt-install "$@")
   append "$@"
 }
 
