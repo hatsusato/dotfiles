@@ -6,56 +6,60 @@ source ${BASH_SOURCE%/*}/function/error
 
 usage() {
   cat <<EOF >&2
-USAGE: ${0##*/} [-h] [-v]
-    select gpg key ID from its comment
+USAGE: ${0##*/} [-v]
+    select gpg key ID interactively
 
-    -h  print this help
     -v  verbose mode
 EOF
   exit 1
 }
 gpg-list() {
-  gpg --list-keys --with-colon "$@"
+  gpg --list-keys "$@"
+}
+gpg-list-colon() {
+  gpg-list --with-colon "$@"
 }
 gpg-parse() {
   awk -F: "match(\$1, /^$1\$/) {print \$$2}"
 }
 prompt() {
   local var
-  select var; do
+  select var in "${comment[@]}"; do
     if [[ -n $var ]]; then
-      index=$REPLY
+      index=$(($REPLY - 1))
       return
     fi
   done
   echo >&2
   exit 1
 }
-parse() {
-  local -a comment
+parse-comment() {
   local var
-  for var; do
-    var=$(gpg-list $var | gpg-parse uid 10)
+  for var in "${keyid[@]}"; do
+    var=$(gpg-list-colon $var | gpg-parse uid 10)
     comment+=("$var")
   done
-  prompt "${comment[@]}"
 }
-main() {
-  local -a keyid=('')
-  local -i index
-  local var verbose=
-  while getopts hv var; do
+parse-opts() {
+  local var
+  while getopts v var; do
     case $var in
-      h) usage;;
       v) verbose=on;;
       \?) usage;;
     esac
   done
   shift $((OPTIND - 1))
-  keyid+=($(gpg-list | gpg-parse pub 5))
-  parse "${keyid[@]:1}"
-  [[ -n $verbose ]] && gpg -K "${keyid[$index]}" >&2
-  echo "${keyid[$index]}"
+}
+main() {
+  local -a keyid comment
+  local -i index
+  local verbose=
+  parse-opts "$@" || shift $?
+  keyid=($(gpg-list-colon | gpg-parse pub 5))
+  parse-comment
+  prompt
+  [[ -n $verbose ]] && gpg-list "${keyid[index]}" >&2
+  echo "${keyid[index]}"
 }
 
 [[ -t 0 ]] || error 'illegal input from stdin'
