@@ -1,0 +1,22 @@
+#!/bin/bash
+
+set -eu
+
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} SYMLINK DIR
+    link from SYMLINK to DIR
+EOF
+  exit 1
+}
+main() {
+  if [[ -h $1 ]]; then
+    [[ $(realpath "$1") == $2 ]] && return
+    rm -f "$1"
+  fi
+  [[ -e $1 ]] && return
+  ln -s "$2" "$1"
+}
+
+(($# == 2)) || usage
+main "$@"
