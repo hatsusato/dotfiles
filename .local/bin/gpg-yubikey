@@ -23,7 +23,7 @@ prompt-insert() {
   echo >&2
 }
 find-aid() {
-  yubikey-status | grep ^Reader: | cut -d: -f4
+  yubikey-status | grep ^Reader: | cut -d: -f7
 }
 find-keyid() {
   yubikey-list | grep ^ssb: | cut -d: -f15
