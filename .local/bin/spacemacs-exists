@@ -6,10 +6,9 @@ source ${BASH_SOURCE%/*}/function/error
 
 usage() {
   cat <<EOF >&2
-USAGE: ${0##*/} [-h] [-v]
+USAGE: ${0##*/} [-v]
     check whether spacemacs daemon is running
 
-    -h  print this help
     -v  verbose mode
 EOF
   exit 1
@@ -26,14 +25,19 @@ check() {
     *) exit;;
   esac
 }
-main() {
-  local var verbose= out
-  while getopts hv var; do
+parse-opts() {
+  local var
+  while getopts v var; do
     case $var in
-      h) usage;;
       v) verbose=on;;
+      \?) usage;;
     esac
   done
+  return $((OPTIND - 1))
+}
+main() {
+  local verbose=
+  parse-opts "$@" || shift $?
   timeout 1s emacsclient -a false -e t &>/dev/null || check
   [[ -n $verbose ]] && print
   return 0
