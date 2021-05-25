@@ -5,12 +5,11 @@ set -eu
 
 usage() {
   cat <<EOF >&2
-USAGE: ${0##*/} [-c] [-h] [-x] FILE...
+USAGE: ${0##*/} [-c] [-x] FILE...
     initialize FILEs with include guard
 
     -c  force C mode
     -x  force C++ mode
-    -h  print this help
 EOF
   exit 1
 }
@@ -36,17 +35,19 @@ generate() {
 #endif $comment
 EOF
 }
-main() {
-  local var mode header
-  while getopts chx var; do
+parse-opts() {
+  local var
+  while getopts cx var; do
     case $var in
-      c) mode=c;;
-      h) usage;;
-      x) mode=x;;
+      [cx]) mode=$var;;
       \?) usage;;
     esac
   done
-  shift $((OPTIND - 1))
+  return $((OPTIND - 1))
+}
+main() {
+  local mode header
+  parse-opts "$@" || shift $?
   for header; do
     if [[ -s $header ]]; then
       touch "$header"
