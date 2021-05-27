@@ -1,0 +1,12 @@
+#!/bin/bash
+
+set -eu
+
+main() {
+  local dir=/run/user/$UID/bin
+  mkdir -m700 -p "$dir"
+  touch "$dir"/xtrace.log
+  tail -f "$dir"/xtrace.log
+}
+
+main
