@@ -15,7 +15,7 @@ $(home/files): $(HOME)/%: %
 
 .PHONY: $(install/files)
 $(install/files): install/%: %
-	@./install.sh $<
+	@./install.sh $(HOME)/$<
 
 .PHONY: apt
 apt:
