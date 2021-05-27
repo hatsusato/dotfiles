@@ -1,0 +1,38 @@
+#!/bin/bash
+
+set -eu
+source "${BASH_SOURCE%/*}"/function/error.sh
+
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} SRC DST
+    append SRC to DST
+EOF
+  exit 1
+}
+join() {
+  tr '\n' '\0' <"$1"
+}
+contains() {
+  [[ -f $dst ]] || return
+  grep -Fqz -f <(join "$src") <(join "$dst")
+}
+parse-opts() {
+  local var
+  while getopts '' var; do
+    case $var in
+      \?) usage;;
+    esac
+  done
+  return $((OPTIND - 1))
+}
+main() {
+  parse-opts "$@" || shift $?
+  (($# == 2)) || usage
+  local src=$1 dst=$2
+  [[ -f $src ]] || error file not found: "$src"
+  contains && return
+  tee -a "$dst" <"$src" >/dev/null
+}
+
+main "$@"
