@@ -8,9 +8,6 @@ git-pull() {
   git fetch --prune
   git merge --ff-only "$1"
 }
-backup() {
-  cp -abf -S.bak -Tv "$1" "$1"
-}
 modify-input() {
   sed -e "/$match/$1" "$input"
 }
