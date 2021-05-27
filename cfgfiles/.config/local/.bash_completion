@@ -1,0 +1,112 @@
+#!/bin/bash
+
+complete-emulate() {
+  local cur prev words cword cmd
+  local -a list
+  _init_completion || return
+  cmd=${words[0]}
+  set -- $(complete -p "$cmd" 2>/dev/null)
+  [[ $1 == complete && ${@:$#} == $cmd ]] || return
+  shift
+  while ((1 < $#)); do
+    case $1 in
+      -[abcdefgjksuv])
+        list+=($1)
+        shift;;
+      -o)
+        compopt -o "$2" >/dev/null
+        shift 2;;
+      -F)
+        "$2" "$cmd" "$cur" "$prev" && :
+        return;;
+      -[AGWCXPS])
+        list+=($1 "$2")
+        shift 2;;
+      *)
+        echo ERROR: invalid complete: $(complete -p "$cmd") >&2
+        return 1;;
+    esac
+  done
+  list=($(compgen "${list[@]}" -- "$cur"))
+  ((${#list[@]})) && COMPREPLY=($(printf '%q\n' "${list[@]}"))
+}
+
+complete-split() {
+  local s=$1 c w=
+  while [[ -n $s ]]; do
+    c=${s:0:1}
+    s=${s:1}
+    case $c in
+      [$COMP_WORDBREAKS])
+        list+=("$w" "$c")
+        w=;;
+      *) w+=$c;;
+    esac
+  done
+  [[ -n $w ]] && list+=("$w")
+}
+complete-parse() {
+  local e w= q=
+  list=()
+  for e; do
+    if [[ -n $q ]]; then
+      w+=$e
+      [[ $q == $e ]] && q=
+      continue
+    fi
+    case $e in
+      [$IFS]) [[ -n "$w" ]] && list+=("$w")
+              w=;;
+      [\'\"]) q=$e
+              w+=$e;;
+      [\|\&]) list=()
+              w=;;
+      *) w+=$e;;
+    esac
+  done
+  [[ -n "$w" ]] && list+=("$w")
+}
+complete-replace() {
+  local list=()
+  complete-split "$1"
+  complete-parse "${list[@]}"
+  local line=${list[@]}
+  COMP_LINE=${COMP_LINE/#$COMP_WORDS/$line}
+  ((COMP_POINT += ${#line} - ${#COMP_WORDS}))
+  ((COMP_CWORD += ${#list[@]} - 1))
+  COMP_WORDS=("${list[@]}" "${COMP_WORDS[@]:1}")
+}
+
+complete-alias-exists() {
+  [[ -n $@ && -n ${BASH_ALIASES[$@]+x} ]]
+}
+
+complete-alias() {
+  complete-alias-exists "$COMP_WORDS" || return
+  complete-replace "${BASH_ALIASES[$COMP_WORDS]}"
+  local comp=$(complete -p "$COMP_WORDS" 2>/dev/null)
+  if [[ -z $comp ]]; then
+    _completion_loader "$COMP_WORDS"
+  elif [[ $comp == @(complete -F complete-alias )* ]]; then
+    complete -F _minimal -- "$COMP_WORDS" && return 124
+  else
+    complete-emulate
+  fi
+}
+
+auto-completion-loader() {
+  __load_completion "$1" && return 124
+  if complete-alias-exists "$1"; then
+    complete -F complete-alias -- "$1" && return 124
+  fi
+  complete -F _minimal -- "$1" && return 124
+} && complete -D -F auto-completion-loader
+
+complete-debug() {
+  local comp log=${DEBUG+/tmp/$USER/debug.log}
+  { for comp in words point line cword wordbreaks; do
+      declare -p COMP_${comp^^}
+    done
+    echo
+  } >>${log:-/dev/null}
+}
