@@ -46,9 +46,7 @@ $(dotfiles/link): $(HOME)/%: $(HOME)/.config/local/%
 # dropbox
 .PHONY: dropbox
 dropbox:
-	@dropbox start -i 2>/dev/null
-	@dropbox status
-	@dropbox status | grep -Fqx '最新の状態'
+	@./install-dropbox.sh
 
 # grub
 grub/etc := /etc/default/grub
