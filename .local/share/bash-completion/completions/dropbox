@@ -4,7 +4,7 @@ _dropbox() {
   local -a list cmds
   local cur prev words cword
   _init_completion || return
-  cmds=(autostart exclude filestatus stat help lansync ls proxy puburl
+  cmds=(autostart exclude filestatus help lansync ls proxy puburl
         running sharelink start status stop throttle update version)
   case ${words[1]-} in
     autostart|lansync)
@@ -14,7 +14,7 @@ _dropbox() {
       case ${words[2]-} in
         add|remove) _filedir -d;;
       esac;;
-    filestatus|stat)
+    filestatus)
       list=(-l --list -a --all)
       _filedir;;
     ''|help)
@@ -34,6 +34,8 @@ _dropbox() {
     throttle)
       ((cword == 2)) && list=(unlimited)
       ((cword == 3)) && list=(unlimited auto);;
+    *)
+      list=("${cmds[@]}")
   esac
   COMPREPLY+=($(compgen -W "${list[*]}" -- "$cur"))
 } && complete -F _dropbox dropbox
