@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -eu
+
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} MOUNTPOINT
+    unmount sshfs
+EOF
+  exit 1
+}
+main() {
+  fusermount -uz "$1"
+  rmdir "$1"
+}
+
+(($# == 1)) || usage
+main

@@ -1,0 +1,46 @@
+#!/bin/bash
+# apt: emacs
+
+set -eu
+source ${BASH_SOURCE%/*}/function/error
+
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} [-v]
+    check whether spacemacs daemon is running
+
+    -v  verbose mode
+EOF
+  exit 1
+}
+print() {
+  local -i count=0
+  pgrep -afx 'spacemacs --daemon' || count+=1
+  pgrep -afx 'spacemacs --fg-daemon' || count+=1
+  ((count < 2))
+}
+check() {
+  case $? in
+    124) error spacemacs hung up;;
+    *) exit;;
+  esac
+}
+parse-opts() {
+  local var
+  while getopts v var; do
+    case $var in
+      v) verbose=on;;
+      \?) usage;;
+    esac
+  done
+  return $((OPTIND - 1))
+}
+main() {
+  local verbose=
+  parse-opts "$@" || shift $?
+  timeout 1s emacsclient -a false -e t &>/dev/null || check
+  [[ -n $verbose ]] && print
+  return 0
+}
+
+main "$@"

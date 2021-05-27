@@ -1,0 +1,43 @@
+#!/bin/bash
+# apt: gpg
+
+set -eu
+
+yubikey-status() {
+  gpg --card-status --with-colons
+}
+yubikey-list() {
+  gpg --list-secret-keys --with-colons
+}
+yubikey-card-edit() {
+  gpg --batch --command-fd 0 --card-edit
+}
+yubikey-fetch() {
+  cat <<EOF | yubikey-card-edit 2> >(grep ^gpg: >&2)
+fetch
+quit
+EOF
+}
+prompt-insert() {
+  read -n1 -p 'Insert YubiKey and Hit Any Key.' -s
+  echo >&2
+}
+find-aid() {
+  yubikey-status | grep ^Reader: | cut -d: -f7
+}
+find-keyid() {
+  yubikey-list | grep ^ssb: | cut -d: -f15
+}
+main() {
+  local aid
+  while true; do
+    if aid=$(find-aid); then
+      find-keyid | grep -xq "$aid" && return
+      yubikey-fetch
+    else
+      prompt-insert
+    fi
+  done
+}
+
+main

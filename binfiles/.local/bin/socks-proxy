@@ -1,0 +1,53 @@
+#!/bin/bash
+# apt: openssh-client
+
+set -eu
+source ${BASH_SOURCE%/*}/function/error
+
+readonly proxy=$HOME/.config/local/.proxy
+
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} HOST [PORT]
+    construct dynamic forward tunnel
+
+    read PORT from $proxy if omitted
+    format of ${proxy##*/} is as follows:
+        HOST0: PORT0
+        HOST1: PORT1
+        ...
+EOF
+  exit 1
+}
+is-integer() {
+  test "$1" -eq "$1" &>/dev/null
+}
+load-port() {
+  [[ -f $proxy ]] || error config file not found: "$proxy"
+  local blank='[[:blank:]]*'
+  local match=/^"$blank$host$blank"$/
+  local script="match(\$1, $match) {print \$2}"
+  local num=$(awk -F: "$script" "$proxy")
+  echo "load port from $proxy" >&2
+  [[ -n $num ]] || error host not found: "$host"
+  is-integer "$num" || error invalid port: "${num# }"
+  echo $num
+}
+list-port() {
+  lsof -a -c ssh -i :"$port" "$@"
+}
+main() {
+  local host=$1
+  local port=${2-$(load-port)}
+  is-integer "$port" || error invalid port: "$port"
+  local -a cmd=(ssh -D $port -f -N -q "$host")
+  if pgrep -fx "${cmd[*]}" &>/dev/null; then
+    list-port | grep -F -q '(CLOSE_WAIT)' || exit 0
+    kill $(list-port -t)
+  fi
+  list-port >&2 && error other process occupies port: $port
+  "${cmd[@]}"
+}
+
+(($# == 1 || $# == 2)) || usage
+main "$@"

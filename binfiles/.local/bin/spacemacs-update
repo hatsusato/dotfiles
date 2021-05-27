@@ -1,0 +1,115 @@
+#!/bin/bash
+# apt: emacs git
+
+set -eu
+source ${BASH_SOURCE%/*}/function/error
+
+git-pull() {
+  git fetch --prune
+  git merge --ff-only "$1"
+}
+backup() {
+  cp -abf -S.bak -Tv "$1" "$1"
+}
+modify-input() {
+  sed -e "/$match/$1" "$input"
+}
+insert-layer() {
+  local input=$template
+  local layers=dotspacemacs-configuration-layers
+  local blank='[[:blank:]]*'
+  local match=^$blank$layers$blank$
+  if modify-input '{n;p}' | grep -xq "$blank'($blank"; then
+    modify-input '{n;s/$/hatsusato/}'
+  else
+    error failed to insert private layer to "'$layers"
+  fi
+}
+remove-custom() {
+  local input=$dotfile
+  local match='defun dotspacemacs\/emacs-custom-settings'
+  modify-input ',$d'
+}
+show-diff() {
+  local -a diff=(diff -u)
+  diff+=(--label "$dotfile")
+  diff+=(--label "$template")
+  insert-layer >/dev/null
+  "${diff[@]}" <(remove-custom) <(insert-layer)
+}
+update-origin() {
+  cd "$HOME"/.emacs.d
+  git-pull origin/develop
+}
+update-private() {
+  cd "$HOME"/.emacs.d/private/hatsusato
+  git-pull master
+}
+show-dotfile() {
+  if show-diff &>/dev/null; then
+    echo no change >&2
+  else
+    show-diff | less
+  fi
+}
+update-dotfile() {
+  if show-diff &>/dev/null; then
+    echo no change >&2
+  else
+    insert-layer >/dev/null
+    backup "$dotfile"
+    insert-layer >"$dotfile"
+    echo "$dotfile" updated >&2
+  fi
+}
+update() {
+  local var
+  local -a cmd
+  cmd+=('git pull origin develop')
+  cmd+=('git pull private master')
+  cmd+=('show diff of .spacemacs')
+  cmd+=('update .spacemacs')
+  cmd+=('dotspacemacs/sync-configuration-layers')
+  cmd+=('configuration-layer/update-packages')
+  select var in "${cmd[@]}"; do
+    case $REPLY in
+      1) (update-origin);;
+      2) (update-private);;
+      3) show-dotfile;;
+      4) update-dotfile;;
+      5) emacsclient -e "($var)";;
+      6) emacsclient -e "($var t)";;
+    esac
+  done
+}
+prepare() {
+  local dir=$(mkdir-custom -b spacemacs)
+  [[ -d $dir ]] || exit
+  log=$dir/daemon.log
+}
+stop-spacemacs() {
+  spacemacs-exists && spacemacs-kill
+  spacemacs-exists && error failed to stop spacemacs
+  return 0
+}
+run-spacemacs() {
+  (exec -a spacemacs emacs --fg-daemon 2> >(tee "$log" >&2)) &
+  until spacemacs-exists; do
+    sleep 0.1
+  done
+}
+main() {
+  local template dotfile log
+  template=$HOME/.emacs.d/core/templates/.spacemacs.template
+  dotfile=$HOME/.spacemacs
+  prepare
+  stop-spacemacs
+  (
+    trap spacemacs-kill EXIT
+    run-spacemacs
+    update
+  )
+  spacemacs-daemon
+}
+
+main

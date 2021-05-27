@@ -1,0 +1,40 @@
+#!/bin/bash
+
+set -eu
+
+clean() {
+  rm -fr "$lock"
+  kill ${pid--l} &>/dev/null
+}
+loop() {
+  while kill -n0 $pid; do
+    wait $pid && :
+    case $? in
+      0|138) ;;
+      *) exit;;
+    esac
+    sleep 0.5
+    xkb-load
+    sleep 0.5
+  done
+}
+prepare() {
+  local dir=$(mkdir-custom -b xkb-monitor)
+  [[ -d $dir ]]
+  lock=$dir/lock
+  mkdir -m700 "$lock" &>/dev/null
+}
+main() {
+  local -i pid
+  local lock
+  xkb-load
+  prepare || exit 0
+  (
+    trap : SIGUSR1
+    trap clean EXIT
+    xkb-notify & pid=$!
+    loop
+  ) &
+}
+
+main

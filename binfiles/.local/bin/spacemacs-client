@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -eu
+
+main() {
+  spacemacs-daemon
+  exec -a spacemacs-client emacsclient "$@"
+}
+
+main "$@"

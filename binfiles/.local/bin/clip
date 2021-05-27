@@ -1,0 +1,50 @@
+#!/bin/bash
+# apt: xclip
+
+set -eu
+
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} [FILE]...
+    Copy to clipboard from files or stdin
+EOF
+  exit 1
+}
+clip() {
+  xclip -selection clipboard "$@"
+}
+clipout() {
+  clip -o | base64
+}
+clipin() {
+  base64 -d | clip
+}
+prepare() {
+  local dir=$(mkdir-custom -b clip)
+  [[ -d $dir ]] || exit
+  lock=$dir/lock
+  pid=$lock/pid
+  until mkdir -m700 "$lock" 2>/dev/null; do
+    [[ -f $pid ]] && kill $(cat "$pid")
+    sleep 0.1
+  done
+}
+clean() {
+  [[ $(clipout) == $next ]] && clipin <<<"$prev"
+  rm -fr "$lock"
+}
+main() {
+  local text lock pid prev next=
+  text=$(cat "$@")
+  prepare
+  (
+    prev=$(clipout)
+    trap clean EXIT
+    clip <<<"$text"
+    next=$(clipout)
+    sleep 45
+  ) & echo $! >"$pid"
+}
+
+[[ ${1-} == -* ]] && usage
+main "$@"

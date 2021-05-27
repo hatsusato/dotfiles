@@ -1,0 +1,13 @@
+#!/bin/bash
+# apt: emacs
+
+set -eu
+source ${BASH_SOURCE%/*}/function/error
+
+main() {
+  local script='(progn (defun yes-or-no-p (p) t) (kill-emacs))'
+  spacemacs-exists || error spacemacs not running
+  emacsclient -e "$script"
+}
+
+main

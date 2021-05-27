@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -eu
+
+main() {
+  exec -a "$1" "$@" &>/dev/null &
+}
+
+(($# == 0)) && exit
+main "$@"

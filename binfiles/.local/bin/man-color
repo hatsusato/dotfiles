@@ -1,0 +1,73 @@
+#!/bin/bash
+# apt: ncurses-bin
+
+set -eu
+
+# reset: sgr0 [0m
+# bold: bold [1m
+# dim: dim [2m
+# italic: sitm [3m, ritm [23m
+# underline: smul [4m, rmul [24m
+# blink: blink [5m
+# reverse: rev [7m
+# standout: smso [7m, rmso [27m
+# invisible: invis [8m
+# foreground color: setaf [3?m
+# background color: setab [4?m
+# foreground bright color: setaf [9?m
+# background bright color: setab [10?m
+# color: black 0
+# color: red 1
+# color: green 2
+# color: yellow 3
+# color: blue 4
+# color: magenta 5
+# color: cyan 6
+# color: white 7
+
+print-tput() {
+  local -i i
+  while (($#)); do
+    case $1 in
+      seta[bf]) i=2;;
+      *) i=1;;
+    esac
+    tput ${@:1:i} || :
+    shift $i
+  done
+}
+export-env() {
+  local m{b,d,e,h,k,r} s{e,o} u{e,s} v
+  # Start blinking
+  mb=$(print-tput blink setaf 3)
+  # Start bold mode
+  md=$(print-tput bold setaf 1)
+  # End all mode like so, us, mb, md, and mr
+  me=$(print-tput sgr0)
+  # Start half bright mode
+  mh=$(print-tput dim setaf 4)
+  # Dark mode (Characters invisible)
+  mk=$(print-tput invis)
+  # Start reverse mode
+  mr=$(print-tput rev)
+  # End standout mode
+  se=$(print-tput sgr0)
+  # Start standout mode
+  so=$(print-tput smso setaf 6)
+  # End underlining
+  ue=$(print-tput sgr0)
+  # Start underlining
+  us=$(print-tput smul setaf 2)
+  for v in m{b,d,e,h,k,r} s{e,o} u{e,s}; do
+    export LESS_TERMCAP_$v="${!v}"
+  done
+}
+is-color() {
+  [[ -x /usr/bin/tput ]] && tput setaf 1 &>/dev/null
+}
+main() {
+  is-color && export-env
+  man "$@"
+}
+
+main "$@"

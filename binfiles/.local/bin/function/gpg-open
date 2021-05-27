@@ -1,0 +1,22 @@
+#!/bin/bash
+
+gpg-open() {
+  local home bashrc=$HOME/.bashrc
+  if [[ -n ${GNUPGHOME+set} ]]; then
+    echo gpg-open: GNUPGHOME is already set: "${GNUPGHOME@Q}" >&2
+    return 0
+  fi
+  home=$(mkdir-custom -br gnupg)
+  [[ -d $home ]] || return
+  home=${home@Q}
+  echo gpg-open: enter into "$home" >&2
+  (
+    trap "rm -fr $home" EXIT
+    bash --init-file <(
+      [[ -f $bashrc ]] && echo source "${bashrc@Q}"
+      echo export PS1="'(gpg-open)'${PS1@Q}"
+      echo export GNUPGHOME="$home"
+    )
+  )
+  echo gpg-open: Leave from "$home" >&2
+}

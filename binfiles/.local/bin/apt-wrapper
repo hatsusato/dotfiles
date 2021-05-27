@@ -1,0 +1,41 @@
+#!/bin/bash
+
+set -eu
+
+sudo-apt() {
+  sudo-askpass apt "$@"
+  exit
+}
+apt-install() {
+  (($# == 0)) && exit
+  local -i n=$(dpkg --no-pager -l "$@" 2>/dev/null | grep ^ii | wc -l)
+  (($# == n)) && exit
+  sudo-apt install ${APT_OPTION-} "$@"
+}
+prepare() {
+  mkdir -p "${log%/*}"
+  touch "$log"
+}
+append() {
+  local pkg log=$HOME/.config/local/.install
+  [[ -f $log ]] || prepare
+  for pkg; do
+    grep -xq "$pkg" "$log" &>/dev/null || echo "$pkg" >>"$log"
+  done
+}
+has-option() {
+  local opt
+  for opt; do
+    [[ $opt == -* ]] && return
+  done
+  return 1
+}
+main() {
+  [[ ${1-} == install ]] || sudo-apt "$@"
+  shift
+  has-option "$@" && sudo-apt install "$@"
+  (apt-install "$@")
+  append "$@"
+}
+
+main "$@"

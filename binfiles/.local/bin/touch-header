@@ -1,0 +1,61 @@
+#!/bin/bash
+# apt: uuid-runtime
+
+set -eu
+
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} [-c] [-x] FILE...
+    initialize FILEs with include guard
+
+    -c  force C mode
+    -x  force C++ mode
+EOF
+  exit 1
+}
+set-guard() {
+  guard=$(uuidgen -r | tr '[:lower:]-' '[:upper:]_')
+  guard=INCLUDE_GUARD_$guard
+}
+set-comment() {
+  local style=x
+  [[ ${header-} == *.h ]] && style=c
+  case ${mode-$style} in
+    c) comment="/* $guard */";;
+    x) comment="// $guard";;
+  esac
+}
+generate() {
+  local guard comment
+  set-guard
+  set-comment
+  cat <<EOF
+#ifndef $guard
+#define $guard
+#endif $comment
+EOF
+}
+parse-opts() {
+  local var
+  while getopts cx var; do
+    case $var in
+      [cx]) mode=$var;;
+      \?) usage;;
+    esac
+  done
+  return $((OPTIND - 1))
+}
+main() {
+  local mode header
+  parse-opts "$@" || shift $?
+  for header; do
+    if [[ -s $header ]]; then
+      touch "$header"
+    else
+      generate | tee "$header"
+    fi
+  done
+  [[ -n ${header+set} ]] || generate
+}
+
+main "$@"

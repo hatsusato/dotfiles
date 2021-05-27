@@ -1,0 +1,33 @@
+#!/bin/bash
+# apt: gpg paperkey
+
+set -eu
+
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} PAPERKEY
+    import secret and public keys
+EOF
+  exit 1
+}
+filter() {
+  local begin='BEGIN PGP PUBLIC KEY BLOCK'
+  sed -n -e "/$begin/$1"p "$input"
+}
+secrets() {
+  filter 'q;'
+}
+pubring() {
+  local end='END PGP PUBLIC KEY BLOCK'
+  filter ',/$end/' | gpg --dearmor
+}
+import() {
+  paperkey --secrets "$1" --pubring "$2" | gpg --import
+}
+main() {
+  local input=$1
+  import <(secrets) <(pubring)
+}
+
+(($# == 1)) || usage
+main "$@"

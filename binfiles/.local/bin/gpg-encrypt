@@ -1,0 +1,24 @@
+#!/bin/bash
+# apt: gpg
+
+set -eu
+
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} PLAINTEXT [CIPHERTEXT]
+    print encrypted PLAINTEXT to CIPHERTEXT (or stdout if omitted)
+EOF
+  exit 1
+}
+main() {
+  local id
+  id=$(gpg-select)
+  local -a gpg=(gpg)
+  gpg+=(--armor)
+  gpg+=(--output "${2--}")
+  gpg+=(--recipient "$id")
+  "${gpg[@]}" --encrypt "$1"
+}
+
+(($# == 1 || $# == 2)) || usage
+main "$@"
