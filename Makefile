@@ -27,13 +27,9 @@ chrome:
 	@./install-chrome.sh
 
 # dconf
-dconf/config := $(HOME)/.config/dconf/user.txt
-dconf/etc := /etc/dconf/profile/user
 .PHONY: dconf
-dconf: $(dconf/config) $(dconf/etc)
-	@sudo dconf update
-$(dconf/etc): /%: %
-	@sudo install $(opt/install) $< $@
+dconf: $(HOME)/.config/dconf/user.txt
+	@./install-dconf.sh
 
 # dotfile
 dotfile/files := .bash_aliases .bash_completion .clang-format .inputrc .netrc .wgetrc
