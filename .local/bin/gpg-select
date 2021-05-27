@@ -48,7 +48,7 @@ parse-opts() {
       \?) usage;;
     esac
   done
-  shift $((OPTIND - 1))
+  return $((OPTIND - 1))
 }
 main() {
   local -a keyid comment
