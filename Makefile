@@ -31,21 +31,17 @@ chrome:
 dconf: $(HOME)/.config/dconf/user.txt
 	@./install-dconf.sh
 
-# dotfile
-dotfile/files := .bash_aliases .bash_completion .clang-format .inputrc .netrc .wgetrc
-dotfile/link = $(addprefix dotfile/,$(dotfile/files))
-dotfile/prefix := $(HOME)/.config/local
-dotfile/.netrc := $(dotfile/prefix)/.netrc
-.PHONY: dotfile $(dotfile/link) dotfile/.bashrc
-dotfile: $(dotfile/link) dotfile/.bashrc $(dotfile/.netrc)
-$(dotfile/link): dotfile/%:
-	@ln -sfv $(dotfile/prefix)/$* $(HOME)/$*
-dotfile/.bashrc: .bashrc $(HOME)/.bashrc
-	@./append.sh $^
-$(dotfile/.netrc): $(HOME)/Private/.netrc
-	@install $(opt/install) $< $@
-$(HOME)/Private/.netrc:
-	@test -f $@ || $(make) private
+# dotfiles
+dotfiles/append := .bashrc .profile
+dotfiles/link := .bash_aliases .bash_completion .clang-format .inputrc .netrc .wgetrc
+dotfiles/append := $(dotfiles/append:%=$(HOME)/%)
+dotfiles/link := $(dotfiles/link:%=$(HOME)/%)
+.PHONY: dotfiles
+dotfiles: $(dotfiles/append) $(dotfiles/link)
+$(dotfiles/append): $(HOME)/%: %.append
+	@.local/bin/ensure-append $< $@
+$(dotfiles/link): $(HOME)/%: $(HOME)/.config/local/%
+	@.local/bin/ensure-link -v $@ $<
 
 # dropbox
 .PHONY: dropbox
