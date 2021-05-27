@@ -4,19 +4,37 @@ set -eu
 
 usage() {
   cat <<EOF >&2
-USAGE: ${0##*/} SYMLINK DIR
-    link from SYMLINK to DIR
+USAGE: ${0##*/} [-v] SRC DST
+    link from SRC to DST
+
+    -v  verbose mode
 EOF
   exit 1
 }
+parse-opts() {
+  local var
+  while getopts v var; do
+    case $var in
+      v) verbose=v;;
+      \?) usage;;
+    esac
+  done
+  return $((OPTIND - 1))
+}
 main() {
-  if [[ -h $1 ]]; then
-    [[ $(realpath "$1") == $2 ]] && return
-    rm -f "$1"
+  local verbose= src dst
+  parse-opts "$@" || shift $?
+  (($# == 2)) || usage
+  src=$1
+  dst=$2
+  if [[ -h $src ]]; then
+    [[ $(realpath "$src") == $dst ]] && return
+    rm -f "$src"
+  elif [[ -e $src ]]; then
+    backup -v "$src"
+    rm -fr "$src"
   fi
-  [[ -e $1 ]] && return
-  ln -s "$2" "$1"
+  ln -sf$verbose "$dst" "$src"
 }
 
-(($# == 2)) || usage
 main "$@"
