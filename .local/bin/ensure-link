@@ -31,7 +31,7 @@ main() {
     [[ $(realpath "$src") == $dst ]] && return
     rm -f "$src"
   elif [[ -e $src ]]; then
-    backup -v "$src"
+    cp -abfT$verbose "$src" "$src".bak
     rm -fr "$src"
   fi
   ln -sf$verbose "$dst" "$src"
