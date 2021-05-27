@@ -2,7 +2,7 @@
 # apt: openssh-client
 
 set -eu
-source ${BASH_SOURCE%/*}/function/error
+source "${BASH_SOURCE%/*}"/function/error.sh
 
 readonly proxy=$HOME/.config/local/.proxy
 

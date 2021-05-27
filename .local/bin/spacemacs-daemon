@@ -2,7 +2,7 @@
 # apt: emacs
 
 set -eu
-source ${BASH_SOURCE%/*}/function/error
+source "${BASH_SOURCE%/*}"/function/error.sh
 
 check-running() {
   spacemacs-exists && :

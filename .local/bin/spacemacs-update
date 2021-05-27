@@ -2,7 +2,7 @@
 # apt: emacs git
 
 set -eu
-source ${BASH_SOURCE%/*}/function/error
+source "${BASH_SOURCE%/*}"/function/error.sh
 
 git-pull() {
   git fetch --prune

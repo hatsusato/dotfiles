@@ -2,7 +2,7 @@
 # apt: gpg
 
 set -eu
-source ${BASH_SOURCE%/*}/function/error
+source "${BASH_SOURCE%/*}"/function/error.sh
 
 usage() {
   cat <<EOF >&2
