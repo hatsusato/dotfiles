@@ -3,6 +3,20 @@
 make := make --no-print-directory
 opt/install := -C -D -m644 -T
 
+files := $(shell git ls-files .local .config)
+home/files := $(files:%=$(HOME)/%)
+install/files := $(files:%=install/%)
+
+.PHONY: all
+all: $(home/files)
+
+$(home/files): $(HOME)/%: %
+	@$(make) install/$<
+
+.PHONY: $(install/files)
+$(install/files): install/%: %
+	@./install.sh $<
+
 .PHONY: apt
 apt:
 	@cat apt | ./apt-install.sh
@@ -18,8 +32,6 @@ dconf/etc := /etc/dconf/profile/user
 .PHONY: dconf
 dconf: $(dconf/config) $(dconf/etc)
 	@sudo dconf update
-$(dconf/config): $(HOME)/%: %
-	@install $(opt/install) $< $@
 $(dconf/etc): /%: %
 	@sudo install $(opt/install) $< $@
 
