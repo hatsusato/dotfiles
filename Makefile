@@ -8,15 +8,9 @@ apt:
 	@cat apt | ./apt-install.sh
 
 # chrome
-chrome/deb := google-chrome-stable_current_amd64.deb
-chrome/deb/path := /usr/local/src/$(USER)/$(chrome/deb)
-chrome/deb/url := https://dl.google.com/linux/direct/$(chrome/deb)
 .PHONY: chrome
-chrome: $(chrome/deb/path)
-	@sudo apt install -qq $<
-$(chrome/deb/path):
-	@sudo install -C -D -o $(USER) -g $(USER) -d $(@D)
-	@wget -nv --show-progress -O $@ $(chrome/deb/url)
+chrome:
+	@./install-chrome.sh
 
 # dconf
 dconf/config := $(HOME)/.config/dconf/user.txt
