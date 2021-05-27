@@ -4,13 +4,17 @@ set -eu
 
 sudo-apt() {
   sudo-askpass apt-get "$@"
-  exit
 }
-apt-install() {
-  (($# == 0)) && exit
-  local -i n=$(dpkg --no-pager -l "$@" 2>/dev/null | grep ^ii | wc -l)
-  (($# == n)) && exit
-  sudo-apt install ${APT_OPTION-} "$@"
+show-dpkg() {
+  dpkg --no-pager -l "$@" 2>/dev/null | tail -n+6
+}
+is-installed() {
+  local pkg
+  local -i count=0
+  for pkg; do
+    show-dpkg "$pkg" | grep -q ^ii || count+=1
+  done
+  return $count
 }
 prepare() {
   mkdir -p "${log%/*}"
@@ -20,7 +24,8 @@ append() {
   local pkg log=$HOME/.config/local/.install
   [[ -f $log ]] || prepare
   for pkg; do
-    grep -xq "$pkg" "$log" &>/dev/null || echo "$pkg" >>"$log"
+    grep -xq "$pkg" "$log" &>/dev/null && continue
+    tee -a "$log" <<<"$pkg" >/dev/null
   done
 }
 has-option() {
@@ -31,11 +36,14 @@ has-option() {
   return 1
 }
 main() {
-  [[ ${1-} == install ]] || sudo-apt "$@"
-  shift
-  has-option "$@" && sudo-apt install "$@"
-  (apt-install "$@")
-  append "$@"
+  if [[ ${1-} != install ]] || has-option "$@"; then
+    sudo-apt "$@"
+  else
+    shift
+    is-installed "$@" && exit
+    sudo-apt install ${APT_OPTION-} "$@"
+    append "$@"
+  fi
 }
 
 main "$@"
