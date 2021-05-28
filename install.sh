@@ -3,20 +3,9 @@
 set -eu
 source "${BASH_SOURCE%/*}"/error.sh
 
-append() {
-  local pkg dot log
-  dot=.config/local/.install
-  log=$HOME/$dot
-  ./append.sh "$dot" "$log"
-  for pkg; do
-    grep -xq "$pkg" "$log" &>/dev/null && continue
-    tee -a "$log" <<<"$pkg" >/dev/null
-  done
-}
 apt-install() {
   local pkgs=$(grep '^#' "$src" | grep -m1 'apt:' | cut -d: -f2-)
-  sudo apt-get install -qq $pkgs
-  append $pkgs
+  ./apt-install.sh $pkgs
 }
 backup() {
   local patch=${src##*/}.patch
