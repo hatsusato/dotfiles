@@ -15,7 +15,7 @@ all: $(home/files) $(home/appends)
 $(home/files): $(HOME)/%: %
 	@$(make) install/$<
 $(home/appends): $(HOME)/%: %.append
-	@.local/bin/ensure-append $< $@
+	@./append.sh $< $@
 
 .PHONY: $(install/files)
 $(install/files): install/%: %
