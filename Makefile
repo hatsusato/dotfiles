@@ -6,12 +6,16 @@ opt/install := -C -D -m644 -T
 files := $(shell git ls-files .local .config)
 home/files := $(files:%=$(HOME)/%)
 install/files := $(files:%=install/%)
+appends := .bashrc .profile
+home/appends := $(appends:%=$(HOME)/%)
 
 .PHONY: all
-all: $(home/files)
+all: $(home/files) $(home/appends)
 
 $(home/files): $(HOME)/%: %
 	@$(make) install/$<
+$(home/appends): $(HOME)/%: %.append
+	@.local/bin/ensure-append $< $@
 
 .PHONY: $(install/files)
 $(install/files): install/%: %
@@ -30,14 +34,6 @@ chrome:
 .PHONY: dconf
 dconf: $(HOME)/.config/dconf/user.txt
 	@./install-dconf.sh
-
-# dotfiles
-dotfiles/append := .bashrc .profile
-dotfiles/append := $(dotfiles/append:%=$(HOME)/%)
-.PHONY: dotfiles
-dotfiles: $(dotfiles/append)
-$(dotfiles/append): $(HOME)/%: %.append
-	@.local/bin/ensure-append $< $@
 
 # dropbox
 .PHONY: dropbox
