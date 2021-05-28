@@ -64,15 +64,3 @@ private:
 .PHONY: spacemacs
 spacemacs:
 	@./install-spacemacs.sh
-
-# submodule
-## clone
-define clone/do
-ifeq ($$(filter https://%,$(2)),)
-$(1): $(2)
-endif
-$(1):
-	@test -d $$@ || git clone $$(clone/flags) $(2) $$(@D)
-endef
-$(foreach var,$(target/clone),$(eval $(call clone/do,$($(var)/git),$($(var)/repo))))
-$(spacemacs/syl20bnr/git): clone/flags := --branch develop
