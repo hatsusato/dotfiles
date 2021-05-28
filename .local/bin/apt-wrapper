@@ -1,37 +1,32 @@
 #!/bin/bash
 
 set -eu
+source "${BASH_SOURCE%/*}"/function/error.sh
 
 sudo-apt() {
-  sudo-askpass apt-get "$@"
+  sudo-askpass apt "$@"
 }
 show-dpkg() {
   dpkg --no-pager -l "$@" 2>/dev/null | tail -n+6
 }
 is-installed() {
   local pkg
-  local -i count=0
   for pkg; do
-    show-dpkg "$pkg" | grep -q ^ii || count+=1
+    show-dpkg "$pkg" | grep -q ^ii || return
   done
-  return $count
-}
-prepare() {
-  mkdir -p "${log%/*}"
-  touch "$log"
 }
 append() {
   local pkg log=$HOME/.config/local/.install
-  [[ -f $log ]] || prepare
+  [[ -f $log ]] || error file not found: "$log"
   for pkg; do
-    grep -xq "$pkg" "$log" &>/dev/null && continue
+    grep -xq -e "$pkg" "$log" &>/dev/null && continue
     tee -a "$log" <<<"$pkg" >/dev/null
   done
 }
 has-option() {
-  local opt
-  for opt; do
-    [[ $opt == -* ]] && return
+  local arg
+  for arg; do
+    [[ $arg == -* ]] && return
   done
   return 1
 }
@@ -40,8 +35,8 @@ main() {
     sudo-apt "$@"
   else
     shift
-    is-installed "$@" && exit
-    sudo-apt install ${APT_OPTION-} "$@"
+    is-installed "$@" && return
+    sudo-apt install "$@"
     append "$@"
   fi
 }
