@@ -14,6 +14,8 @@ if command -v ensure-link >/dev/null; then
   ensure-link "$HOME"/{,.config/local/}.inputrc || :
   ensure-link "$HOME"/{,.config/local/}.netrc || :
   ensure-link "$HOME"/{,.config/local/}.wgetrc || :
+  ensure-link "$HOME"/.config/google-chrome/NativeMessagingHosts \
+              /etc/chromium/native-messaging-hosts || :
 fi
 if command -v xkb-monitor >/dev/null; then
   xkb-monitor || :

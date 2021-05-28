@@ -51,20 +51,9 @@ im-config:
 	@./install-im-config.sh
 
 # pass
-pass/browser = $(pass/browser/dir)/$(pass/browser/json)
-pass/browser/dir := $(HOME)/.config/google-chrome/NativeMessagingHosts
-pass/browser/etc = $(pass/browser/etc/dir)/$(pass/browser/json)
-pass/browser/etc/dir := /etc/chromium/native-messaging-hosts
-pass/browser/json := com.github.browserpass.native.json
-pass/git := $(HOME)/.password-store/.git
-pass/repo := $(HOME)/Private/.password-store.git
-target/clone += pass
 .PHONY: pass
-pass: $(pass/git) $(pass/browser)
-$(pass/repo):
-	@test -d $@ || $(make) private
-$(pass/browser): $(pass/browser/etc)
-	@ln -sfv $< $@
+pass:
+	@./apt-install.sh pass webext-browserpass
 
 # private
 private/dst := $(HOME)/Private
