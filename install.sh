@@ -1,22 +1,22 @@
 #!/bin/bash
 
 set -eu
-source "${BASH_SOURCE%/*}"/.local/bin/function/error.sh
+source "${BASH_SOURCE%/*}"/error.sh
 
-usage() {
-  cat <<EOF >&2
-USAGE: ${0##*/} TARGET
-    install file to TARGET, which must be full path
-    install from \${TARGET#\$HOME/} if TARGET begins with \$HOME;
-    from \${TARGET#/} otherwise
-EOF
-  exit 1
-}
-apt-comment() {
-  grep '^#' "$src" | grep -m1 'apt:' | cut -d: -f2-
+append() {
+  local pkg dot log
+  dot=.config/local/.install
+  log=$HOME/$dot
+  ./append.sh "$dot" "$log"
+  for pkg; do
+    grep -xq "$pkg" "$log" &>/dev/null && continue
+    tee -a "$log" <<<"$pkg" >/dev/null
+  done
 }
 apt-install() {
-  APT_OPTION=-qq .local/bin/apt-wrapper install $(apt-comment)
+  local pkgs=$(grep '^#' "$src" | grep -m1 'apt:' | cut -d: -f2-)
+  sudo apt-get install -qq $pkgs
+  append $pkgs
 }
 backup() {
   local patch=${src##*/}.patch
@@ -42,8 +42,8 @@ copy() {
   LANG=C ${sudo[@]} "${install[@]}" "$src" "$dst"
 }
 main() {
-  local src=${1#$HOME} dst=$1
-  src=${src#/}
+  (($# == 2)) || return
+  local src=$1 dst=$2
   [[ $dst == /* ]] || error not full path: "$dst"
   [[ -f $src ]] || error source not found: "$src"
   [[ -f $dst ]] && backup
@@ -51,5 +51,4 @@ main() {
   copy
 }
 
-(($# == 1)) || usage
 main "$@"

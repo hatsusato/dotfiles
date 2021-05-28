@@ -13,13 +13,13 @@ home/appends := $(appends:%=$(HOME)/%)
 all: $(home/files) $(home/appends)
 
 $(home/files): $(HOME)/%: %
-	@$(make) install/$<
+	@./install.sh $< $@
 $(home/appends): $(HOME)/%: %.append
 	@./append.sh $< $@
 
 .PHONY: $(install/files)
-$(install/files): install/%: %
-	@./install.sh $(HOME)/$<
+$(install/files): install/%:
+	@./install.sh $* $(HOME)/$*
 
 .PHONY: apt
 apt:
