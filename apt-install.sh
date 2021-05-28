@@ -2,34 +2,35 @@
 
 set -eu
 
-installed() {
-  [[ $1 == -* ]] && return
-  dpkg -l --no-pager "$1" 2>/dev/null | grep -q ^ii
+extract() {
+  pkg=${pkg##*/}
+  pkg=${pkg%%_*}
 }
 append() {
-  [[ $1 == -* ]] && return
-  local log=$HOME/.config/local/.install
-  mkdir -p "${log%/*}"
-  grep -xq "$1" "$log" 2>/dev/null && return
-  echo "$1" >>"$log"
-}
-from-stdin() {
-  local line
-  while read -r line; do
-    args+=("$line")
+  local pkg dot log
+  dot=.config/local/.install
+  log=$HOME/$dot
+  ./append.sh "$dot" "$log"
+  for pkg; do
+    [[ $pkg == *.deb ]] && extract
+    grep -xq "$pkg" "$log" &>/dev/null && continue
+    tee -a "$log" <<<"$pkg" >/dev/null
   done
 }
-filter() {
+show-dpkg() {
+  dpkg --no-pager -l "$@" 2>/dev/null | tail -n+6
+}
+is-installed() {
   local pkg
-  args=()
-  for pkg in "$@"; do
-    installed "$pkg" && continue
-    append "$pkg"
-    args+=("$pkg")
+  for pkg; do
+    [[ $pkg == *.deb ]] && extract
+    show-dpkg "$pkg" | grep -q ^ii || return
   done
+}
+main() {
+  is-installed "$@" && return
+  sudo apt-get install -qq "$@"
+  append "$@"
 }
 
-args=("$@")
-[[ -t 0 ]] || from-stdin
-filter "${args[@]}"
-((${#args[@]})) && sudo apt install "${args[@]}"
+main "$@"
