@@ -56,16 +56,9 @@ pass:
 	@./apt-install.sh pass webext-browserpass
 
 # private
-private/dst := $(HOME)/Private
-private/src := $(HOME)/Dropbox/Private
-.PHONY: private private/mount
-private: private/mount
-private/mount: $(private/src) $(private/dst)
-	@./mount.sh $^
-$(private/dst):
-	@mkdir -p $@
-$(private/src):
-	@test -d $@ || $(make) dropbox
+.PHONY: private
+private:
+	@./apt-install.sh gocryptfs
 
 # spacemacs
 spacemacs/dotfile := $(HOME)/.spacemacs
