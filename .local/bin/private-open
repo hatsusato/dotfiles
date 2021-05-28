@@ -1,4 +1,5 @@
 #!/bin/bash
+# apt: gocryptfs
 
 set -eu
 source "${BASH_SOURCE%/*}"/function/error.sh
