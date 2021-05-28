@@ -61,17 +61,9 @@ private:
 	@./apt-install.sh gocryptfs
 
 # spacemacs
-spacemacs/dotfile := $(HOME)/.spacemacs
-spacemacs/hatsusato/git := $(HOME)/.emacs.d/private/hatsusato/.git
-spacemacs/hatsusato/repo := https://github.com/hatsusato/private-layer
-spacemacs/syl20bnr/git := $(HOME)/.emacs.d/.git
-spacemacs/syl20bnr/repo := https://github.com/syl20bnr/spacemacs
-target/clone += spacemacs/hatsusato spacemacs/syl20bnr
 .PHONY: spacemacs
-spacemacs: $(spacemacs/dotfile) $(spacemacs/hatsusato/git)
-$(spacemacs/dotfile): $(spacemacs/syl20bnr/git)
-	@test -f $@ || emacs
-$(spacemacs/hatsusato/git): $(spacemacs/syl20bnr/git)
+spacemacs:
+	@./install-spacemacs.sh
 
 # ssh
 ssh/find = find $(1) -mindepth 2 -path $(2) -prune -o -print
