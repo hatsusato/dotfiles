@@ -1,0 +1,21 @@
+#!/bin/bash
+
+set -eu
+source "${BASH_SOURCE%/*}"/function/error.sh
+
+is-mounted() {
+  awk '{print $1,$2,$3}' /etc/mtab | grep -Fqx "$*"
+}
+main() {
+  local cipherdir=$HOME/Dropbox/Private mountpoint=$HOME/Private
+  set -- "$cipherdir" "$mountpoint"
+  [[ -d $1 ]] || error directory not found: "$1"
+  [[ -d $2 ]] || error directory not found: "$2"
+  is-mounted "$@" fuse.gocryptfs && return
+  if command -v pinentry-askpass >/dev/null; then
+    set -- -extpass pinentry-askpass "$@"
+  fi
+  gocryptfs "$@"
+}
+
+main
