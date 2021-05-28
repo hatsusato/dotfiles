@@ -65,17 +65,6 @@ private:
 spacemacs:
 	@./install-spacemacs.sh
 
-# ssh
-ssh/find = find $(1) -mindepth 2 -path $(2) -prune -o -print
-ssh/git := $(HOME)/.ssh/.git
-ssh/repo := $(HOME)/Private/.ssh.git
-target/clone += ssh
-.PHONY: ssh
-ssh: $(ssh/git)
-	$(call ssh/find,$(<D),'$</*') | xargs chmod 400
-$(ssh/repo):
-	@test -d $@ || $(make) private
-
 # submodule
 ## clone
 define clone/do
