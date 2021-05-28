@@ -6,18 +6,21 @@ home/appends := $(appends:%=$(HOME)/%)
 files := $(shell find .local .config -type f)
 home/files := $(files:%=$(HOME)/%)
 
+xkb-notify := .local/bin/xkb-notify
 modules := chrome dconf dev dropbox fonts grub im-config pass spacemacs xkb
 
-install/files := $(files:%=install/%)
+install/files := $(files:%=install/%) install/$(xkb-notify)
 install/modules := $(modules:%=install/%)
 
 .PHONY: all
-all: $(home/files) $(home/appends)
+all: $(home/files) $(home/appends) $(HOME)/$(xkb-notify)
 
 $(home/appends): $(HOME)/%: %.append
 	@./append.sh $< $@
 $(home/files): $(HOME)/%: %
 	@./install.sh $< $@
+$(HOME)/$(xkb-notify): src/xkb-notify.c install/xkb
+	gcc -O2 $< -lX11 -o $@
 
 .PHONY: $(install/files)
 $(install/files): install/%: $(HOME)/%
