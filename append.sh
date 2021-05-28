@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -eu
+source "${BASH_SOURCE%/*}"/error.sh
 
 join() {
   tr '\n' '\0' <"$1"
