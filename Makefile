@@ -41,12 +41,9 @@ dropbox:
 	@./install-dropbox.sh
 
 # grub
-grub/etc := /etc/default/grub
-.PHONY: grub grub/patch
-grub: grub/patch
-	@sudo update-grub
-grub/patch: $(grub/etc)
-	@./patch.sh $<
+.PHONY: grub
+grub:
+	@./install-grub.sh
 
 # im-config
 im-config/title := 'im-config instructions'
