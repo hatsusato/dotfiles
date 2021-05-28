@@ -46,12 +46,9 @@ grub:
 	@./install-grub.sh
 
 # im-config
-im-config/title := 'im-config instructions'
-im-config/body := im-config.txt
 .PHONY: im-config
-im-config: $(im-config/body)
-	@notify-send -u critical $(im-config/title) "$$(cat $<)"
-	@im-config
+im-config:
+	@./install-im-config.sh
 
 # pass
 pass/browser = $(pass/browser/dir)/$(pass/browser/json)
