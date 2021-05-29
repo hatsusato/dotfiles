@@ -15,7 +15,6 @@ clone-private() {
   git clone "$url" "$target"
 }
 main() {
-  ./apt-install.sh emacs emacs-mozc git
   clone-spacemacs
   clone-private
   [[ -f $HOME/.spacemacs ]] || emacs

@@ -7,7 +7,7 @@ files := $(shell find .local .config -type f)
 home/files := $(files:%=$(HOME)/%)
 
 xkb-notify := .local/bin/xkb-notify
-modules := chrome dconf dev dropbox fonts grub im-config pass spacemacs xkb
+modules := apt chrome dconf dropbox grub im-config spacemacs
 
 install/files := $(files:%=install/%) install/$(xkb-notify)
 install/modules := $(modules:%=install/%)
@@ -19,31 +19,25 @@ $(home/appends): $(HOME)/%: %.append
 	@./append.sh $< $@
 $(home/files): $(HOME)/%: %
 	@./install.sh $< $@
-$(HOME)/$(xkb-notify): src/xkb-notify.c install/xkb
+$(HOME)/$(xkb-notify): src/xkb-notify.c install/apt
 	gcc -O2 $< -lX11 -o $@
 
 .PHONY: $(install/files)
 $(install/files): install/%: $(HOME)/%
 
 .PHONY: $(install/modules)
+install/apt:
+	@./apt-install.sh
 install/chrome:
 	@./install-chrome.sh
 install/dconf: $(HOME)/.config/dconf/user.txt
 install/dconf:
 	@./install-dconf.sh
-install/dev:
-	@./apt-install.sh clang neovim
-install/dropbox:
+install/dropbox: install/apt
 	@./install-dropbox.sh
-install/fonts:
-	@./apt-install.sh 'fonts-noto*'
 install/grub:
 	@./install-grub.sh
-install/im-config:
+install/im-config: install/apt
 	@./install-im-config.sh
-install/pass:
-	@./apt-install.sh pass pwgen webext-browserpass
-install/spacemacs:
+install/spacemacs: install/apt
 	@./install-spacemacs.sh
-install/xkb:
-	@./apt-install.sh gcc libx11-dev xkbset
