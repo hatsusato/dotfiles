@@ -1,5 +1,4 @@
 #!/bin/bash
-# apt: openssh-client sshfs
 
 set -eu
 

@@ -3,10 +3,6 @@
 set -eu
 source "${BASH_SOURCE%/*}"/error.sh
 
-apt-install() {
-  local pkgs=$(grep '^#' "$src" | grep -m1 'apt:' | cut -d: -f2-)
-  ./apt-install.sh $pkgs
-}
 backup() {
   local patch=${src##*/}.patch
   local -a diff=(diff -u)
@@ -36,7 +32,6 @@ main() {
   [[ $dst == /* ]] || error not full path: "$dst"
   [[ -f $src ]] || error source not found: "$src"
   [[ -f $dst ]] && backup
-  [[ $src == .local/bin/* ]] && apt-install
   copy
 }
 

@@ -1,5 +1,4 @@
 #!/bin/bash
-# apt: gpg
 
 set -eu
 source "${BASH_SOURCE%/*}"/function/error.sh

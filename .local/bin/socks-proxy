@@ -1,5 +1,4 @@
 #!/bin/bash
-# apt: openssh-client
 
 set -eu
 source "${BASH_SOURCE%/*}"/function/error.sh

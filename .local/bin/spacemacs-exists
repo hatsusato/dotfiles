@@ -1,5 +1,4 @@
 #!/bin/bash
-# apt: emacs
 
 set -eu
 source "${BASH_SOURCE%/*}"/function/error.sh

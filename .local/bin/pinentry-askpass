@@ -1,5 +1,4 @@
 #!/bin/bash
-# apt: pinentry-gnome3
 
 set -eu
 source "${BASH_SOURCE%/*}"/function/error.sh
