@@ -54,9 +54,9 @@ update-dotfile() {
     echo no change >&2
   else
     insert-layer >/dev/null
-    backup "$dotfile"
+    cp -abfTv "$dotfile" "$dotfile".bak
     insert-layer >"$dotfile"
-    echo "$dotfile" updated >&2
+    echo update "$dotfile" >&2
   fi
 }
 update() {
