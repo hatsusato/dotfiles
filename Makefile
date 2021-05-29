@@ -27,7 +27,7 @@ $(install/files): install/%: $(HOME)/%
 
 .PHONY: $(install/modules)
 install/apt:
-	@./apt-install.sh
+	@./install-apt.sh
 install/chrome:
 	@./install-chrome.sh
 install/dconf: $(HOME)/.config/dconf/user.txt

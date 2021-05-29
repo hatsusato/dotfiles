@@ -12,7 +12,7 @@ main() {
   url=https://dl.google.com/linux/direct/$deb
   file=/usr/local/src/$USER/$deb
   [[ -f $file ]] || download
-  ./apt-install.sh "$file"
+  ./install-apt.sh "$file"
 }
 
 main
