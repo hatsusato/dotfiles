@@ -27,7 +27,18 @@ is-installed() {
     show-dpkg "$pkg" | grep -q ^ii || return
   done
 }
+read-list() {
+  local pkg
+  while read pkg; do
+    pkgs+=("$pkg")
+  done <apt.list
+}
 main() {
+  if (($# == 0)); then
+    local -a pkgs
+    read-list
+    set -- "${pkgs[@]}"
+  fi
   is-installed "$@" && return
   sudo apt-get install -qq "$@"
   append "$@"
