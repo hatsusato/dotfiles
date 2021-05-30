@@ -24,8 +24,10 @@ main() {
   local lock log
   check-running
   prepare || error failed to retrieve lock: "$lock"
-  trap clean EXIT
-  (exec -a spacemacs emacs --daemon 2>"$log")
+  (
+    trap clean EXIT
+    exec -a spacemacs emacs --daemon 2>"$log" &
+  )
 }
 
 main
