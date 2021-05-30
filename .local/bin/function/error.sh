@@ -6,5 +6,6 @@ error() {
   cat <<EOF >&2
 ERROR: $@
 EOF
+  [[ -t 2 ]] || notify-send -u critical ERROR "$*"
   exit $err
 }
