@@ -1,5 +1,6 @@
 #!/usr/bin/make -f
 
+make := make --no-print-directory
 appends := .bashrc .profile
 home/appends := $(appends:%=$(HOME)/%)
 
@@ -19,7 +20,8 @@ $(home/appends): $(HOME)/%: %.append
 	@./append.sh $< $@
 $(home/files): $(HOME)/%: %
 	@./install.sh $< $@
-$(HOME)/$(xkb-notify): src/xkb-notify.c install/apt
+$(HOME)/$(xkb-notify): src/xkb-notify.c
+	@$(make) install/apt
 	gcc -O2 $< -lX11 -o $@
 
 .PHONY: $(install/files)
