@@ -3,6 +3,7 @@
 if command -v mkdir-custom >/dev/null; then
   mkdir-custom -m700 -q /tmp/"$USER"/Downloads || :
   mkdir-custom -m700 -q "$HOME"/Private || :
+  mkdir-custom -m700 -q "$HOME"/.config/google-chrome || :
 fi
 if command -v ensure-link >/dev/null; then
   ensure-link {"$HOME"/,/tmp/"$USER"/}Downloads || :
