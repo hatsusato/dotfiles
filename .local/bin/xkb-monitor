@@ -27,8 +27,8 @@ prepare() {
 main() {
   local -i pid
   local lock
-  xkb-load
   prepare || exit 0
+  xkb-load
   (
     trap : SIGUSR1
     trap clean EXIT

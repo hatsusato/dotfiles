@@ -3,8 +3,6 @@
 set -eu
 source "${BASH_SOURCE%/*}"/function/error.sh
 
-readonly xkbdir=$HOME/.config/local/.xkb
-
 usage() {
   cat <<EOF >&2
 USAGE: ${0##*/} [KEYMAP]
@@ -29,13 +27,14 @@ load() {
   local dir=$(mkdir-custom -b xkb-load)
   [[ -d $dir ]] || exit
   [[ -f $default ]] || error file not found: "$default"
-  xkbcomp -I"$xkbdir" "$default" "$DISPLAY" 2>"$dir"/log &
+  xkbcomp -I"$xkbdir" "$default" "$DISPLAY" 2>"$dir"/log
 }
 main() {
+  local xkbdir=$HOME/.config/local/.xkb
   local default=$xkbdir/.default.xkb
+  (($# == 0 || $# == 1)) || usage
   (($# == 1)) && set-default "$1"
   load
 }
 
-(($# == 0 || $# == 1)) || usage
 main "$@"
