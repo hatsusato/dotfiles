@@ -31,7 +31,7 @@ SwitchKey=Disabled
 # Custom switch key
 #CustomSwitchKey=
 # Activate input method
-ActivateKey=HENKANMODE
+ActivateKey=HENKANMODE HIRAGANAKATAKANA
 # Inactivate Input Method
 InactivateKey=MUHENKAN
 # Enable Hotkey to scroll Between Input Method
