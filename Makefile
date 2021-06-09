@@ -10,7 +10,7 @@ home/files := $(files:%=$(HOME)/%)
 root/files := /etc/dconf/profile/user
 
 xkb-notify := .local/bin/xkb-notify
-modules := apt chrome dconf dropbox grub im-config spacemacs
+modules := chrome dconf dropbox grub im-config spacemacs
 
 install/files := $(files:%=install/%) install/$(xkb-notify)
 install/modules := $(modules:%=install/%)
@@ -27,24 +27,21 @@ $(home/files): $(HOME)/%: %
 $(root/files): /%: %
 	@./install.sh $< $@
 $(HOME)/$(xkb-notify): src/xkb-notify.c
-	@$(make) install/apt
 	gcc -O2 $< -lX11 -o $@
 
 .PHONY: $(install/files)
 $(install/files): install/%: $(HOME)/%
 
 .PHONY: $(install/modules)
-install/apt:
-	@./install-apt.sh
 install/chrome:
 	@./install-chrome.sh
 install/dconf: /etc/dconf/profile/user $(HOME)/.config/dconf/user.txt
 	@sudo dconf update
-install/dropbox: install/apt
+install/dropbox:
 	@./install-dropbox.sh
 install/grub: /etc/default/grub
 	@sudo update-grub
-install/im-config: install/apt
+install/im-config:
 	@./install-im-config.sh
-install/spacemacs: install/apt
+install/spacemacs:
 	@./install-spacemacs.sh
