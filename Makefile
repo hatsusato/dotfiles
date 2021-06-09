@@ -42,8 +42,8 @@ install/dconf: /etc/dconf/profile/user $(HOME)/.config/dconf/user.txt
 	@sudo dconf update
 install/dropbox: install/apt
 	@./install-dropbox.sh
-install/grub:
-	@./install-grub.sh
+install/grub: /etc/default/grub
+	@sudo update-grub
 install/im-config: install/apt
 	@./install-im-config.sh
 install/spacemacs: install/apt
