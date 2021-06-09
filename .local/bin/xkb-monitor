@@ -6,6 +6,9 @@ clean() {
   rm -fr "$lock"
   kill ${pid--l} &>/dev/null
 }
+load() {
+  xkb-load || :
+}
 loop() {
   while kill -n0 $pid; do
     wait $pid && :
@@ -14,7 +17,7 @@ loop() {
       *) exit;;
     esac
     sleep 0.5
-    xkb-load
+    load
     sleep 0.5
   done
 }
@@ -27,8 +30,8 @@ prepare() {
 main() {
   local -i pid
   local lock
-  prepare || exit 0
-  xkb-load
+  prepare
+  load
   (
     trap : SIGUSR1
     trap clean EXIT
