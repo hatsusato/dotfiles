@@ -38,9 +38,8 @@ install/apt:
 	@./install-apt.sh
 install/chrome:
 	@./install-chrome.sh
-install/dconf: $(HOME)/.config/dconf/user.txt
-install/dconf:
-	@./install-dconf.sh
+install/dconf: /etc/dconf/profile/user $(HOME)/.config/dconf/user.txt
+	@sudo dconf update
 install/dropbox: install/apt
 	@./install-dropbox.sh
 install/grub:
