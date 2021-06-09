@@ -1,17 +1,7 @@
 #!/bin/bash
 
 set -eu
-source "${BASH_SOURCE%/*}"/function/error.sh
 
-show-dpkg() {
-  dpkg -l "$@" 2>/dev/null | tail -n+6
-}
-is-installed() {
-  local pkg
-  for pkg; do
-    show-dpkg "$pkg" | grep -q ^ii || return
-  done
-}
 has-option() {
   local arg
   for arg; do
@@ -20,10 +10,10 @@ has-option() {
   return 1
 }
 apt-install() {
-  [[ ${1-} == install ]] || return 0
   has-option "$@" && return
+  [[ ${1-} == install ]] || return 0
   shift
-  is-installed "$@" && exit
+  apt-is-installed "$@" && exit
   if $sudo apt install "$@"; then
     apt-register "$@"
     exit
