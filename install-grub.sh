@@ -4,7 +4,7 @@ set -eu
 
 main() {
   local grub=etc/default/grub
-  ./append.sh "$grub" /"$grub"
+  ./append.sh "$grub".append /"$grub"
   sudo update-grub
 }
 
