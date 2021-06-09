@@ -22,18 +22,16 @@ parse-opts() {
   return $((OPTIND - 1))
 }
 main() {
-  local verbose= src dst
+  local verbose= src dst realpath=echo
+  local -a backup
   parse-opts "$@" || shift $?
   (($# == 2)) || usage
   src=$1
-  dst=$2
-  if [[ -h $src ]]; then
-    [[ $(realpath "$src") == $dst ]] && return
-    rm -f "$src"
-  elif [[ -e $src ]]; then
-    cp -abfT$verbose "$src" "$src".bak
-    rm -fr "$src"
-  fi
+  dst=$(realpath "$2")
+  backup=(cp -abfT$verbose "$src" "$src")
+  command -v realpath >/dev/null && realpath=realpath
+  [[ -h $src && $($realpath "$src") == $dst ]] && exit
+  [[ -h $src || -r $src ]] && "${backup[@]}"
   ln -sf$verbose "$dst" "$src"
 }
 
