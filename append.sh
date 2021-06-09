@@ -11,11 +11,15 @@ contains() {
   grep -Fqz -f <(join "$src") <(join "$dst")
 }
 main() {
-  (($# == 2)) || return
-  local src=$1 dst=$2
+  local src dst sudo=sudo
+  (($# == 2)) || exit
+  src=$1
+  dst=$2
   [[ -f $src ]] || error file not found: "$src"
-  contains && return
-  tee -a "$dst" <"$src" >/dev/null
+  [[ -d ${dst%/*} ]] || error directory not found: "${dst%/*}"
+  contains && exit
+  [[ $dst == $HOME/* ]] && sudo=
+  $sudo tee -a "$dst" <"$src" >/dev/null
 }
 
 main "$@"
