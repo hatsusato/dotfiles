@@ -2,18 +2,19 @@
 
 set -eu
 
-fallback() {
-  sudo "${args[@]}"
-  exit
+set-askpass() {
+  [[ ${1-} == -* ]] && return 1
+  xhost &>/dev/null
+  askpass=$(command -v pinentry-askpass)
 }
 main() {
-  local -a args=("$@")
   local askpass
-  [[ ${1-} == -* ]] && fallback
-  xhost &>/dev/null || fallback
-  askpass=$(command -v pinentry-askpass) || fallback
-  export SUDO_ASKPASS=$askpass
-  sudo -A "$@"
+  if set-askpass; then
+    export SUDO_ASKPASS=$askpass
+    sudo -A "$@"
+  else
+    sudo "$@"
+  fi
 }
 
 main "$@"
