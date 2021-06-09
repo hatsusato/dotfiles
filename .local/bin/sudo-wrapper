@@ -1,0 +1,20 @@
+#!/bin/bash
+
+set -eu
+
+main() {
+  if command -v apt-wrapper >/dev/null; then
+    if [[ ${1-} == apt || ${1-} == apt-wrapper ]]; then
+      shift
+      apt-wrapper --sudo "$@" && :
+      exit
+    fi
+  fi
+  if command -v sudo-askpass >/dev/null; then
+    sudo-askpass "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+main "$@"
