@@ -3,11 +3,8 @@
 set -eu
 source "${BASH_SOURCE%/*}"/function/error.sh
 
-sudo-apt() {
-  sudo-askpass apt "$@"
-}
 show-dpkg() {
-  dpkg --no-pager -l "$@" 2>/dev/null | tail -n+6
+  dpkg -l "$@" 2>/dev/null | tail -n+6
 }
 is-installed() {
   local pkg
@@ -30,15 +27,33 @@ has-option() {
   done
   return 1
 }
-main() {
-  if [[ ${1-} != install ]] || has-option "$@"; then
-    sudo-apt "$@"
-  else
-    shift
-    is-installed "$@" && return
-    sudo-apt install "$@"
+apt-install() {
+  [[ ${1-} == install ]] || return 0
+  has-option "$@" && return
+  shift
+  is-installed "$@" && exit
+  if $sudo apt install "$@"; then
     append "$@"
+    exit
+  else
+    exit
   fi
+}
+set-sudo() {
+  if command -v sudo-askpass >/dev/null; then
+    sudo=sudo-askpass
+  else
+    sudo=sudo
+  fi
+}
+main() {
+  local sudo=
+  if [[ ${1-} == --sudo ]]; then
+    shift
+    set-sudo
+  fi
+  apt-install "$@"
+  $sudo apt "$@"
 }
 
 main "$@"
