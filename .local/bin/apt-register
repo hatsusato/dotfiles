@@ -1,0 +1,22 @@
+#!/bin/bash
+
+set -eu
+
+setup() {
+  mkdir -p "${log%/*}"
+  touch "$log"
+}
+register() {
+  grep -qx "$pkg" "$log" &>/dev/null && return
+  tee -a "$log" <<<"$pkg" >/dev/null
+}
+main() {
+  local pkg log
+  log=$HOME/.config/local/.install
+  setup
+  for pkg; do
+    register "$pkg"
+  done
+}
+
+main "$@"

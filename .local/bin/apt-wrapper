@@ -12,14 +12,6 @@ is-installed() {
     show-dpkg "$pkg" | grep -q ^ii || return
   done
 }
-append() {
-  local pkg log=$HOME/.config/local/.install
-  [[ -f $log ]] || error file not found: "$log"
-  for pkg; do
-    grep -xq -e "$pkg" "$log" &>/dev/null && continue
-    tee -a "$log" <<<"$pkg" >/dev/null
-  done
-}
 has-option() {
   local arg
   for arg; do
@@ -33,7 +25,7 @@ apt-install() {
   shift
   is-installed "$@" && exit
   if $sudo apt install "$@"; then
-    append "$@"
+    apt-register "$@"
     exit
   else
     exit
