@@ -29,16 +29,12 @@ register-pkgs() {
   done
 }
 apt-install() {
-  has-option "$@" && return
-  [[ ${1-} == install ]] || return 0
+  has-option "$@" && return 1
+  [[ ${1-} == install ]] || return
   shift
-  is-installed "$@" && exit
-  if $sudo apt install "$@"; then
-    register-pkgs "$@"
-    exit
-  else
-    exit
-  fi
+  is-installed "$@" && return
+  $sudo apt install "$@" || exit
+  register-pkgs "$@"
 }
 set-sudo() {
   if command -v sudo-askpass >/dev/null; then
@@ -53,7 +49,7 @@ main() {
     shift
     set-sudo
   fi
-  apt-install "$@"
+  apt-install "$@" && exit
   $sudo apt "$@"
 }
 
