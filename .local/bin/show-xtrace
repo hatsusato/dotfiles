@@ -3,10 +3,13 @@
 set -eu
 
 main() {
-  local dir=/run/user/$UID/bin
-  mkdir -m700 -p "$dir"
-  touch "$dir"/xtrace.log
-  tail -f "$dir"/xtrace.log
+  local log=/run/user/$UID/bin/xtrace.log
+  (
+    umask 0077
+    mkdir -p "${log%/*}"
+    touch "$log"
+  )
+  tail -f "$log"
 }
 
 main
