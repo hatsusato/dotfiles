@@ -2,27 +2,42 @@
 
 set -eu
 
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} STRING
+    convert STRING to full-width
+EOF
+  exit 1
+}
 put3() {
-  local val=$((0x$3 + 0x${4:-0}))
-  val=$(printf %x $val)
-  printf "\x$1\x$2\x$val"
+  printf "\x$1\x$2\x$3"
+}
+hexadd() {
+  local x
+  local -i sum=0
+  for x; do
+    sum+=0x$x
+  done
+  printf %x $sum
 }
 convert() {
-  local -i i x
-  local c input=$(cat "$@")
+  local x=$(printf %x "'$1")
+  case $x in
+    7f) echo -n "$1";;
+    20) put3 e3 80 80;;
+    [2345][0-9a-f]) put3 ef bc $(hexadd $x 60);;
+    [67][0-9a-f]) put3 ef bd $(hexadd $x 20);;
+    *) echo -n "$1";;
+  esac
+}
+main() {
+  local input=$1
   while [[ -n $input ]]; do
-    c=${input:0:1}
+    convert "${input:0:1}"
     input=${input:1}
-    x=$(printf %x "'$c")
-    case $x in
-      7f) echo -n "$c";;
-      20) put3 e3 80 80;;
-      [2345][0-9a-f]) put3 ef bc $x 60;;
-      [67][0-9a-f]) put3 ef bd $x 20;;
-      *) echo -n "$c";;
-    esac
   done
   echo
 }
 
-convert "$@"
+(($# == 1)) || usage
+main "$@"
