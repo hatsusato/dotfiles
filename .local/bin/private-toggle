@@ -11,11 +11,11 @@ private-exists() {
   [[ -d $1 ]] || error directory not found: "$1"
 }
 private-mount() {
-  local -a opts
+  local -a cmd=(gocryptfs)
   if command -v pinentry-askpass >/dev/null; then
-    opts+=(-extpass pinentry-askpass)
+    cmd+=(-extpass pinentry-askpass)
   fi
-  gocryptfs "${opts[@]}" "${args[@]}"
+  "${cmd[@]}" "${args[@]}"
 }
 private-umount() {
   fusermount -u "$mountpoint"
