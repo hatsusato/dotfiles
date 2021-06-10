@@ -21,17 +21,25 @@ parse-opts() {
   done
   return $((OPTIND - 1))
 }
+verify() {
+  local realsrc=$src realdst=$dst
+  if command -v readlink >/dev/null; then
+    realsrc=$(readlink -f "$src")
+    realdst=$(readlink -f "$dst")
+  fi
+  [[ -h $src && $realsrc == $realdst ]] && exit
+}
+backup() {
+  [[ -r $src ]] && cp -abfT$verbose "$src" "$src"
+}
 main() {
-  local verbose= src dst realpath=echo
-  local -a backup
+  local verbose= src dst
   parse-opts "$@" || shift $?
   (($# == 2)) || usage
   src=$1
-  dst=$(realpath "$2")
-  backup=(cp -abfT$verbose "$src" "$src")
-  command -v realpath >/dev/null && realpath=realpath
-  [[ -h $src && $($realpath "$src") == $dst ]] && exit
-  [[ -h $src || -r $src ]] && "${backup[@]}"
+  dst=$2
+  verify
+  backup
   ln -sf$verbose "$dst" "$src"
 }
 
