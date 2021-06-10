@@ -18,7 +18,7 @@ secrets() {
 }
 pubring() {
   local end='END PGP PUBLIC KEY BLOCK'
-  filter ',/$end/' | gpg --dearmor
+  filter ",/$end/" | gpg --dearmor
 }
 import() {
   paperkey --secrets "$1" --pubring "$2" | gpg --import
