@@ -35,16 +35,21 @@ load-port() {
 list-port() {
   lsof -a -c ssh -i :"$port" "$@"
 }
-main() {
-  local host=$1
-  local port=${2-$(load-port)}
+check-port() {
   is-integer "$port" || error invalid port: "$port"
-  local -a cmd=(ssh -D $port -f -N -q "$host")
   if pgrep -fx "${cmd[*]}" &>/dev/null; then
     list-port | grep -F -q '(CLOSE_WAIT)' || exit 0
     kill $(list-port -t)
   fi
-  list-port >&2 && error other process occupies port: $port
+  list-port >&2 && error other process occupies port: "$port"
+}
+main() {
+  local host port
+  local -a cmd
+  host=$1
+  port=${2-$(load-port)} || exit
+  cmd=(ssh -D "$port" -f -N -q "$host")
+  check-port
   "${cmd[@]}"
 }
 
