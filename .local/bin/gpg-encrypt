@@ -11,12 +11,9 @@ EOF
 }
 main() {
   local id
-  id=$(gpg-select)
-  local -a gpg=(gpg)
-  gpg+=(--armor)
-  gpg+=(--output "${2--}")
-  gpg+=(--recipient "$id")
-  "${gpg[@]}" --encrypt "$1"
+  id=$(gpg-select) || exit
+  local -a gpg=(gpg --armor --recipient "$id")
+  "${gpg[@]}" --output "${2--}" --encrypt "$1"
 }
 
 (($# == 1 || $# == 2)) || usage
