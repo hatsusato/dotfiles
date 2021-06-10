@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -eu
+source "${BASH_SOURCE%/*}"/function/error.sh
 
 has-option() {
   local arg
@@ -18,13 +19,22 @@ is-installed() {
     show-dpkg | grep -q ^ii || return
   done
 }
+register-pkgs() {
+  local log pkg
+  log=$HOME/.config/local/.install
+  [[ -w $log ]] || error file not writable: "$log"
+  for pkg; do
+    grep -qx "$pkg" "$log" &>/dev/null && continue
+    tee -a "$log" <<<"$pkg" >/dev/null
+  done
+}
 apt-install() {
   has-option "$@" && return
   [[ ${1-} == install ]] || return 0
   shift
   is-installed "$@" && exit
   if $sudo apt install "$@"; then
-    apt-register "$@"
+    register-pkgs "$@"
     exit
   else
     exit
