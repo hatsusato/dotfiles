@@ -9,11 +9,20 @@ has-option() {
   done
   return 1
 }
+show-dpkg() {
+  dpkg -l "$pkg" 2>/dev/null | tail -n+6
+}
+is-installed() {
+  local pkg
+  for pkg; do
+    show-dpkg | grep -q ^ii || return
+  done
+}
 apt-install() {
   has-option "$@" && return
   [[ ${1-} == install ]] || return 0
   shift
-  apt-is-installed "$@" && exit
+  is-installed "$@" && exit
   if $sudo apt install "$@"; then
     apt-register "$@"
     exit
