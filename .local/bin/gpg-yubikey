@@ -2,37 +2,53 @@
 
 set -eu
 
-yubikey-status() {
+gpg-card-status() {
   gpg --card-status --with-colons
 }
-yubikey-list() {
+gpg-list-colon() {
   gpg --list-secret-keys --with-colons
 }
-yubikey-card-edit() {
+gpg-card-edit() {
   gpg --batch --command-fd 0 --card-edit
 }
+gpg-parse() {
+  awk -F: "match(\$1, /^$1\$/) {print \$$2}"
+}
+find-card-aid() {
+  gpg-card-status &>/dev/null || return
+  gpg-card-status | gpg-parse Reader 7
+}
+find-key-aid() {
+  gpg-list-colon | gpg-parse ssb 15
+}
+find-fingerprint() {
+  local keyid=$(gpg-list-colon | gpg-parse sec 5)
+  gpg-list-colon | gpg-parse fpr 10 | grep -e $keyid$
+}
 yubikey-fetch() {
-  cat <<EOF | yubikey-card-edit 2> >(grep ^gpg: >&2)
+  cat <<EOF | gpg-card-edit 2> >(grep ^gpg: >&2)
 fetch
 quit
 EOF
 }
+yubikey-trust() {
+  local fpr=$(find-fingerprint)
+  gpg --import-ownertrust <<<$fpr:6:
+}
 prompt-insert() {
-  read -n1 -p 'Insert YubiKey and Hit Any Key.' -s
+  local var eot=$'\x04'
+  read -n1 -p 'Insert YubiKey and Hit Any Key.' -s var
   echo >&2
-}
-find-aid() {
-  yubikey-status | grep ^Reader: | cut -d: -f7
-}
-find-keyid() {
-  yubikey-list | grep ^ssb: | cut -d: -f15
+  [[ $var == $eot ]] || return 0
+  exit 1
 }
 main() {
   local aid
   while true; do
-    if aid=$(find-aid); then
-      find-keyid | grep -xq "$aid" && return
+    if aid=$(find-card-aid); then
+      find-key-aid | grep -xq "$aid" && break
       yubikey-fetch
+      yubikey-trust
     else
       prompt-insert
     fi
