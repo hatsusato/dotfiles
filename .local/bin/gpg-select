@@ -12,11 +12,8 @@ USAGE: ${0##*/} [-v]
 EOF
   exit 1
 }
-gpg-list() {
-  gpg --list-keys "$@"
-}
 gpg-list-colon() {
-  gpg-list --with-colon "$@"
+  gpg --list-keys --with-colon "$@"
 }
 gpg-parse() {
   awk -F: "match(\$1, /^$1\$/) {print \$$2}"
@@ -25,16 +22,16 @@ prompt() {
   local var
   select var in "${comment[@]}"; do
     if [[ -n $var ]]; then
-      index=$(($REPLY - 1))
+      var=$(($REPLY - 1))
+      key=${keyid[$var]}
       return
     fi
   done
-  echo >&2
   exit 1
 }
-parse-comment() {
+init-comment() {
   local var
-  for var in "${keyid[@]}"; do
+  for var; do
     var=$(gpg-list-colon $var | gpg-parse uid 10)
     comment+=("$var")
   done
@@ -51,15 +48,14 @@ parse-opts() {
 }
 main() {
   local -a keyid comment
-  local -i index
-  local verbose=
+  local verbose= key
+  [[ -t 0 ]] || error 'illegal input from stdin'
   parse-opts "$@" || shift $?
   keyid=($(gpg-list-colon | gpg-parse pub 5))
-  parse-comment
+  init-comment ${keyid[@]}
   prompt
-  [[ -n $verbose ]] && gpg-list "${keyid[index]}" >&2
-  echo "${keyid[index]}"
+  [[ -n $verbose ]] && gpg --list-keys $key >&2
+  gpg-list-colon $key | gpg-parse fpr 10 | grep -e $key$
 }
 
-[[ -t 0 ]] || error 'illegal input from stdin'
 main "$@"
