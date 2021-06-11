@@ -2,6 +2,7 @@
 
 set -eu
 source "${BASH_SOURCE%/*}"/function/error.sh
+source "${BASH_SOURCE%/*}"/function/mkdir-userbin
 
 init-file() {
   local bashrc=$HOME/.bashrc
@@ -14,8 +15,7 @@ EOF
 main() {
   local home
   [[ -n ${GNUPGHOME+set} ]] && error GNUPGHOME is already set: "$GNUPGHOME"
-  home=$(mkdir-custom -br gnupg)
-  [[ -d $home ]] || error directory not found: "$home"
+  home=$(mkdir-userbin gnupg-XXXXXX) || error directory not found: "$home"
   echo gpg-open: enter into "$home" >&2
   (
     trap 'rm -fr "$home"' EXIT

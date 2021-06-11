@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -eu
+source "${BASH_SOURCE%/*}"/function/mkdir-userbin
 
 clean() {
   rm -fr "$lock"
@@ -22,8 +23,8 @@ loop() {
   done
 }
 prepare() {
-  local dir=$(mkdir-custom -b xkb-monitor)
-  [[ -d $dir ]]
+  local dir
+  dir=$(mkdir-userbin xkb-monitor) || exit
   lock=$dir/lock
   mkdir -m700 "$lock" &>/dev/null
 }

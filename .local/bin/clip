@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -eu
+source "${BASH_SOURCE%/*}"/function/mkdir-userbin
 
 usage() {
   cat <<EOF >&2
@@ -19,8 +20,8 @@ clipin() {
   base64 -d | clip
 }
 prepare() {
-  local dir=$(mkdir-custom -b clip)
-  [[ -d $dir ]] || exit
+  local dir
+  dir=$(mkdir-userbin clip) || exit
   lock=$dir/lock
   pid=$lock/pid
   until mkdir -m700 "$lock" 2>/dev/null; do

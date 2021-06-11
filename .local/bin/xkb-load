@@ -2,6 +2,7 @@
 
 set -eu
 source "${BASH_SOURCE%/*}"/function/error.sh
+source "${BASH_SOURCE%/*}"/function/mkdir-userbin
 
 usage() {
   cat <<EOF >&2
@@ -23,8 +24,8 @@ set-default() {
   ln -sf "$keymap" "$default"
 }
 load() {
-  local dir=$(mkdir-custom -b xkb-load)
-  [[ -d $dir ]]
+  local dir
+  dir=$(mkdir-userbin xkb-load) || exit
   [[ -f $default ]] || error file not found: "$default"
   xkbcomp -I"$xkbdir" "$default" "${DISPLAY-:0}" 2>"$dir"/log
 }

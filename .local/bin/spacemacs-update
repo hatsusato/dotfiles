@@ -2,6 +2,7 @@
 
 set -eu
 source "${BASH_SOURCE%/*}"/function/error.sh
+source "${BASH_SOURCE%/*}"/function/mkdir-userbin
 
 git-pull() {
   git fetch --prune
@@ -79,8 +80,8 @@ update() {
   done
 }
 prepare() {
-  local dir=$(mkdir-custom -b spacemacs)
-  [[ -d $dir ]] || exit
+  local dir
+  dir=$(mkdir-userbin spacemacs) || exit
   log=$dir/daemon.log
 }
 stop-spacemacs() {
