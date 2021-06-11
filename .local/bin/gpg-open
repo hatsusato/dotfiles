@@ -1,22 +1,27 @@
-#!/bin/bash
+#!/bin/bash -i
 
-gpg-open() {
-  local home bashrc=$HOME/.bashrc
-  if [[ -n ${GNUPGHOME+set} ]]; then
-    echo gpg-open: GNUPGHOME is already set: "${GNUPGHOME@Q}" >&2
-    return 0
-  fi
+set -eu
+source "${BASH_SOURCE%/*}"/function/error.sh
+
+init-file() {
+  local bashrc=$HOME/.bashrc
+  [[ -f $bashrc ]] && echo source "${bashrc@Q}"
+  cat <<EOF
+export PS1='(gpg-open)'${PS1@Q}
+export GNUPGHOME=${home@Q}
+EOF
+}
+main() {
+  local home
+  [[ -n ${GNUPGHOME+set} ]] && error GNUPGHOME is already set: "$GNUPGHOME"
   home=$(mkdir-custom -br gnupg)
-  [[ -d $home ]] || return
-  home=${home@Q}
+  [[ -d $home ]] || error directory not found: "$home"
   echo gpg-open: enter into "$home" >&2
   (
-    trap "rm -fr $home" EXIT
-    bash --init-file <(
-      [[ -f $bashrc ]] && echo source "${bashrc@Q}"
-      echo export PS1="'(gpg-open)'${PS1@Q}"
-      echo export GNUPGHOME="$home"
-    )
+    trap 'rm -fr "$home"' EXIT
+    bash --init-file <(init-file)
   )
-  echo gpg-open: Leave from "$home" >&2
+  echo gpg-open: leave from "$home" >&2
 }
+
+main
