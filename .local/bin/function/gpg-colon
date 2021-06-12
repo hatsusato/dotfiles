@@ -1,0 +1,21 @@
+#!/bin/bash
+
+gpg-colon() {
+  local -a gpg=(gpg --with-colons)
+  local key index
+  while [[ ${1-} == -* ]]; do
+    gpg+=("$1")
+    shift
+  done
+  if [[ $1 == +([[:xdigit:]]) ]]; then
+    gpg+=("$1")
+    shift
+  fi
+  if [[ ${1-} == +([[:alpha:]]):+([[:digit:]]) ]]; then
+    key='"'${1%:*}'"'
+    index=${1#*:}
+    "${gpg[@]}" | awk -F: "\$1 == $key {print \$$index}"
+  else
+    "${gpg[@]}"
+  fi
+}
