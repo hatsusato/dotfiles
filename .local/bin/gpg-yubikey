@@ -1,30 +1,7 @@
 #!/bin/bash
 
 set -eu
-source "${BASH_SOURCE%/*}"/function/gpg-colon
 
-find-card-aid() {
-  gpg --card-status &>/dev/null || return
-  gpg-colon --card-status Reader:7
-}
-find-key-aid() {
-  gpg-colon --list-secret-keys ssb:15
-}
-find-fingerprint() {
-  local keyid=$(gpg-colon --list-secret-keys sec:5)
-  gpg-colon --list-secret-keys fpr:10 | grep -e $keyid$
-}
-yubikey-fetch() {
-  local -a batch=(gpg --batch --command-fd 0 --card-edit)
-  cat <<EOF | ${batch[@]} 2> >(grep ^gpg: >&2)
-fetch
-quit
-EOF
-}
-yubikey-trust() {
-  local fpr=$(find-fingerprint)
-  gpg --import-ownertrust <<<$fpr:6:
-}
 prompt-insert() {
   local var eot=$'\x04'
   read -n1 -p 'Insert YubiKey and Hit Any Key.' -s var
@@ -32,15 +9,21 @@ prompt-insert() {
   [[ $var == $eot ]] || return 0
   exit 1
 }
+yubikey-fetch() {
+  local -a gpg=(gpg --batch --card-edit --status-fd 1)
+  ${gpg[@]} --command-file <(echo fetch; echo quit) 2> >(grep ^gpg: >&2)
+}
+yubikey-trust() {
+  [[ $fpr == +([[:xdigit:]]) && ${#fpr} == 40 ]] || return
+  gpg --import-ownertrust <<<$fpr:6:
+}
 main() {
-  local aid
-  until aid=$(find-card-aid); do
+  local fpr filter='$2 == "IMPORT_OK" {print $4}'
+  until gpg --card-status &>/dev/null; do
     prompt-insert
   done
-  until find-key-aid | grep -xq $aid; do
-    yubikey-fetch
-    yubikey-trust
-  done
+  fpr=$(yubikey-fetch | awk "$filter")
+  yubikey-trust
 }
 
 main
