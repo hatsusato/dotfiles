@@ -1,6 +1,9 @@
 #!/bin/bash
 
 set -eu
+source "${BASH_SOURCE%/*}"/function/error.sh
+source "${BASH_SOURCE%/*}"/function/gpg-colon
+source "${BASH_SOURCE%/*}"/function/gpg-trust
 
 usage() {
   cat <<EOF >&2
@@ -9,23 +12,33 @@ USAGE: ${0##*/} PAPERKEY
 EOF
   exit 1
 }
-filter() {
+split() {
   local begin='BEGIN PGP PUBLIC KEY BLOCK'
   sed -n -e "/$begin/$1"p "$input"
 }
 secrets() {
-  filter 'q;'
+  split 'q;'
 }
 pubring() {
   local end='END PGP PUBLIC KEY BLOCK'
-  filter ",/$end/" | gpg --dearmor
+  split ",/$end/" | gpg --dearmor
 }
 import() {
   paperkey --secrets "$1" --pubring "$2" | gpg --import
 }
+find-keyid() {
+  local filter='$1 == "keyid:" {print $2;exit}'
+  pubring | gpg --list-packets | awk "$filter"
+}
+find-fingerprint() {
+  local keyid=$(find-keyid)
+  gpg-colon --list-keys "$keyid" fpr:10 | grep -m1 -e "$keyid"$
+}
 main() {
   local input=$1
+  [[ -f $input ]] || error file not found: "$input"
   import <(secrets) <(pubring)
+  gpg-trust $(find-fingerprint)
 }
 
 (($# == 1)) || usage
