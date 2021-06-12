@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -eu
+source "${BASH_SOURCE%/*}"/function/gpg-trust
 
 prompt-insert() {
   local var eot=$'\x04'
@@ -13,17 +14,13 @@ yubikey-fetch() {
   local -a gpg=(gpg --batch --card-edit --status-fd 1)
   ${gpg[@]} --command-file <(echo fetch; echo quit) 2> >(grep ^gpg: >&2)
 }
-yubikey-trust() {
-  [[ $fpr == +([[:xdigit:]]) && ${#fpr} == 40 ]] || return
-  gpg --import-ownertrust <<<$fpr:6:
-}
 main() {
   local fpr filter='$2 == "IMPORT_OK" {print $4}'
   until gpg --card-status &>/dev/null; do
     prompt-insert
   done
   fpr=$(yubikey-fetch | awk "$filter")
-  yubikey-trust
+  gpg-trust "$fpr"
 }
 
 main

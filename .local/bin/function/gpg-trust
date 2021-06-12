@@ -1,0 +1,7 @@
+#!/bin/bash
+
+gpg-trust() {
+  local fpr=$1
+  [[ $fpr == +([[:xdigit:]]) && ${#fpr} == 40 ]] || return
+  gpg --import-ownertrust <<<$fpr:6:
+}
