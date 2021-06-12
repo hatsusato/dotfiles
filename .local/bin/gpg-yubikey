@@ -1,32 +1,22 @@
 #!/bin/bash
 
 set -eu
+source "${BASH_SOURCE%/*}"/function/gpg-colon
 
-gpg-card-status() {
-  gpg --card-status --with-colons
-}
-gpg-list-colon() {
-  gpg --list-secret-keys --with-colons
-}
-gpg-card-edit() {
-  gpg --batch --command-fd 0 --card-edit
-}
-gpg-parse() {
-  awk -F: "match(\$1, /^$1\$/) {print \$$2}"
-}
 find-card-aid() {
-  gpg-card-status &>/dev/null || return
-  gpg-card-status | gpg-parse Reader 7
+  gpg --card-status &>/dev/null || return
+  gpg-colon --card-status Reader:7
 }
 find-key-aid() {
-  gpg-list-colon | gpg-parse ssb 15
+  gpg-colon --list-secret-keys ssb:15
 }
 find-fingerprint() {
-  local keyid=$(gpg-list-colon | gpg-parse sec 5)
-  gpg-list-colon | gpg-parse fpr 10 | grep -e $keyid$
+  local keyid=$(gpg-colon --list-secret-keys sec:5)
+  gpg-colon --list-secret-keys fpr:10 | grep -e $keyid$
 }
 yubikey-fetch() {
-  cat <<EOF | gpg-card-edit 2> >(grep ^gpg: >&2)
+  local -a batch=(gpg --batch --command-fd 0 --card-edit)
+  cat <<EOF | ${batch[@]} 2> >(grep ^gpg: >&2)
 fetch
 quit
 EOF
@@ -44,14 +34,12 @@ prompt-insert() {
 }
 main() {
   local aid
-  while true; do
-    if aid=$(find-card-aid); then
-      find-key-aid | grep -xq "$aid" && break
-      yubikey-fetch
-      yubikey-trust
-    else
-      prompt-insert
-    fi
+  until aid=$(find-card-aid); do
+    prompt-insert
+  done
+  until find-key-aid | grep -xq $aid; do
+    yubikey-fetch
+    yubikey-trust
   done
 }
 

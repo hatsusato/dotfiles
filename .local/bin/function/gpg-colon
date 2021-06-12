@@ -7,7 +7,7 @@ gpg-colon() {
     gpg+=("$1")
     shift
   done
-  if [[ $1 == +([[:xdigit:]]) ]]; then
+  if [[ ${1-} == +([[:xdigit:]]) ]]; then
     gpg+=("$1")
     shift
   fi

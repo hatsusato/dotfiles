@@ -2,6 +2,7 @@
 
 set -eu
 source "${BASH_SOURCE%/*}"/function/error.sh
+source "${BASH_SOURCE%/*}"/function/gpg-colon
 
 usage() {
   cat <<EOF >&2
@@ -11,12 +12,6 @@ USAGE: ${0##*/} [-v]
     -v  verbose mode
 EOF
   exit 1
-}
-gpg-list-colon() {
-  gpg --list-keys --with-colon "$@"
-}
-gpg-parse() {
-  awk -F: "match(\$1, /^$1\$/) {print \$$2}"
 }
 prompt() {
   local var
@@ -32,7 +27,7 @@ prompt() {
 init-comment() {
   local var
   for var; do
-    var=$(gpg-list-colon $var | gpg-parse uid 10)
+    var=$(gpg-colon --list-keys $var uid:10)
     comment+=("$var")
   done
 }
@@ -51,11 +46,11 @@ main() {
   local verbose= key
   [[ -t 0 ]] || error 'illegal input from stdin'
   parse-opts "$@" || shift $?
-  keyid=($(gpg-list-colon | gpg-parse pub 5))
+  keyid=($(gpg-colon --list-keys pub:5))
   init-comment ${keyid[@]}
   prompt
   [[ -n $verbose ]] && gpg --list-keys $key >&2
-  gpg-list-colon $key | gpg-parse fpr 10 | grep -e $key$
+  gpg-colon --list-keys $key fpr:10 | grep -e $key$
 }
 
 main "$@"
