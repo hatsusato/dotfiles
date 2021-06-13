@@ -71,7 +71,7 @@ main() {
   setup-zip
   make -C "$dir" all
   while prompt; do
-    make -C "$dir" install/$target
+    make -C "$dir" $target
   done
 }
 
