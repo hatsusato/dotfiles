@@ -35,12 +35,12 @@ $(install/files): install/%: $(HOME)/%
 .PHONY: $(install/modules)
 install/chrome:
 	@./install-chrome.sh
-install/dconf: /etc/dconf/profile/user $(HOME)/.config/dconf/user.txt
-	@sudo dconf update
+install/dconf:
+	@./install-dconf.sh
 install/dropbox:
 	@./install-dropbox.sh
-install/grub: /etc/default/grub
-	@sudo update-grub
+install/grub:
+	@./install-grub.sh
 install/im-config:
 	@./install-im-config.sh
 install/spacemacs:
