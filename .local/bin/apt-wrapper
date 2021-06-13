@@ -10,31 +10,29 @@ has-option() {
   done
   return 1
 }
+extract-pkg() {
+  [[ $pkg == *.deb ]] || return 0
+  pkg=$(dpkg -I "$pkg" | awk '$1 == "Package:" {print $2}')
+}
 show-dpkg() {
   dpkg -l "$pkg" 2>/dev/null | tail -n+6
 }
 is-installed() {
   local pkg
   for pkg; do
-    show-dpkg | grep -q ^ii || return
+    extract-pkg
+    show-dpkg | grep -q ^ii || return 0
   done
+  exit
 }
 register-pkgs() {
-  local log pkg
-  log=$HOME/.config/local/.install
+  local pkg log=$HOME/.config/local/.install
   [[ -w $log ]] || error file not writable: "$log"
   for pkg; do
+    extract-pkg
     grep -qx "$pkg" "$log" &>/dev/null && continue
     tee -a "$log" <<<"$pkg" >/dev/null
   done
-}
-apt-install() {
-  has-option "$@" && return 1
-  [[ ${1-} == install ]] || return
-  shift
-  is-installed "$@" && return
-  $sudo apt install "$@" || exit
-  register-pkgs "$@"
 }
 set-sudo() {
   if command -v sudo-askpass >/dev/null; then
@@ -49,8 +47,14 @@ main() {
     shift
     set-sudo
   fi
-  apt-install "$@" && exit
-  $sudo apt "$@"
+  if [[ ${1-} == install ]] && ! has-option "$@"; then
+    shift
+    is-installed "$@"
+    $sudo apt install "$@" || exit
+    register-pkgs "$@"
+  else
+    $sudo apt "$@"
+  fi
 }
 
 main "$@"
