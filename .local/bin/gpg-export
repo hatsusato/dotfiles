@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -eu
+source "${BASH_SOURCE%/*}"/function/parse-opts
 
 usage() {
   cat <<EOF >&2
@@ -15,18 +16,9 @@ export-keys() {
   gpg --export-secret-$suffix $id | paperkey --output-width 60
   gpg --armor --export $id
 }
-parse-opts() {
-  local var
-  while getopts s var; do
-    case $var in
-      s) suffix=subkeys;;
-      \?) usage;;
-    esac
-  done
-  return $((OPTIND - 1))
-}
 main() {
   local suffix=keys id
+  local -A opts=([s]=suffix=subkeys [\?]=usage)
   parse-opts "$@" || shift $?
   (($# > 1)) && usage
   id=$(gpg-select) || exit

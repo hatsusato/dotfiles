@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -eu
+source "${BASH_SOURCE%/*}"/function/parse-opts
 
 usage() {
   cat <<EOF >&2
@@ -34,18 +35,9 @@ generate() {
 #endif $comment
 EOF
 }
-parse-opts() {
-  local var
-  while getopts cx var; do
-    case $var in
-      [cx]) mode=$var;;
-      \?) usage;;
-    esac
-  done
-  return $((OPTIND - 1))
-}
 main() {
   local mode header
+  local -A opts=([c]=mode=c [x]=mode=x [\?]=usage)
   parse-opts "$@" || shift $?
   for header; do
     if [[ -s $header ]]; then

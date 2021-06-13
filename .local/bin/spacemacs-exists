@@ -2,6 +2,7 @@
 
 set -eu
 source "${BASH_SOURCE%/*}"/function/error
+source "${BASH_SOURCE%/*}"/function/parse-opts
 
 usage() {
   cat <<EOF >&2
@@ -28,19 +29,9 @@ wait-for() {
     sleep 0.1s
   done
 }
-parse-opts() {
-  local var
-  while getopts vw var; do
-    case $var in
-      v) verbose=on;;
-      w) wait=on;;
-      \?) usage;;
-    esac
-  done
-  return $((OPTIND - 1))
-}
 main() {
   local verbose= wait=
+  local -A opts=([v]=verbose=on [w]=wait=on [\?]=usage)
   parse-opts "$@" || shift $?
   [[ -n $wait ]] && wait-for
   try

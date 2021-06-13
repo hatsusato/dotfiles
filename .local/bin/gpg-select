@@ -3,6 +3,7 @@
 set -eu
 source "${BASH_SOURCE%/*}"/function/error
 source "${BASH_SOURCE%/*}"/function/gpg-colon
+source "${BASH_SOURCE%/*}"/function/parse-opts
 
 usage() {
   cat <<EOF >&2
@@ -31,19 +32,10 @@ init-comment() {
     comment+=("$var")
   done
 }
-parse-opts() {
-  local var
-  while getopts v var; do
-    case $var in
-      v) verbose=on;;
-      \?) usage;;
-    esac
-  done
-  return $((OPTIND - 1))
-}
 main() {
-  local -a keyid comment
   local verbose= key
+  local -a keyid comment
+  local -A opts=([v]=verbose=on [\?]=usage)
   [[ -t 0 ]] || error 'illegal input from stdin'
   parse-opts "$@" || shift $?
   keyid=($(gpg-colon --list-keys pub:5))

@@ -1,0 +1,14 @@
+#!/bin/bash
+
+parse-opts() {
+  local var optstr
+  for var in "${!opts[@]}"; do
+    [[ $var == [[:alnum:]]?(:) ]] || continue
+    optstr+=$var
+    opts[${var%:}]=${opts[$var]}
+  done
+  while getopts $optstr var; do
+    [[ -n ${opts[$var]+set} ]] && eval "${opts[$var]}"
+  done
+  return $((OPTIND - 1))
+}
