@@ -27,10 +27,12 @@ verify() {
     realsrc=$(readlink -f "$src")
     realdst=$(readlink -f "$dst")
   fi
-  [[ -h $src && $realsrc == $realdst ]] && exit
+  [[ -h $src && $realsrc == $realdst ]] || return 0
+  exit
 }
 backup() {
-  [[ -r $src ]] && cp -abfT$verbose "$src" "$src"
+  [[ -r $src ]] || return 0
+  cp -abfT$verbose "$src" "$src"
 }
 main() {
   local verbose= src dst
