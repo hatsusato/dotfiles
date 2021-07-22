@@ -6,37 +6,36 @@ source "${BASH_SOURCE%/*}"/function/parse-opts
 
 usage() {
   cat <<EOF >&2
-USAGE: ${0##*/} [-v] [-w]
+USAGE: ${0##*/} [-t DURATION]
     check whether spacemacs daemon is running
 
-    -v  verbose mode
-    -w  wait until daemon start up
+    -t  wait response for DURATION (default 1s)
+        wait forever if DURATION is 'forever'
 EOF
   exit 1
 }
-check() {
+try() {
+  timeout "$1" emacsclient -a false -e t &>/dev/null && :
   case $? in
-    1) return 1;;
-    124) error spacemacs hung up;;
+    0|1|124) return $?;;
     *) error unknown error: $?;;
   esac
 }
-try() {
-  timeout 1s emacsclient -a false -e t &>/dev/null || check
-}
-wait-for() {
-  until try; do
-    sleep 0.1s
-  done
-}
 main() {
-  local verbose= wait=
-  local -A opts=([v]=verbose [w]=wait)
+  local duration=1s
+  local -A opts=([t:]=duration)
   parse-opts "$@" || shift $?
-  [[ $wait ]] && wait-for
-  try
-  [[ $verbose ]] && pgrep -af '^spacemacs '
-  return 0
+  if [[ $duration == forever ]]; then
+    until try 1s; do
+      sleep 0.1s
+    done
+  else
+    try "$duration" && :
+    case $? in
+      0|1) return $?;;
+      124) error spacemacs hung up;;
+    esac
+  fi
 }
 
 main "$@"
