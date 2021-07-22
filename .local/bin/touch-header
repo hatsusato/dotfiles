@@ -5,50 +5,57 @@ source "${BASH_SOURCE%/*}"/function/parse-opts
 
 usage() {
   cat <<EOF >&2
-USAGE: ${0##*/} [-c] [-x] FILE...
-    initialize FILEs with include guard
+USAGE: ${0##*/} [-c] [-x] FILE
+    initialize header file with include guard
+    and touch its corresponding source file
 
     -c  force C mode
     -x  force C++ mode
 EOF
   exit 1
 }
-set-guard() {
-  guard=$(uuidgen -r | tr '[:lower:]-' '[:upper:]_')
-  guard=INCLUDE_GUARD_$guard
+echo-ext() {
+  local ext=c
+  [[ ${1-} == *.hpp ]] && ext=cpp
+  [[ $modec ]] && ext=c
+  [[ $modex ]] && ext=cpp
+  echo $ext
 }
-set-comment() {
-  local style=x
-  [[ ${header-} == *.h ]] && style=c
-  [[ $modec ]] && style=c
-  [[ $modex ]] && style=x
-  case $style in
+generate-header() {
+  local uuid guard comment
+  uuid=$(uuidgen -r | tr '[:lower:]-' '[:upper:]_')
+  guard=INCLUDE_GUARD_$uuid
+  case $ext in
     c) comment="/* $guard */";;
-    x) comment="// $guard";;
+    cpp) comment="// $guard";;
   esac
-}
-generate() {
-  local guard comment
-  set-guard
-  set-comment
   cat <<EOF
 #ifndef $guard
 #define $guard
 #endif $comment
 EOF
 }
+generate() {
+  local header=$1 source=${1%.*}.$ext
+  generate-header | tee "$header"
+  if [[ -f $source ]]; then
+    touch "$source"
+  else
+    cat <<EOF >"$source"
+#include "${header##*/}"
+EOF
+  fi
+}
 main() {
-  local modec= modex= header
+  local modec= modex= ext
   local -A opts=([c]=modec [x]=modex)
   parse-opts "$@" || shift $?
-  for header; do
-    if [[ -s $header ]]; then
-      touch "$header"
-    else
-      generate | tee "$header"
-    fi
-  done
-  [[ -n ${header+set} ]] || generate
+  ext=$(echo-ext "$@")
+  case $# in
+    0) generate-header;;
+    1) generate "$1";;
+    *) usage;;
+  esac
 }
 
 main "$@"
