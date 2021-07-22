@@ -13,12 +13,12 @@ EOF
   exit 1
 }
 export-keys() {
-  gpg --export-secret-$suffix $id | paperkey --output-width 60
+  gpg --export-secret-${suffix+sub}keys $id | paperkey --output-width 60
   gpg --armor --export $id
 }
 main() {
-  local suffix=keys id
-  local -A opts=([s]=suffix=subkeys [\?]=usage)
+  local suffix id
+  local -A opts=([s]=suffix)
   parse-opts "$@" || shift $?
   (($# > 1)) && usage
   id=$(gpg-select) || exit

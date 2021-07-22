@@ -23,18 +23,18 @@ verify() {
 }
 backup() {
   [[ -r $src ]] || return 0
-  cp -abfT$verbose "$src" "$src"
+  cp -abfT${verbose+v} "$src" "$src"
 }
 main() {
-  local verbose= src dst
-  local -A opts=([v]=verbose=v [\?]=usage)
+  local verbose src dst
+  local -A opts=([v]=verbose)
   parse-opts "$@" || shift $?
   (($# == 2)) || usage
   src=$1
   dst=$2
   verify
   backup
-  ln -sf$verbose "$dst" "$src"
+  ln -sf${verbose+v} "$dst" "$src"
 }
 
 main "$@"

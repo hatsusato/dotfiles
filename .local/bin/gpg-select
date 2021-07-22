@@ -35,13 +35,13 @@ init-comment() {
 main() {
   local verbose= key
   local -a keyid comment
-  local -A opts=([v]=verbose=on [\?]=usage)
+  local -A opts=([v]=verbose)
   [[ -t 0 ]] || error 'illegal input from stdin'
   parse-opts "$@" || shift $?
   keyid=($(gpg-colon --list-keys pub:5))
   init-comment ${keyid[@]}
   prompt
-  [[ -n $verbose ]] && gpg --list-keys $key >&2
+  [[ $verbose ]] && gpg --list-keys $key >&2
   gpg-colon --list-keys $key fpr:10 | grep -e $key$
 }
 

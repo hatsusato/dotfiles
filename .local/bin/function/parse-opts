@@ -1,14 +1,20 @@
 #!/bin/bash
 
 parse-opts() {
-  local var optstr
+  local var optstr= illegal=
+  declare -p opts &>/dev/null || local -A opts
   for var in "${!opts[@]}"; do
     [[ $var == [[:alnum:]]?(:) ]] || continue
     optstr+=$var
     opts[${var%:}]=${opts[$var]}
   done
+  [[ $optstr ]] || optstr+=\?
   while getopts $optstr var; do
-    [[ -n ${opts[$var]+set} ]] && eval "${opts[$var]}"
+    [[ $var == \? ]] && illegal=on
+    if [[ ${opts[$var]-} == @([[:alpha:]]|_)*([[:word:]]) ]]; then
+      eval "${opts[$var]}=${OPTARG-on}"
+    fi
   done
+  [[ $illegal ]] && declare -F usage >/dev/null && usage
   return $((OPTIND - 1))
 }

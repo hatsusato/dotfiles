@@ -31,11 +31,11 @@ wait-for() {
 }
 main() {
   local verbose= wait=
-  local -A opts=([v]=verbose=on [w]=wait=on [\?]=usage)
+  local -A opts=([v]=verbose [w]=wait)
   parse-opts "$@" || shift $?
-  [[ -n $wait ]] && wait-for
+  [[ $wait ]] && wait-for
   try
-  [[ -n $verbose ]] && pgrep -af '^spacemacs '
+  [[ $verbose ]] && pgrep -af '^spacemacs '
   return 0
 }
 

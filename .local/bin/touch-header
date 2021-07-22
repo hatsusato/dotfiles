@@ -20,7 +20,9 @@ set-guard() {
 set-comment() {
   local style=x
   [[ ${header-} == *.h ]] && style=c
-  case ${mode-$style} in
+  [[ $modec ]] && style=c
+  [[ $modex ]] && style=x
+  case $style in
     c) comment="/* $guard */";;
     x) comment="// $guard";;
   esac
@@ -36,8 +38,8 @@ generate() {
 EOF
 }
 main() {
-  local mode header
-  local -A opts=([c]=mode=c [x]=mode=x [\?]=usage)
+  local modec= modex= header
+  local -A opts=([c]=modec [x]=modex)
   parse-opts "$@" || shift $?
   for header; do
     if [[ -s $header ]]; then
