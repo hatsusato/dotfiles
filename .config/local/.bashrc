@@ -13,9 +13,9 @@ if [ -x /usr/bin/xhost ] && ! xhost &>/dev/null; then
   export LANG=C
 fi
 if [ -x /usr/bin/tput ] && tput setaf 1 &>/dev/null; then
-  export PS1='(\[\033[01;31m\]$?\[\033[00m\])'$PS1
+  export PS1='(\[\033[01;31m\]$?\[\033[00m\])'"$PS1"
 else
-  export PS1='($?)'$PS1
+  export PS1='($?)'"$PS1"
 fi
 if pgrep -x gpg-agent >/dev/null; then
   export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
