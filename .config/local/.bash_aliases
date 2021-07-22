@@ -27,3 +27,5 @@ alias v='less'
 alias wget='wget --show-progress'
 alias xev="xev | sed -n 's/^ *\(.*keycode.*\), same_screen.*$/\1/p'"
 alias xkb-output='setxkbmap -print'
+alias youtube-mp4='youtube-dl -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]"'
+alias youtube-webm='youtube-dl -f "(bestvideo+bestaudio)[ext=webm]"'
