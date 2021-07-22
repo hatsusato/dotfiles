@@ -2,14 +2,9 @@
 
 set -eu
 
-popup() {
-  (($? == 124)) || return 0
-  notify-send -u low spacemacs-client 'Waiting for Spacemacs...'
-  spacemacs-exists -t forever
-}
 main() {
   spacemacs-daemon
-  timeout 0.5s spacemacs-exists -t forever || popup
+  spacemacs-exists -t forever
   exec -a spacemacs-client emacsclient "$@"
 }
 
