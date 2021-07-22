@@ -23,19 +23,3 @@ export LESS='-M -R -x4'
 export LESSHISTFILE=/dev/null
 export LESSSECURE=1
 export PASSWORD_STORE_GENERATED_LENGTH=32
-
-load-user-functions() {
-  local userfunc=$HOME/.local/bin/function
-  local nullglob=$(shopt -p nullglob)
-  local extglob=$(shopt -p extglob)
-  shopt -s nullglob extglob
-  if [[ -d $userfunc && -r $userfunc && -x $userfunc ]]; then
-    local func
-    for func in "$userfunc"/*; do
-      [[ $func == *.sh ]] && continue
-      [[ -f $func && -r $func ]] && . "$func"
-    done
-  fi
-  $nullglob
-  $extglob
-} && load-user-functions
