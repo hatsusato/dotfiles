@@ -18,12 +18,8 @@ verify() {
     realsrc=$(readlink -f "$src")
     realdst=$(readlink -f "$dst")
   fi
-  [[ -h $src && $realsrc == $realdst ]] || return 0
-  exit
-}
-backup() {
-  [[ -r $src ]] || return 0
-  cp -abfT${verbose+v} "$src" "$src"
+  [[ -h $src && $realsrc == $realdst ]] && exit
+  return 0
 }
 main() {
   local verbose src dst
@@ -33,7 +29,7 @@ main() {
   src=$1
   dst=$2
   verify
-  backup
+  rm -rf "$src"
   ln -sf${verbose+v} "$dst" "$src"
 }
 
