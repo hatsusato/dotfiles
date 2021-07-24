@@ -6,6 +6,7 @@
   mkdir -p "$HOME"/develop
   mkdir -p "$HOME"/Private
   mkdir -p "$HOME"/.config/google-chrome
+  mkdir -p "$HOME"/.config/google-chrome/NativeMessagingHosts
 )
 if command -v ensure-link >/dev/null; then
   ensure-link {"$HOME"/,/tmp/"$USER"/}Downloads
@@ -17,7 +18,7 @@ if command -v ensure-link >/dev/null; then
   ensure-link "$HOME"/{,.config/local/}.inputrc
   ensure-link "$HOME"/{,.config/local/}.netrc
   ensure-link "$HOME"/{,.config/local/}.wgetrc
-  ensure-link "$HOME"/.config/google-chrome/NativeMessagingHosts /etc/chromium/native-messaging-hosts
+  ensure-link {"$HOME"/.config/google-chrome/NativeMessagingHosts/,/etc/chromium/native-messaging-hosts/}com.github.browserpass.native.json
 fi
 if command -v xkb-monitor >/dev/null; then
   xkb-monitor || :
