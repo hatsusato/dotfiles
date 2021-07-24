@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 
 make := make --no-print-directory
-modules := chrome dconf dropbox grub im-config spacemacs
+modules := chrome dropbox grub im-config spacemacs
 xkb-notify := .local/bin/xkb-notify
 
 appends := .bashrc .profile
@@ -10,7 +10,6 @@ root/appends := /etc/default/grub
 
 files := $(shell find .local .config -type f)
 home/files := $(files:%=$(HOME)/%)
-root/files := /etc/dconf/profile/user
 install/files := $(files:%=install/%) install/$(xkb-notify)
 
 .PHONY: all
@@ -21,8 +20,6 @@ $(home/appends): $(HOME)/%: %.append
 $(root/appends): /%: %.append
 	@./append.sh $< $@
 $(home/files): $(HOME)/%: %
-	@./install.sh $< $@
-$(root/files): /%: %
 	@./install.sh $< $@
 $(HOME)/$(xkb-notify): src/xkb-notify.c
 	gcc -O2 $< -lX11 -o $@
