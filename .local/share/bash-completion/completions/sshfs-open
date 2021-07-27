@@ -1,3 +1,9 @@
 #!/bin/bash
 
-complete -F _ssh sshfs-open
+_sshfs-open() {
+  __load_completion sshfs || return
+  local args=($(complete -p sshfs))
+  args[-1]=sshfs-open
+  ${args[@]}
+  return 124
+} && complete -F _sshfs-open sshfs-open
