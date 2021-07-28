@@ -2,56 +2,52 @@
 
 set -eu
 source "${BASH_SOURCE%/*}"/function/error
+source "${BASH_SOURCE%/*}"/function/parse-opts
 
 readonly proxy=$HOME/.config/local/.proxy
 
 usage() {
   cat <<EOF >&2
-USAGE: ${0##*/} HOST [PORT]
+USAGE: ${0##*/} [-p PORT] HOST
     construct dynamic forward tunnel
 
     read PORT from $proxy if omitted
     format of ${proxy##*/} is as follows:
-        HOST0: PORT0
-        HOST1: PORT1
+        HOST0 PORT0
+        HOST1 PORT1
         ...
 EOF
   exit 1
 }
+load-port() {
+  local key='"'$host'"'
+  [[ -f $proxy ]] || error config file not found: "$proxy"
+  port=$(awk "{if (\$1 == $key) print \$2}" "$proxy")
+  echo "port $port from config: $proxy" >&2
+}
 is-integer() {
   test "$1" -eq "$1" &>/dev/null
 }
-load-port() {
-  [[ -f $proxy ]] || error config file not found: "$proxy"
-  local blank='[[:blank:]]*'
-  local match=/^"$blank$host$blank"$/
-  local script="match(\$1, $match) {print \$2}"
-  local num=$(awk -F: "$script" "$proxy")
-  echo "load port from $proxy" >&2
-  [[ -n $num ]] || error host not found: "$host"
-  is-integer "$num" || error invalid port: "${num# }"
-  echo $num
-}
-list-port() {
-  lsof -a -c ssh -i :"$port" "$@"
-}
-check-port() {
-  is-integer "$port" || error invalid port: "$port"
-  if pgrep -fx "${cmd[*]}" &>/dev/null; then
-    list-port | grep -F -q '(CLOSE_WAIT)' || exit 0
-    kill $(list-port -t)
+build-tunnel() {
+  local -a ssh lsof
+  ssh=(ssh -D "$port" -f -N -q "$host")
+  lsof=(lsof -a -c ssh -i :"$port")
+  if pgrep -fx "${ssh[*]}" &>/dev/null; then
+    "${lsof[@]}" | grep -F -q '(CLOSE_WAIT)' || return 0
+    kill $("${lsof[@]}" -t)
   fi
-  list-port >&2 && error other process occupies port: "$port"
+  "${lsof[@]}" >&2 && error port occupied: "$port"
+  "${ssh[@]}"
 }
 main() {
   local host port
-  local -a cmd
+  local -A opts=([p:]=port)
+  parse-opts "$@" || shift $?
+  (($# == 1)) || usage
   host=$1
-  port=${2-$(load-port)} || exit
-  cmd=(ssh -D "$port" -f -N -q "$host")
-  check-port
-  "${cmd[@]}"
+  [[ ${port+set} ]] || load-port
+  is-integer "$port" || error invalid port: "$port"
+  build-tunnel
 }
 
-(($# == 1 || $# == 2)) || usage
 main "$@"
