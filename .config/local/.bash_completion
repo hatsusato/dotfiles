@@ -31,19 +31,25 @@ _complete-emulate() {
   ((${#reply[@]})) && COMPREPLY=($(printf '%q\n' "${reply[@]}"))
 }
 
+# USAGE: _complete-split VARNAME STRING
+# split STRING by COMP_WORDBREAKS and store them to VARNAME array
 _complete-split() {
-  local s=$1 c w=
-  while [[ -n $s ]]; do
-    c=${s:0:1}
-    s=${s:1}
-    case $c in
-      [$COMP_WORDBREAKS])
-        list+=("$w" "$c")
-        w=;;
-      *) w+=$c;;
-    esac
+  local w=
+  local -a list
+  local -i i
+  (($# == 2)) || return
+  for ((i=0; i<${#2}; i++)); do
+    local c=${2:i:1}
+    if [[ $c == [$COMP_WORDBREAKS] ]]; then
+      [[ $w ]] && list+=("$w")
+      list+=("$c")
+      w=
+    else
+      w+=$c
+    fi
   done
-  [[ -n $w ]] && list+=("$w")
+  [[ $w ]] && list+=("$w")
+  local "$1" && _upvars -a${#list[@]} "$1" "${list[@]}"
 }
 _complete-parse() {
   local e w= q=
@@ -68,7 +74,7 @@ _complete-parse() {
 }
 _complete-replace() {
   local list=()
-  _complete-split "$1"
+  _complete-split list "$1"
   _complete-parse "${list[@]}"
   local line=${list[@]}
   COMP_LINE=${COMP_LINE/#$COMP_WORDS/$line}
