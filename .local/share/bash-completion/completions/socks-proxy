@@ -1,0 +1,10 @@
+#!/bin/bash
+
+_socks-proxy() {
+  local cur prev words cword
+  _init_completion || return
+  local proxy=$HOME/.config/local/.proxy
+  local list=$(awk '{print $1}' "$proxy" 2>/dev/null)
+  ((cword == 1)) || list=
+  COMPREPLY=($(compgen -W "$list" -- "$cur"))
+} && complete -F _socks-proxy socks-proxy
