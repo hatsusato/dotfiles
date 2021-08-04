@@ -1,3 +1,3 @@
 #!/bin/bash
 
-complete-reuse sshfs sshfs-open
+_complete-reuse sshfs sshfs-open

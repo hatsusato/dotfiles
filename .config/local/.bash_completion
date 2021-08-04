@@ -1,6 +1,6 @@
 #!/bin/bash
 
-complete-emulate() {
+_complete-emulate() {
   local cur prev words cword cmd
   local -a list
   _init_completion || return
@@ -31,7 +31,7 @@ complete-emulate() {
   ((${#list[@]})) && COMPREPLY=($(printf '%q\n' "${list[@]}"))
 }
 
-complete-split() {
+_complete-split() {
   local s=$1 c w=
   while [[ -n $s ]]; do
     c=${s:0:1}
@@ -45,7 +45,7 @@ complete-split() {
   done
   [[ -n $w ]] && list+=("$w")
 }
-complete-parse() {
+_complete-parse() {
   local e w= q=
   list=()
   for e; do
@@ -66,10 +66,10 @@ complete-parse() {
   done
   [[ -n "$w" ]] && list+=("$w")
 }
-complete-replace() {
+_complete-replace() {
   local list=()
-  complete-split "$1"
-  complete-parse "${list[@]}"
+  _complete-split "$1"
+  _complete-parse "${list[@]}"
   local line=${list[@]}
   COMP_LINE=${COMP_LINE/#$COMP_WORDS/$line}
   ((COMP_POINT += ${#line} - ${#COMP_WORDS}))
@@ -77,24 +77,24 @@ complete-replace() {
   COMP_WORDS=("${list[@]}" "${COMP_WORDS[@]:1}")
 }
 
-complete-alias-exists() {
+_complete-alias-exists() {
   [[ -n $@ && -n ${BASH_ALIASES[$@]+x} ]]
 }
 
-complete-alias() {
-  complete-alias-exists "$COMP_WORDS" || return
-  complete-replace "${BASH_ALIASES[$COMP_WORDS]}"
+_complete-alias() {
+  _complete-alias-exists "$COMP_WORDS" || return
+  _complete-replace "${BASH_ALIASES[$COMP_WORDS]}"
   local comp=$(complete -p "$COMP_WORDS" 2>/dev/null)
   if [[ -z $comp ]]; then
     _completion_loader "$COMP_WORDS"
-  elif [[ $comp == @(complete -F complete-alias )* ]]; then
+  elif [[ $comp == @(complete -F _complete-alias )* ]]; then
     complete -F _minimal -- "$COMP_WORDS" && return 124
   else
-    complete-emulate
+    _complete-emulate
   fi
 }
 
-complete-reuse() {
+_complete-reuse() {
   (($# == 2)) || return
   __load_completion "$1" || return
   local args=($(complete -p "$1"))
@@ -102,13 +102,13 @@ complete-reuse() {
   "${args[@]}"
 }
 
-auto-completion-loader() {
+_auto-completion-loader() {
   __load_completion "$1" && return 124
-  if complete-alias-exists "$1"; then
-    complete -F complete-alias -- "$1" && return 124
+  if _complete-alias-exists "$1"; then
+    complete -F _complete-alias -- "$1" && return 124
   fi
   complete -F _minimal -- "$1" && return 124
-} && complete -D -F auto-completion-loader
+} && complete -D -F _auto-completion-loader
 
 complete-debug() {
   local comp log=${DEBUG+/tmp/$USER/debug.log}
