@@ -2,33 +2,33 @@
 
 _complete-emulate() {
   local cur prev words cword cmd
-  local -a list
+  local -a params opts reply
+  local -i i
   _init_completion || return
   cmd=${words[0]}
-  set -- $(complete -p "$cmd" 2>/dev/null)
-  [[ $1 == complete && ${@:$#} == $cmd ]] || return
-  shift
-  while ((1 < $#)); do
-    case $1 in
+  params=($(complete -p "$cmd" 2>/dev/null))
+  [[ ${params[0]} == complete && ${params[-1]} == $cmd ]] || return
+  for ((i=1; i<${#params[@]}-1; i++)); do
+    local arg=${params[i]} next=${params[i+1]}
+    case $arg in
       -[abcdefgjksuv])
-        list+=($1)
-        shift;;
+        opts+=($arg);;
       -o)
-        compopt -o "$2" >/dev/null
-        shift 2;;
-      -F)
-        "$2" "$cmd" "$cur" "$prev" && :
-        return;;
+        compopt -o "$next" >/dev/null
+        let i++;;
       -[AGWCXPS])
-        list+=($1 "$2")
-        shift 2;;
+        opts+=($arg "$next")
+        let i++;;
+      -F)
+        "$next" "$cmd" "$cur" "$prev" && :
+        return;;
       *)
         echo ERROR: invalid complete: $(complete -p "$cmd") >&2
         return 1;;
     esac
   done
-  list=($(compgen "${list[@]}" -- "$cur"))
-  ((${#list[@]})) && COMPREPLY=($(printf '%q\n' "${list[@]}"))
+  reply=($(compgen "${opts[@]}" -- "$cur"))
+  ((${#reply[@]})) && COMPREPLY=($(printf '%q\n' "${reply[@]}"))
 }
 
 _complete-split() {
