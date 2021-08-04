@@ -94,6 +94,14 @@ complete-alias() {
   fi
 }
 
+complete-reuse() {
+  (($# == 2)) || return
+  __load_completion "$1" || return
+  local args=($(complete -p "$1"))
+  args[-1]="$2"
+  "${args[@]}"
+}
+
 auto-completion-loader() {
   __load_completion "$1" && return 124
   if complete-alias-exists "$1"; then
