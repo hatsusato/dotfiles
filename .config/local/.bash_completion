@@ -1,15 +1,15 @@
 #!/bin/bash
 
+# USAGE: _complete-emulate CMD
+# emulate completion invocation of CMD
 _complete-emulate() {
-  local cur prev words cword cmd
+  local cmd=$1 arg next
   local -a params opts reply
   local -i i
-  _init_completion || return
-  cmd=${words[0]}
   params=($(complete -p "$cmd" 2>/dev/null))
   [[ ${params[0]} == complete && ${params[-1]} == $cmd ]] || return
   for ((i=1; i<${#params[@]}-1; i++)); do
-    local arg=${params[i]} next=${params[i+1]}
+    arg=${params[i]} next=${params[i+1]}
     case $arg in
       -[abcdefgjksuv])
         opts+=($arg);;
@@ -20,15 +20,21 @@ _complete-emulate() {
         opts+=($arg "$next")
         let i++;;
       -F)
-        "$next" "$cmd" "$cur" "$prev" && :
-        return;;
+        reply=("$next")
+        let i++;;
       *)
         echo ERROR: invalid complete: $(complete -p "$cmd") >&2
         return 1;;
     esac
   done
-  reply=($(compgen "${opts[@]}" -- "$cur"))
-  ((${#reply[@]})) && COMPREPLY=($(printf '%q\n' "${reply[@]}"))
+  local cur prev words cword
+  _init_completion || return
+  if ((${#reply[@]})); then
+    "${reply[@]}" "$cmd" "$cur" "$prev"
+  else
+    readarray -t reply < <(compgen "${opts[@]}" -- "$cur")
+    ((${#reply[@]})) && COMPREPLY=($(printf '%q\n' "${reply[@]}"))
+  fi
 }
 
 # USAGE: _complete-split VARNAME STRING
@@ -96,7 +102,7 @@ _complete-alias() {
   elif [[ $comp == @(complete -F _complete-alias )* ]]; then
     complete -F _minimal -- "$COMP_WORDS" && return 124
   else
-    _complete-emulate
+    _complete-emulate ${BASH_ALIASES[$COMP_WORDS]}
   fi
 }
 
