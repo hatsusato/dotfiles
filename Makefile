@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 
 make := make --no-print-directory
-modules := dropbox im-config spacemacs
+modules := im-config spacemacs
 xkb-notify := .local/bin/xkb-notify
 
 appends := .bashrc .profile
@@ -45,6 +45,13 @@ dconf: $(HOME)/.config/dconf/user.txt /etc/dconf/profile/user
 	@sudo dconf update
 /etc/dconf/profile/user: /%: %
 	@./script/install.sh $< $@
+
+.PHONY: dropbox
+dropbox:
+	@./script/apt.sh nautilus-dropbox
+	@dropbox start -i
+	@dropbox status
+	@dropbox status | grep -Fqx '最新の状態'
 
 .PHONY: grub
 grub: /etc/default/grub
