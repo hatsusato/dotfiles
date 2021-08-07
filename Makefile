@@ -6,6 +6,9 @@ xkb-notify := .local/bin/xkb-notify
 appends := .bashrc .profile
 home/appends := $(appends:%=$(HOME)/%)
 
+home-dot := .bash_aliases .bash_completion .clang-format .inputrc .wgetrc
+link/home-dot := $(dot/files:%=$(HOME)/%)
+
 files := $(shell find -L .config .local -type f)
 home/files := $(files:%=$(HOME)/%)
 install/files := $(files:%=install/%) install/$(xkb-notify)
@@ -13,7 +16,7 @@ emacs/private := $(shell find -L submodule/.emacs.d/private/hatsusato -type f)
 home/emacs/private := $(emacs/private:submodule/%=$(HOME)/%)
 
 .PHONY: all
-all: $(home/files) $(home/appends) $(HOME)/$(xkb-notify)
+all: $(home/files) $(home/appends) $(HOME)/$(xkb-notify) $(link/home-dot)
 
 $(home/appends): $(HOME)/%: %.append
 	@./script/append.sh $< $@
@@ -21,6 +24,8 @@ $(home/files): $(HOME)/%: %
 	@./script/install.sh $< $@
 $(HOME)/$(xkb-notify): src/xkb-notify.c
 	gcc -O2 $< -lX11 -o $@
+$(link/home-dot): $(HOME)/%: %
+	@./script/link.sh $< $@
 
 .PHONY: $(install/files)
 $(install/files): install/%: $(HOME)/%
