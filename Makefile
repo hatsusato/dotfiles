@@ -1,7 +1,6 @@
 #!/usr/bin/make -f
 
 make := make --no-print-directory
-modules := im-config spacemacs
 xkb-notify := .local/bin/xkb-notify
 
 appends := .bashrc .profile
@@ -25,10 +24,6 @@ $(HOME)/$(xkb-notify): src/xkb-notify.c
 
 .PHONY: $(install/files)
 $(install/files): install/%: $(HOME)/%
-
-.PHONY: $(modules)
-$(modules):
-	@./module/$@.sh
 
 .PHONY: browserpass
 browserpass: $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native.json
