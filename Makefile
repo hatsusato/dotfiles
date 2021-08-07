@@ -17,7 +17,7 @@ all: $(home/files) $(home/appends) $(HOME)/$(xkb-notify)
 $(home/appends): $(HOME)/%: %.append
 	@./script/append.sh $< $@
 $(home/files): $(HOME)/%: %
-	@./install.sh $< $@
+	@./script/install.sh $< $@
 $(HOME)/$(xkb-notify): src/xkb-notify.c
 	gcc -O2 $< -lX11 -o $@
 
@@ -32,7 +32,7 @@ $(modules):
 browserpass: $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native.json
 	@./script/apt.sh pass pwgen
 $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native.json: /etc/chromium/native-messaging-hosts/com.github.browserpass.native.json
-	@./install.sh $< $@
+	@./script/install.sh $< $@
 /etc/chromium/native-messaging-hosts/com.github.browserpass.native.json:
 	@./script/apt.sh webext-browserpass
 
@@ -40,7 +40,7 @@ $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native
 dconf: $(HOME)/.config/dconf/user.txt /etc/dconf/profile/user
 	@sudo dconf update
 /etc/dconf/profile/user: /%: %
-	@./install.sh $< $@
+	@./script/install.sh $< $@
 
 .PHONY: grub
 grub: /etc/default/grub
