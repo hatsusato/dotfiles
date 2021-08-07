@@ -171,3 +171,18 @@ _alias-complete-parse() {
   _alias-complete-parse-join "${words[@]}"
   local "$1" && _upvars -a${#words[@]} "$1" "${words[@]}"
 }
+_alias-complete-reset-comp() {
+  local cmd=$1 alias=${BASH_ALIASES[$1]} line
+  local -a words args
+  local -i point cword
+  _alias-complete-parse words "$alias"
+  let point=$COMP_POINT+${#alias}-${#cmd} && :
+  let cword=$COMP_CWORD+${#words[@]}-1 && :
+  line=$alias${COMP_LINE#$cmd}
+  words+=("${COMP_WORDS[@]:1}")
+  args+=(-v COMP_POINT $point)
+  args+=(-v COMP_CWORD $cword)
+  args+=(-v COMP_LINE "$line")
+  args+=(-a${#words[@]} COMP_WORDS "${words[@]}")
+  local COMP_{POINT,CWORD,LINE,WORDS} && _upvars "${args[@]}"
+}
