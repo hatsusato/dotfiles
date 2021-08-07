@@ -1,0 +1,9 @@
+--- Xsession.options
++++ Xsession.options
+@@ -5,5 +5,5 @@
+ allow-failsafe
+ allow-user-resources
+ allow-user-xsession
+-use-ssh-agent
++no-use-ssh-agent
+ use-session-dbus

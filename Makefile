@@ -47,3 +47,6 @@ grub: /etc/default/grub
 	@sudo update-grub
 /etc/default/grub: /%: %.append
 	@./script/append.sh $< $@
+
+/etc/X11/Xsession.options: /%: %.patch
+	@./script/patch.sh $< $@
