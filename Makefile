@@ -36,5 +36,8 @@ $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native
 /etc/chromium/native-messaging-hosts/com.github.browserpass.native.json:
 	@./script/apt.sh webext-browserpass
 
+.PHONY: dconf
+dconf: $(HOME)/.config/dconf/user.txt /etc/dconf/profile/user
+	@sudo dconf update
 /etc/dconf/profile/user: /%: %
 	@./install.sh $< $@
