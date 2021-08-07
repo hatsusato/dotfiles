@@ -4,9 +4,8 @@ set -eu
 
 setup-pkgs() {
   pkgs+=(
-    build-essential clang emacs emacs-mozc fcitx fcitx-mozc 'fonts-noto*'
-    git gocryptfs libx11-dev neovim paperkey pass pwgen scdaemon sshfs
-    webext-browserpass xclip xkbset
+    build-essential clang 'fonts-noto*' git gocryptfs libx11-dev
+    neovim paperkey scdaemon sshfs tig xclip xkbset
   )
   log=$HOME/.config/local/.install
   mkdir -p "${log%/*}"
