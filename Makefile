@@ -94,5 +94,3 @@ grub: /etc/default/grub
 
 $(HOME)/.gnupg/gpg-agent.conf: $(HOME)/%: %
 	@./script/install.sh $< $@
-/etc/X11/Xsession.options: /%: %.patch
-	@./script/patch.sh $< $@
