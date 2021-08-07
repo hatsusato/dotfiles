@@ -221,3 +221,8 @@ _alias-complete() {
   [[ $comp == *' -F _alias-complete '* ]] && complete -F _minimal -- "$cmd"
   _alias-complete-emulate "$cmd"
 }
+_alias-completion-loader() {
+  local cmd=${1:-_EmptycmD_}
+  __load_completion "$cmd" && return 124
+  complete -F _alias-complete -- "$cmd" && return 124
+} && complete -D -F _alias-completion-loader
