@@ -55,6 +55,12 @@ dropbox:
 	@dropbox status
 	@dropbox status | grep -Fqx '最新の状態'
 
+.PHONY: fcitx
+fcitx: $(HOME)/.config/fcitx/config
+	@./script/apt.sh fcitx fcitx-mozc
+	@./script/fcitx-instruction.sh
+	@im-config &>/dev/null
+
 .PHONY: grub
 grub: /etc/default/grub
 	@sudo update-grub
