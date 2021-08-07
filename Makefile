@@ -39,6 +39,8 @@ $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native
 .PHONY: chrome
 chrome:
 	@./script/chrome.sh
+/usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb:
+	@./script/chrome-download.sh $@
 
 .PHONY: dconf
 dconf: $(HOME)/.config/dconf/user.txt /etc/dconf/profile/user
