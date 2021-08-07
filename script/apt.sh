@@ -10,7 +10,7 @@ main() {
   local pkg
   local -a pkgs=()
   for pkg; do
-    is-installed "$pkg" && continue
+    "${BASH_SOURCE%/*}"/apt-installed.sh "$pkg" && continue
     pkgs+=("$pkg")
   done
   ((${#pkgs[@]} == 0)) && return
