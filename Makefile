@@ -27,3 +27,11 @@ $(install/files): install/%: $(HOME)/%
 .PHONY: $(modules)
 $(modules):
 	@./module/$@.sh
+
+.PHONY: browserpass
+browserpass: $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native.json
+	@./script/apt.sh pass pwgen
+$(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native.json: /etc/chromium/native-messaging-hosts/com.github.browserpass.native.json
+	@./install.sh $< $@
+/etc/chromium/native-messaging-hosts/com.github.browserpass.native.json:
+	@./script/apt.sh webext-browserpass
