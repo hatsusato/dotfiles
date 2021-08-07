@@ -7,7 +7,7 @@ xkb-notify := .local/bin/xkb-notify
 appends := .bashrc .profile
 home/appends := $(appends:%=$(HOME)/%)
 
-files := $(shell find -L .local .config -type f)
+files := $(shell find -L .config .emacs.d .local -type f)
 home/files := $(files:%=$(HOME)/%)
 install/files := $(files:%=install/%) install/$(xkb-notify)
 
