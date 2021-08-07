@@ -2,10 +2,8 @@
 
 _complete-reuse() {
   (($# == 2)) || return
-  __load_completion "$1" || return
-  local args=($(complete -p "$1"))
-  args[-1]="$2"
-  "${args[@]}"
+  complete -p "$1" &>/dev/null || __load_completion "$1"
+  $(complete -p "$1" 2>/dev/null || echo false) "$2"
 }
 
 _alias-complete-parse() {
