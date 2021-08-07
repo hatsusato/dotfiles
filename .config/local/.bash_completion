@@ -211,3 +211,13 @@ _alias-complete-emulate() {
     ((${#reply[@]})) && COMPREPLY=($(printf '%q\n' "${reply[@]}"))
   fi
 }
+_alias-complete() {
+  local cmd=$1 comp
+  if [[ -v BASH_ALIASES[$cmd] ]]; then
+    _alias-complete-reset-comp "$cmd"
+    cmd=${COMP_WORDS[0]}
+  fi
+  comp=$(complete -p "$cmd" 2>/dev/null) || _alias-completion-loader "$cmd"
+  [[ $comp == *' -F _alias-complete '* ]] && complete -F _minimal -- "$cmd"
+  _alias-complete-emulate "$cmd"
+}
