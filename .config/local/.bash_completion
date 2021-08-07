@@ -47,9 +47,10 @@ _alias-complete-parse() {
   local "$1" && _upvars -a${#words[@]} "$1" "${words[@]}"
 }
 _alias-complete-reset-comp() {
-  local cmd=$1 alias=${BASH_ALIASES[$1]} line
+  local cmd=${COMP_WORDS[0]} alias line
   local -a words args
   local -i point cword
+  alias=${BASH_ALIASES[$cmd]}
   _alias-complete-parse words "$alias"
   let point=$COMP_POINT+${#alias}-${#cmd} && :
   let cword=$COMP_CWORD+${#words[@]}-1 && :
@@ -87,9 +88,9 @@ _alias-complete-emulate() {
   fi
 }
 _alias-complete() {
-  local cmd=$1 comp
+  local cmd=${COMP_WORDS[0]} comp
   if [[ -v BASH_ALIASES[$cmd] ]]; then
-    _alias-complete-reset-comp "$cmd"
+    _alias-complete-reset-comp
     cmd=${COMP_WORDS[0]}
   fi
   comp=$(complete -p "$cmd" 2>/dev/null) || _alias-completion-loader "$cmd"
