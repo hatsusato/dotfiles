@@ -43,8 +43,10 @@ $(link/home-dot): $(HOME)/%: %
 $(install/files): install/%: $(HOME)/%
 
 .PHONY: browserpass
-browserpass: $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native.json
+browserpass: $(HOME)/.password-store $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native.json
 	@./script/apt.sh pass pwgen
+$(HOME)/.password-store:
+	@./script/link.sh $(HOME)/Private/.password-store
 $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native.json: /etc/chromium/native-messaging-hosts/com.github.browserpass.native.json
 	@./script/install.sh $< $@
 /etc/chromium/native-messaging-hosts/com.github.browserpass.native.json:
