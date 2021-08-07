@@ -186,3 +186,28 @@ _alias-complete-reset-comp() {
   args+=(-a${#words[@]} COMP_WORDS "${words[@]}")
   local COMP_{POINT,CWORD,LINE,WORDS} && _upvars "${args[@]}"
 }
+_alias-complete-emulate() {
+  local cmd=$1 comp
+  local -a opts reply
+  comp=$(complete -p "$cmd" 2>/dev/null) || return
+  set -- $comp
+  [[ ${1-} == complete && ${@: -1} == $cmd ]] || return
+  shift
+  while (($# > 1)); do
+    case $1 in
+      -[abcdefgjksuv]) opts+=($1); shift 1;;
+      -o) compopt -o "$2"; shift 2;;
+      -[AGWCXPS]) opts+=($1 "$2"); shift 2;;
+      -F) reply=("$2"); shift 2;;
+      *) echo "ERROR: invalid complete: $comp" >&2; return 1;;
+    esac
+  done
+  local cur prev words cword
+  _init_completion || return
+  if [[ "${reply[*]}" ]]; then
+    "${reply[@]}" "$cmd" "$cur" "$prev"
+  else
+    readarray -t reply < <(compgen "${opts[@]}" -- "$cur")
+    ((${#reply[@]})) && COMPREPLY=($(printf '%q\n' "${reply[@]}"))
+  fi
+}
