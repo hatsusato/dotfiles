@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 
 make := make --no-print-directory
-modules := chrome dropbox im-config spacemacs
+modules := dropbox im-config spacemacs
 xkb-notify := .local/bin/xkb-notify
 
 appends := .bashrc .profile
@@ -35,6 +35,10 @@ $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native
 	@./script/install.sh $< $@
 /etc/chromium/native-messaging-hosts/com.github.browserpass.native.json:
 	@./script/apt.sh webext-browserpass
+
+.PHONY: chrome
+chrome:
+	@./script/chrome.sh
 
 .PHONY: dconf
 dconf: $(HOME)/.config/dconf/user.txt /etc/dconf/profile/user
