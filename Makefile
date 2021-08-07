@@ -7,9 +7,11 @@ xkb-notify := .local/bin/xkb-notify
 appends := .bashrc .profile
 home/appends := $(appends:%=$(HOME)/%)
 
-files := $(shell find -L .config .emacs.d .local -type f)
+files := $(shell find -L .config .local -type f)
 home/files := $(files:%=$(HOME)/%)
 install/files := $(files:%=install/%) install/$(xkb-notify)
+emacs/private := $(shell find -L submodule/.emacs.d/private/hatsusato -type f)
+home/emacs/private := $(emacs/private:submodule/%=$(HOME)/%)
 
 .PHONY: all
 all: $(home/files) $(home/appends) $(HOME)/$(xkb-notify)
@@ -54,6 +56,15 @@ dropbox:
 	@dropbox start -i
 	@dropbox status
 	@dropbox status | grep -Fqx '最新の状態'
+
+.PHONY: emacs
+emacs: $(home/emacs/private)
+$(HOME)/.emacs.d/.git:
+	@./script/spacemacs.sh $(@D)
+$(home/emacs/private): $(HOME)/%: submodule/% $(HOME)/.emacs.d/.git
+	@./script/install.sh $< $@
+$(emacs/private):
+	@git submodule update $@
 
 .PHONY: fcitx
 fcitx: $(HOME)/.config/fcitx/config
