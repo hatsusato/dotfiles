@@ -15,7 +15,7 @@ install/files := $(files:%=install/%) install/$(xkb-notify)
 all: $(home/files) $(home/appends) $(HOME)/$(xkb-notify)
 
 $(home/appends): $(HOME)/%: %.append
-	@./append.sh $< $@
+	@./script/append.sh $< $@
 $(home/files): $(HOME)/%: %
 	@./install.sh $< $@
 $(HOME)/$(xkb-notify): src/xkb-notify.c
@@ -46,4 +46,4 @@ dconf: $(HOME)/.config/dconf/user.txt /etc/dconf/profile/user
 grub: /etc/default/grub
 	@sudo update-grub
 /etc/default/grub: /%: %.append
-	@./append.sh $< $@
+	@./script/append.sh $< $@
