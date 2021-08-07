@@ -130,3 +130,44 @@ complete-debug() {
     echo
   } >>${log:-/dev/null}
 }
+
+_alias-complete-parse() {
+  local -a words
+  _alias-complete-parse-split() {
+    local c q
+    local -i i
+    for ((i=0; i<${#1}; i++)); do
+      c=${1:i:1}
+      if [[ $c == [\\] ]]; then
+        c=${1:i:2}
+        let i++ && :
+      fi
+      if [[ $q ]]; then
+        [[ $c == $q ]] && q=
+      else
+        [[ $c == [\"\'] ]] && q=$c
+        words+=('')
+      fi
+      words[-1]+=$c
+    done
+  }
+  _alias-complete-parse-join() {
+    local w prev= next
+    words=()
+    for w; do
+      case $w in
+        ["$IFS"]) prev=; continue;;
+        [\"\']) next=normal;;
+        [';|&(']) prev=; words=(); continue;;
+        ["$COMP_WORDBREAKS"]) next=break;;
+        *) next=normal;;
+      esac
+      [[ $prev == $next ]] || words+=('')
+      words[-1]+=$w
+      prev=$next
+    done
+  }
+  _alias-complete-parse-split "$2"
+  _alias-complete-parse-join "${words[@]}"
+  local "$1" && _upvars -a${#words[@]} "$1" "${words[@]}"
+}
