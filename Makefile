@@ -10,6 +10,8 @@ home-dot := .bash_aliases .bash_completion .clang-format .inputrc .wgetrc
 link/home-dot := $(dot/files:%=$(HOME)/%)
 dirs := develop Dropbox Private
 home/dirs := $(dirs:%=$(HOME)/%)
+link/dirs := Documents Downloads
+home/link/dirs := $(link/dirs:%=$(HOME)/%)
 
 files := $(shell find -L .config .local -type f)
 home/files := $(files:%=$(HOME)/%)
@@ -17,7 +19,7 @@ install/files := $(files:%=install/%) install/$(xkb-notify)
 emacs/private := $(shell find -L submodule/.emacs.d/private/hatsusato -type f)
 home/emacs/private := $(emacs/private:submodule/%=$(HOME)/%)
 
-target := $(home/files) $(home/appends) $(HOME)/$(xkb-notify) $(home/dirs) $(link/home-dot)
+target := $(home/files) $(home/appends) $(HOME)/$(xkb-notify) $(home/dirs) $(home/link/dirs) $(link/home-dot)
 
 .PHONY: all
 all: $(target)
@@ -30,6 +32,10 @@ $(HOME)/$(xkb-notify): src/xkb-notify.c
 	gcc -O2 $< -lX11 -o $@
 $(home/dirs):
 	@mkdir -p $@
+$(HOME)/Documents:
+	@./script/link.sh $(HOME)/Dropbox/Documents $@
+$(HOME)/Downloads:
+	@./script/link.sh /tmp/$(USER)/Downloads $@
 $(link/home-dot): $(HOME)/%: %
 	@./script/link.sh $< $@
 
@@ -62,9 +68,6 @@ dropbox: $(HOME)/Documents $(HOME)/Dropbox
 	@dropbox start -i
 	@dropbox status
 	@dropbox status | grep -Fqx '最新の状態'
-$(HOME)/Documents: $(HOME)/Dropbox/Documents
-	@rm -rf $@
-	@ln -sfv $< $@
 
 .PHONY: emacs
 emacs: $(home/emacs/private)

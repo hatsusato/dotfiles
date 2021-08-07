@@ -5,7 +5,6 @@
   mkdir -p /tmp/"$USER"/Downloads
 )
 if command -v ensure-link >/dev/null; then
-  ensure-link {"$HOME"/,/tmp/"$USER"/}Downloads
   ensure-link "$HOME"/{,Private/}.password-store
   ensure-link "$HOME"/{,.config/local/}.netrc
 fi
