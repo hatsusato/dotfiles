@@ -41,3 +41,6 @@ dconf: $(HOME)/.config/dconf/user.txt /etc/dconf/profile/user
 	@sudo dconf update
 /etc/dconf/profile/user: /%: %
 	@./install.sh $< $@
+
+/etc/default/grub: /%: %.append
+	@./append.sh $< $@
