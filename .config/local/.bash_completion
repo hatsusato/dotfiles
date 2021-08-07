@@ -1,11 +1,16 @@
 #!/bin/bash
 
+# USAGE: _complete-reuse REF CMD
+# use the same completion function as REF for CMD
 _complete-reuse() {
   (($# == 2)) || return
   complete -p "$1" &>/dev/null || __load_completion "$1"
   $(complete -p "$1" 2>/dev/null || echo false) "$2"
 }
 
+# USAGE: _alias-complete-parse ARRAY STRING
+# decompose STRING into ARRAY variable in the same way
+# as $COMP_LINE into COMP_WORDS
 _alias-complete-parse() {
   local -a words
   _alias-complete-parse-split() {
@@ -46,6 +51,8 @@ _alias-complete-parse() {
   _alias-complete-parse-join "${words[@]}"
   local "$1" && _upvars -a${#words[@]} "$1" "${words[@]}"
 }
+# USAGE: _alias-complete-reset-comp
+# expand alias and reset COMP_{POINT,CWORD,LINE,WORDS} variables
 _alias-complete-reset-comp() {
   local cmd=${COMP_WORDS[0]} alias line
   local -a words args
@@ -62,6 +69,8 @@ _alias-complete-reset-comp() {
   args+=(-a${#words[@]} COMP_WORDS "${words[@]}")
   local COMP_{POINT,CWORD,LINE,WORDS} && _upvars "${args[@]}"
 }
+# USAGE: _alias-complete-emulate CMD
+# invoke completion function for CMD manually
 _alias-complete-emulate() {
   local cmd=$1 comp
   local -a opts reply
@@ -87,6 +96,8 @@ _alias-complete-emulate() {
     ((${#reply[@]})) && COMPREPLY=($(printf '%q\n' "${reply[@]}"))
   fi
 }
+# USAGE: complete -F _alias-complete -- CMD
+# perform completion after expanding alias
 _alias-complete() {
   local cmd=${COMP_WORDS[0]} comp
   if [[ -v BASH_ALIASES[$cmd] ]]; then
@@ -97,6 +108,8 @@ _alias-complete() {
   [[ $comp == *' -F _alias-complete '* ]] && complete -F _minimal -- "$cmd"
   _alias-complete-emulate "$cmd"
 }
+# USAGE: complete -D -F _alias-completion-loader
+# completion loader for _alias-complete
 _alias-completion-loader() {
   local cmd=${1:-_EmptycmD_}
   __load_completion "$cmd" && return 124
