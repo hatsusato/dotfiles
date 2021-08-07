@@ -1,0 +1,60 @@
+[org/gnome/desktop/a11y/mouse]
+secondary-click-enabled=true
+
+[org/gnome/desktop/background]
+picture-uri=''
+primary-color='#000000'
+
+[org/gnome/desktop/input-sources]
+sources=[('fcitx', 'mozc-jp'), ('xkb', 'us')]
+
+[org/gnome/desktop/interface]
+gtk-theme='Yaru'
+show-battery-percentage=true
+
+[org/gnome/settings-daemon/peripherals/touchscreen]
+orientation-lock=true
+
+[org/gnome/desktop/wm/keybindings]
+switch-windows=['<Alt>Tab']
+switch-windows-backward=['<Shift><Alt>Tab']
+switch-applications=['<Super>Tab']
+switch-applications-backward=['<Shift><Super>Tab']
+
+[org/gnome/settings-daemon/plugins/media-keys]
+custom-keybindings=['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom2/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom3/']
+
+[org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0]
+binding='<Primary><Super>c'
+command='google-chrome'
+name='google-chrome'
+
+[org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1]
+binding='<Primary><Super>e'
+command='spacemacs-client -c'
+name='spacemacs-client'
+
+[org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom2]
+binding='<Primary><Super>p'
+command='private-toggle'
+name='private-toggle'
+
+[org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom3]
+binding='<Primary><Super>t'
+command='gnome-terminal'
+name='gnome-terminal'
+
+[org/gnome/shell]
+favorite-apps=['gnome-control-center.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Terminal.desktop', 'google-chrome.desktop', 'gnome-system-monitor.desktop', 'slack.desktop', 'spacemacs-client.desktop']
+
+[org/gnome/terminal/legacy/profiles:]
+list=['2f150d02-eba4-4e8d-ae0b-7b0db22cb55d']
+default='2f150d02-eba4-4e8d-ae0b-7b0db22cb55d'
+
+[org/gnome/terminal/legacy/profiles:/:2f150d02-eba4-4e8d-ae0b-7b0db22cb55d]
+audible-bell=false
+cjk-utf8-ambiguous-width='wide'
+font='Ubuntu Mono 12'
+use-system-font=false
+use-transparent-background=true
+visible-name='local'
