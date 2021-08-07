@@ -48,5 +48,7 @@ grub: /etc/default/grub
 /etc/default/grub: /%: %.append
 	@./script/append.sh $< $@
 
+$(HOME)/.gnupg/gpg-agent.conf: $(HOME)/%: %
+	@./script/install.sh $< $@
 /etc/X11/Xsession.options: /%: %.patch
 	@./script/patch.sh $< $@
