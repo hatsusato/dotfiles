@@ -37,8 +37,8 @@ $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native
 	@./script/apt.sh webext-browserpass
 
 .PHONY: chrome
-chrome:
-	@./script/chrome.sh
+chrome: /usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb
+	@./script/chrome.sh $<
 /usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb:
 	@./script/chrome-download.sh $@
 
