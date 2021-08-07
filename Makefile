@@ -91,6 +91,3 @@ grub: /etc/default/grub
 	@sudo update-grub
 /etc/default/grub: /%: %.append
 	@./script/append.sh $< $@
-
-$(HOME)/.gnupg/gpg-agent.conf: $(HOME)/%: %
-	@./script/install.sh $< $@
