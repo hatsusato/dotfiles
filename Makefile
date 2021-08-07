@@ -42,5 +42,8 @@ dconf: $(HOME)/.config/dconf/user.txt /etc/dconf/profile/user
 /etc/dconf/profile/user: /%: %
 	@./install.sh $< $@
 
+.PHONY: grub
+grub: /etc/default/grub
+	@sudo update-grub
 /etc/default/grub: /%: %.append
 	@./append.sh $< $@
