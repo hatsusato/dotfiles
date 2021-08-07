@@ -1,6 +1,6 @@
 [submodule "submodule/.bash_completion"]
 	path = submodule/.bash_completion
 	url = https://gist.github.com/ec5a0d8851ef7715911934cd4fd60d2b.git
-[submodule "submodule/private-layer"]
-	path = submodule/private-layer
+[submodule "submodule/.emacs.d/private/hatsusato"]
+	path = submodule/.emacs.d/private/hatsusato
 	url = https://github.com/hatsusato/private-layer.git
