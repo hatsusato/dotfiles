@@ -71,7 +71,7 @@ dropbox: $(HOME)/Documents $(HOME)/Dropbox
 .PHONY: emacs emacs/update
 emacs: $(HOME)/.emacs.d/.git $(home/emacs)
 emacs/update:
-	@git submodule update submodule/.emacs.d/private/hatsusato
+	@git submodule update submodule/private-layer
 $(home/emacs): emacs/update
 $(HOME)/.emacs.d/.git:
 	@./script/spacemacs.sh $(@D)
