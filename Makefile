@@ -5,14 +5,14 @@ make := make --no-print-directory
 home/appends := .bashrc .profile
 home/appends := $(home/appends:%=$(HOME)/%)
 root/appends := /etc/default/grub
-home/dirs    := Dropbox Private develop
-home/dirs    := $(home/dirs:%=$(HOME)/%)
-home/emacs   := $(shell find -L .emacs.d -type f)
-home/emacs   := $(home/emacs:%=$(HOME)/%)
-home/install := $(shell find -L .config .emacs.d .local -type f)
-home/install += .bash_aliases .bash_completion .clang-format .inputrc .wgetrc
-home/install := $(home/install:%=$(HOME)/%)
-root/install := /etc/dconf/profile/user
+home/copy := $(shell find -L .config .emacs.d .local -type f)
+home/copy += .bash_aliases .bash_completion .clang-format .inputrc .wgetrc
+home/copy := $(home/copy:%=$(HOME)/%)
+root/copy := /etc/dconf/profile/user
+home/dirs := Dropbox Private develop
+home/dirs := $(home/dirs:%=$(HOME)/%)
+home/emacs := $(shell find -L .emacs.d -type f)
+home/emacs := $(home/emacs:%=$(HOME)/%)
 home/symlink := .password-store Documents Downloads
 home/symlink := $(home/symlinks:%=$(HOME)/%)
 
@@ -22,7 +22,7 @@ browserpass/json := com.github.browserpass.native.json
 browserpass/config := $(HOME)/.config/google-chrome/NativeMessagingHosts/$(browserpass/json)
 browserpass/etc := /etc/chromium/native-messaging-hosts/$(browserpass/json)
 
-target := $(home/appends) $(home/dirs) $(home/install) $(home/symlink) $(home/xkb-notify)
+target := $(home/appends) $(home/dirs) $(home/copy) $(home/symlink) $(home/xkb-notify)
 
 .PHONY: all
 all: $(target)
@@ -33,10 +33,10 @@ $(root/appends): /%: %.append
 	@./script/append.sh $< $@
 $(home/dirs):
 	@mkdir -p $@
-$(home/install): $(HOME)/%: %
-	@./script/install.sh $< $@
-$(root/install): /%: %
-	@./script/install.sh $< $@
+$(home/copy): $(HOME)/%: %
+	@./script/copy.sh $< $@
+$(root/copy): /%: %
+	@./script/copy.sh $< $@
 $(HOME)/.password-store:
 	@./script/link.sh $(HOME)/Private/.password-store
 $(HOME)/Documents:
