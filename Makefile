@@ -7,7 +7,9 @@ home/appends := $(home/appends:%=$(HOME)/%)
 root/appends := /etc/default/grub
 home/dirs    := Dropbox Private develop
 home/dirs    := $(home/dirs:%=$(HOME)/%)
-home/install := $(shell find .config .local -type f)
+home/emacs   := $(shell find -L .emacs.d -type f)
+home/emacs   := $(home/emacs:%=$(HOME)/%)
+home/install := $(shell find .config .emacs.d .local -type f)
 home/install += .bash_aliases .bash_completion .clang-format .inputrc .wgetrc
 home/install := $(home/install:%=$(HOME)/%)
 root/install := /etc/dconf/profile/user
@@ -16,9 +18,6 @@ home/symlink := $(home/symlinks:%=$(HOME)/%)
 
 chrome/deb := /usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb
 home/xkb-notify := $(HOME)/.local/bin/xkb-notify
-
-emacs/private := $(shell find -L submodule/.emacs.d/private/hatsusato -type f)
-home/emacs/private := $(emacs/private:submodule/%=$(HOME)/%)
 
 target := $(home/appends) $(home/dirs) $(home/install) $(home/symlink) $(home/xkb-notify)
 
@@ -69,14 +68,13 @@ dropbox: $(HOME)/Documents $(HOME)/Dropbox
 	@dropbox status
 	@dropbox status | grep -Fqx '最新の状態'
 
-.PHONY: emacs
-emacs: $(home/emacs/private)
+.PHONY: emacs emacs/update
+emacs: $(HOME)/.emacs.d/.git $(home/emacs)
+emacs/update:
+	@git submodule update submodule/.emacs.d/private/hatsusato
+$(home/emacs): emacs/update
 $(HOME)/.emacs.d/.git:
 	@./script/spacemacs.sh $(@D)
-$(home/emacs/private): $(HOME)/%: submodule/% $(HOME)/.emacs.d/.git
-	@./script/install.sh $< $@
-$(emacs/private):
-	@git submodule update $@
 
 .PHONY: fcitx
 fcitx: $(HOME)/.config/fcitx/config
