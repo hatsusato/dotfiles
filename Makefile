@@ -3,8 +3,9 @@
 make := make --no-print-directory
 xkb-notify := .local/bin/xkb-notify
 
-appends := .bashrc .profile
-home/appends := $(appends:%=$(HOME)/%)
+home/appends := .bashrc .profile
+home/appends := $(home/appends:%=$(HOME)/%)
+root/appends := /etc/default/grub
 
 dirs := develop Dropbox Private
 home/dirs := $(dirs:%=$(HOME)/%)
@@ -24,6 +25,8 @@ target := $(home/files) $(home/appends) $(HOME)/$(xkb-notify) $(home/dirs) $(hom
 all: $(target)
 
 $(home/appends): $(HOME)/%: %.append
+	@./script/append.sh $< $@
+$(root/appends): /%: %.append
 	@./script/append.sh $< $@
 $(home/files): $(HOME)/%: %
 	@./script/install.sh $< $@
@@ -86,5 +89,3 @@ fcitx: $(HOME)/.config/fcitx/config
 .PHONY: grub
 grub: /etc/default/grub
 	@sudo update-grub
-/etc/default/grub: /%: %.append
-	@./script/append.sh $< $@
