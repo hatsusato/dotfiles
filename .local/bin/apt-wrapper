@@ -1,49 +1,34 @@
 #!/bin/bash
 
 set -eu
-source "${BASH_SOURCE%/*}"/function/error
 source "${BASH_SOURCE%/*}"/function/apt-register
 source "${BASH_SOURCE%/*}"/function/apt-is-installed
 
-has-option() {
+no-option() {
   local arg
   for arg; do
-    [[ $arg == -* ]] && return
+    [[ $arg == -* ]] && return 1
   done
-  return 1
+  return 0
 }
-extract-pkg() {
-  [[ $pkg == *.deb ]] || return 0
-  pkg=$(dpkg -I "$pkg" | awk '$1 == "Package:" {print $2}')
-}
-show-dpkg() {
-  dpkg -l "$pkg" 2>/dev/null | tail -n+6
-}
-is-installed() {
+all-installed() {
   local pkg
   for pkg; do
-    extract-pkg
     apt-is-installed "$pkg" || return
   done
-  exit
-}
-set-sudo() {
-  if command -v sudo-askpass >/dev/null; then
-    sudo=sudo-askpass
-  else
-    sudo=sudo
-  fi
+  return 0
 }
 main() {
   local sudo=
   if [[ ${1-} == --sudo ]]; then
     shift
-    set-sudo
+    sudo+=sudo
+    command -v sudo-askpass >/dev/null && sudo+=-askpass
   fi
-  if [[ ${1-} == install ]] && ! has-option "$@"; then
+  if [[ ${1-} == install ]] && no-option "$@"; then
     shift
-    is-installed "$@"
-    $sudo apt install "$@" || exit
+    all-installed "$@" && return
+    $sudo apt install "$@" || return
     apt-register "$@"
   else
     $sudo apt "$@"
