@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -eu
-source "${BASH_SOURCE%/*}"/error
+source "${BASH_SOURCE%/*}"/function/error
 
 setup-dir() {
   [[ -d $dir && -w $dir ]] && return
