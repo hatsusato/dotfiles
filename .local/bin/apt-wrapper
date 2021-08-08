@@ -1,20 +1,13 @@
 #!/bin/bash
 
 set -eu
+source "${BASH_SOURCE%/*}"/function/apt-installed-all
 source "${BASH_SOURCE%/*}"/function/apt-register
-source "${BASH_SOURCE%/*}"/function/apt-is-installed
 
 no-option() {
   local arg
   for arg; do
     [[ $arg == -* ]] && return 1
-  done
-  return 0
-}
-all-installed() {
-  local pkg
-  for pkg; do
-    apt-is-installed "$pkg" || return
   done
   return 0
 }
@@ -27,7 +20,7 @@ main() {
   fi
   if [[ ${1-} == install ]] && no-option "$@"; then
     shift
-    all-installed "$@" && return
+    apt-installed-all "$@" && return
     $sudo apt install "$@" || return
     apt-register "$@"
   else

@@ -1,0 +1,9 @@
+#!/bin/bash
+
+apt-installed-all() {
+  local pkg
+  for pkg; do
+    dpkg -l "$pkg" 2>/dev/null | tail -n+6 | grep -q ^ii || return
+  done
+  return 0
+}
