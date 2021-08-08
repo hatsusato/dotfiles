@@ -10,17 +10,17 @@ home/install := $(shell find .config .local -type f)
 home/install += .bash_aliases .bash_completion .clang-format .inputrc .wgetrc
 home/install := $(home/install:%=$(HOME)/%)
 root/install := /etc/dconf/profile/user
+home/symlink := .password-store Documents Downloads
+home/symlink := $(home/symlinks:%=$(HOME)/%)
 
 dirs := develop Dropbox Private
 home/dirs := $(dirs:%=$(HOME)/%)
-link/dirs := Documents Downloads
-home/link/dirs := $(link/dirs:%=$(HOME)/%)
 
 install/files := $(files:%=install/%) install/$(xkb-notify)
 emacs/private := $(shell find -L submodule/.emacs.d/private/hatsusato -type f)
 home/emacs/private := $(emacs/private:submodule/%=$(HOME)/%)
 
-target := $(home/appends) $(home/install) $(HOME)/$(xkb-notify) $(home/dirs) $(home/link/dirs)
+target := $(home/appends) $(home/install) $(HOME)/$(xkb-notify) $(home/dirs) $(home/symlink)
 
 .PHONY: all
 all: $(target)
@@ -33,15 +33,17 @@ $(home/install): $(HOME)/%: %
 	@./script/install.sh $< $@
 $(root/install): /%: %
 	@./script/install.sh $< $@
+$(HOME)/.password-store:
+	@./script/link.sh $(HOME)/Private/.password-store
+$(HOME)/Documents:
+	@./script/link.sh $(HOME)/Dropbox/Documents $@
+$(HOME)/Downloads:
+	@./script/link.sh /tmp/$(USER)/Downloads $@
 
 $(HOME)/$(xkb-notify): src/xkb-notify.c
 	gcc -O2 $< -lX11 -o $@
 $(home/dirs):
 	@mkdir -p $@
-$(HOME)/Documents:
-	@./script/link.sh $(HOME)/Dropbox/Documents $@
-$(HOME)/Downloads:
-	@./script/link.sh /tmp/$(USER)/Downloads $@
 
 .PHONY: $(install/files)
 $(install/files): install/%: $(HOME)/%
@@ -49,8 +51,6 @@ $(install/files): install/%: $(HOME)/%
 .PHONY: browserpass
 browserpass: $(HOME)/.password-store $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native.json
 	@./script/apt.sh pass pwgen
-$(HOME)/.password-store:
-	@./script/link.sh $(HOME)/Private/.password-store
 $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native.json: /etc/chromium/native-messaging-hosts/com.github.browserpass.native.json
 	@./script/install.sh $< $@
 /etc/chromium/native-messaging-hosts/com.github.browserpass.native.json:
