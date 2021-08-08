@@ -1,7 +1,7 @@
 #!/bin/bash
 
 _dropbox() {
-  local -a list cmds
+  local -a list cmds reply
   local cur prev words cword
   _init_completion || return
   cmds=(autostart exclude filestatus help lansync ls proxy puburl
@@ -37,5 +37,6 @@ _dropbox() {
     *)
       list=("${cmds[@]}")
   esac
-  COMPREPLY+=($(compgen -W "${list[*]}" -- "$cur"))
+  readarray -t reply < <(compgen -W "${list[*]}" -- "$cur")
+  ((${#reply[@]})) && COMPREPLY=($(printf '%q\n' "${reply[@]}"))
 } && complete -F _dropbox dropbox

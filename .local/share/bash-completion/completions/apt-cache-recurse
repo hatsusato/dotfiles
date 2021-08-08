@@ -3,8 +3,9 @@
 _apt-cache-recurse() {
   local cur prev words cword
   _init_completion || return
-  if [[ ! -f /var/cache/apt/pkgcache.bin ]]; then
-    sudo apt-cache gencaches &>/dev/null
-  fi
-  COMPREPLY=($(apt-cache --no-generate pkgnames "$cur"))
+  local cache=/var/cache/apt/pkgcache.bin
+  local -a reply
+  [[ -f $cache ]] || sudo apt-cache gencaches &>/dev/null
+  readarray -t reply < <(apt-cache --no-generate pkgnames "$cur")
+  ((${#reply[@]})) && COMPREPLY=($(printf '%q\n' "${reply[@]}"))
 } && complete -F _apt-cache-recurse apt-cache-recurse

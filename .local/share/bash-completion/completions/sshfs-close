@@ -4,6 +4,8 @@ _sshfs-close() {
   local cur prev words cword
   _init_completion || return
   local list=$(awk '{if ($3 == "fuse.sshfs") print $2}' /etc/mtab 2>/dev/null)
-  ((cword == 1)) || list=
-  COMPREPLY=($(compgen -W "$list" -- "$cur"))
+  local -a reply
+  readarray -t reply < <(compgen -W "$list" -- "$cur")
+  ((cword == 1)) || reply=()
+  ((${#reply[@]})) && COMPREPLY=($(printf '%q\n' "${reply[@]}"))
 } && complete -F _sshfs-close sshfs-close

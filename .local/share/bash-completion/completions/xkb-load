@@ -4,9 +4,9 @@ _xkb-load() {
   local cur prev words cword
   _init_completion || return
   local xkbdir=$HOME/.config/local/.xkb keymaps
-  local -a list
+  local -a reply
   [[ -d $xkbdir ]] || return
   keymaps=$(cd "$xkbdir"; compgen -f | grep -e '\.xkb$')
-  readarray -t list < <(compgen -W "$keymaps" -- "$cur")
-  ((${#list[@]})) && COMPREPLY=($(printf '%q\n' "${list[@]}"))
+  readarray -t reply < <(compgen -W "$keymaps" -- "$cur")
+  ((${#reply[@]})) && COMPREPLY=($(printf '%q\n' "${reply[@]}"))
 } && complete -F _xkb-load xkb-load
