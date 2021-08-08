@@ -15,6 +15,7 @@ root/install := /etc/dconf/profile/user
 home/symlink := .password-store Documents Downloads
 home/symlink := $(home/symlinks:%=$(HOME)/%)
 
+chrome/deb := /usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb
 
 install/files := $(files:%=install/%) install/$(xkb-notify)
 emacs/private := $(shell find -L submodule/.emacs.d/private/hatsusato -type f)
@@ -57,9 +58,9 @@ $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native
 	@./script/apt.sh webext-browserpass
 
 .PHONY: chrome
-chrome: /usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb
+chrome: $(chrome/deb)
 	@./script/chrome.sh $<
-/usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb:
+$(chrome/deb):
 	@./script/chrome-download.sh $@
 
 .PHONY: dconf
