@@ -1,0 +1,5 @@
+#!/bin/bash
+
+apt-is-installed() {
+  dpkg -l "$@" 2>/dev/null | tail -n+6 | grep -q ^ii
+}

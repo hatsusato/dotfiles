@@ -1,18 +1,14 @@
 #!/bin/bash
 
 set -eu
+source "${BASH_SOURCE%/*}"/apt-is-installed
 source "${BASH_SOURCE%/*}"/apt-register
-source "${BASH_SOURCE%/*}"/error
 
-is-installed() {
-  dpkg -l "$pkg" 2>/dev/null | tail -n+6 | grep -q ^ii
-}
 main() {
   local pkg
   local -a pkgs=()
   for pkg; do
-    "${BASH_SOURCE%/*}"/apt-installed.sh "$pkg" && continue
-    pkgs+=("$pkg")
+    apt-is-installed "$pkg" || pkgs+=("$pkg")
   done
   ((${#pkgs[@]} == 0)) && return
   sudo apt-get -y install "${pkgs[@]}"

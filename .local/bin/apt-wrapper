@@ -3,6 +3,7 @@
 set -eu
 source "${BASH_SOURCE%/*}"/function/error
 source "${BASH_SOURCE%/*}"/function/apt-register
+source "${BASH_SOURCE%/*}"/function/apt-is-installed
 
 has-option() {
   local arg
@@ -22,7 +23,7 @@ is-installed() {
   local pkg
   for pkg; do
     extract-pkg
-    show-dpkg | grep -q ^ii || return 0
+    apt-is-installed "$pkg" || return
   done
   exit
 }
