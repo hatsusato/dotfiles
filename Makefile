@@ -28,21 +28,21 @@ target := $(home/appends) $(home/dirs) $(home/copy) $(home/link) $(home/xkb-noti
 all: $(target)
 
 $(home/appends): $(HOME)/%: %.append
-	@./script/append.sh $< $@
+	@./script/function/append.sh $< $@
 $(root/appends): /%: %.append
-	@./script/append.sh $< $@
+	@./script/function/append.sh $< $@
 $(home/dirs):
 	@mkdir -p $@
 $(home/copy): $(HOME)/%: %
-	@./script/copy.sh $< $@
+	@./script/function/copy.sh $< $@
 $(root/copy): /%: %
-	@./script/copy.sh $< $@
+	@./script/function/copy.sh $< $@
 $(HOME)/.password-store:
-	@./script/link.sh $(HOME)/Private/.password-store
+	@./script/function/link.sh $(HOME)/Private/.password-store
 $(HOME)/Documents:
-	@./script/link.sh $(HOME)/Dropbox/Documents $@
+	@./script/function/link.sh $(HOME)/Dropbox/Documents $@
 $(HOME)/Downloads:
-	@./script/link.sh /tmp/$(USER)/Downloads $@
+	@./script/function/link.sh /tmp/$(USER)/Downloads $@
 $(home/xkb-notify): src/xkb-notify.c
 	gcc -O2 $< -lX11 -o $@
 
@@ -50,7 +50,7 @@ $(home/xkb-notify): src/xkb-notify.c
 browserpass: $(HOME)/.password-store $(browserpass/config)
 $(browserpass/config): $(browserpass/etc)
 $(browserpass/etc):
-	@./script/apt.sh pass pwgen webext-browserpass
+	@./script/function/apt.sh pass pwgen webext-browserpass
 
 .PHONY: chrome
 chrome: $(chrome/deb)
@@ -64,7 +64,7 @@ dconf: $(HOME)/.config/dconf/user.txt /etc/dconf/profile/user
 
 .PHONY: dropbox
 dropbox: $(HOME)/Documents $(HOME)/Dropbox
-	@./script/apt.sh nautilus-dropbox
+	@./script/function/apt.sh nautilus-dropbox
 	@dropbox start -i
 	@dropbox status
 	@dropbox status | grep -Fqx '最新の状態'
@@ -72,12 +72,12 @@ dropbox: $(HOME)/Documents $(HOME)/Dropbox
 .PHONY: emacs
 emacs: $(HOME)/.emacs.d/.git $(home/emacs)
 $(HOME)/.emacs.d/.git:
-	@./script/apt.sh emacs emacs-mozc
+	@./script/function/apt.sh emacs emacs-mozc
 	@./script/spacemacs.sh $(@D)
 
 .PHONY: fcitx
 fcitx: $(HOME)/.config/fcitx/config
-	@./script/apt.sh fcitx fcitx-mozc
+	@./script/function/apt.sh fcitx fcitx-mozc
 	@./script/fcitx-instruction.sh
 	@im-config &>/dev/null
 
