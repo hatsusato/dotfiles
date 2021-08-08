@@ -69,11 +69,8 @@ dropbox: $(HOME)/Documents $(HOME)/Dropbox
 	@dropbox status
 	@dropbox status | grep -Fqx '最新の状態'
 
-.PHONY: emacs emacs/update
+.PHONY: emacs
 emacs: $(HOME)/.emacs.d/.git $(home/emacs)
-emacs/update:
-	@git submodule update submodule/private-layer
-$(home/emacs): emacs/update
 $(HOME)/.emacs.d/.git:
 	@./script/spacemacs.sh $(@D)
 
