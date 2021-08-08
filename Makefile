@@ -72,6 +72,7 @@ dropbox: $(HOME)/Documents $(HOME)/Dropbox
 .PHONY: emacs
 emacs: $(HOME)/.emacs.d/.git $(home/emacs)
 $(HOME)/.emacs.d/.git:
+	@./script/apt.sh emacs emacs-mozc
 	@./script/spacemacs.sh $(@D)
 
 .PHONY: fcitx
