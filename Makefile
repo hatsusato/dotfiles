@@ -6,20 +6,19 @@ xkb-notify := .local/bin/xkb-notify
 appends := .bashrc .profile
 home/appends := $(appends:%=$(HOME)/%)
 
-home-dot := .bash_aliases .bash_completion .clang-format .inputrc .wgetrc
-link/home-dot := $(dot/files:%=$(HOME)/%)
 dirs := develop Dropbox Private
 home/dirs := $(dirs:%=$(HOME)/%)
 link/dirs := Documents Downloads
 home/link/dirs := $(link/dirs:%=$(HOME)/%)
 
 files := $(shell find -L .config .local -type f)
+files += .bash_aliases .bash_completion .clang-format .inputrc .wgetrc
 home/files := $(files:%=$(HOME)/%)
 install/files := $(files:%=install/%) install/$(xkb-notify)
 emacs/private := $(shell find -L submodule/.emacs.d/private/hatsusato -type f)
 home/emacs/private := $(emacs/private:submodule/%=$(HOME)/%)
 
-target := $(home/files) $(home/appends) $(HOME)/$(xkb-notify) $(home/dirs) $(home/link/dirs) $(link/home-dot)
+target := $(home/files) $(home/appends) $(HOME)/$(xkb-notify) $(home/dirs) $(home/link/dirs)
 
 .PHONY: all
 all: $(target)
@@ -36,8 +35,6 @@ $(HOME)/Documents:
 	@./script/link.sh $(HOME)/Dropbox/Documents $@
 $(HOME)/Downloads:
 	@./script/link.sh /tmp/$(USER)/Downloads $@
-$(link/home-dot): $(HOME)/%: %
-	@./script/link.sh $< $@
 
 .PHONY: $(install/files)
 $(install/files): install/%: $(HOME)/%
