@@ -13,8 +13,8 @@ home/dirs := Dropbox Private develop
 home/dirs := $(home/dirs:%=$(HOME)/%)
 home/emacs := $(shell find -L .emacs.d -type f)
 home/emacs := $(home/emacs:%=$(HOME)/%)
-home/symlink := .password-store Documents Downloads
-home/symlink := $(home/symlinks:%=$(HOME)/%)
+home/link := .password-store Documents Downloads
+home/link := $(home/links:%=$(HOME)/%)
 
 chrome/deb := /usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb
 home/xkb-notify := $(HOME)/.local/bin/xkb-notify
@@ -22,7 +22,7 @@ browserpass/json := com.github.browserpass.native.json
 browserpass/config := $(HOME)/.config/google-chrome/NativeMessagingHosts/$(browserpass/json)
 browserpass/etc := /etc/chromium/native-messaging-hosts/$(browserpass/json)
 
-target := $(home/appends) $(home/dirs) $(home/copy) $(home/symlink) $(home/xkb-notify)
+target := $(home/appends) $(home/dirs) $(home/copy) $(home/link) $(home/xkb-notify)
 
 .PHONY: all
 all: $(target)
