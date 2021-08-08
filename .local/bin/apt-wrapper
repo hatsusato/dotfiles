@@ -2,6 +2,7 @@
 
 set -eu
 source "${BASH_SOURCE%/*}"/function/error
+source "${BASH_SOURCE%/*}"/function/apt-register
 
 has-option() {
   local arg
@@ -25,15 +26,6 @@ is-installed() {
   done
   exit
 }
-register-pkgs() {
-  local pkg log=$HOME/.config/local/.install
-  [[ -w $log ]] || error file not writable: "$log"
-  for pkg; do
-    extract-pkg
-    grep -qx "$pkg" "$log" &>/dev/null && continue
-    tee -a "$log" <<<"$pkg" >/dev/null
-  done
-}
 set-sudo() {
   if command -v sudo-askpass >/dev/null; then
     sudo=sudo-askpass
@@ -51,7 +43,7 @@ main() {
     shift
     is-installed "$@"
     $sudo apt install "$@" || exit
-    register-pkgs "$@"
+    apt-register "$@"
   else
     $sudo apt "$@"
   fi

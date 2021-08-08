@@ -1,0 +1,12 @@
+#!/bin/bash
+
+apt-register() {
+  local log=$HOME/.config/local/.install pkg
+  mkdir -p "${log%/*}"
+  touch "$log"
+  [[ -w $log ]] || return
+  for pkg; do
+    grep -qx "$pkg" "$log" && continue
+    tee -a "$log" <<<"$pkg" >/dev/null
+  done
+}
