@@ -6,6 +6,8 @@ xkb-notify := .local/bin/xkb-notify
 home/appends := .bashrc .profile
 home/appends := $(home/appends:%=$(HOME)/%)
 root/appends := /etc/default/grub
+home/dirs    := Dropbox Private develop
+home/dirs    := $(home/dirs:%=$(HOME)/%)
 home/install := $(shell find .config .local -type f)
 home/install += .bash_aliases .bash_completion .clang-format .inputrc .wgetrc
 home/install := $(home/install:%=$(HOME)/%)
@@ -13,8 +15,6 @@ root/install := /etc/dconf/profile/user
 home/symlink := .password-store Documents Downloads
 home/symlink := $(home/symlinks:%=$(HOME)/%)
 
-dirs := develop Dropbox Private
-home/dirs := $(dirs:%=$(HOME)/%)
 
 install/files := $(files:%=install/%) install/$(xkb-notify)
 emacs/private := $(shell find -L submodule/.emacs.d/private/hatsusato -type f)
@@ -29,6 +29,8 @@ $(home/appends): $(HOME)/%: %.append
 	@./script/append.sh $< $@
 $(root/appends): /%: %.append
 	@./script/append.sh $< $@
+$(home/dirs):
+	@mkdir -p $@
 $(home/install): $(HOME)/%: %
 	@./script/install.sh $< $@
 $(root/install): /%: %
@@ -42,8 +44,6 @@ $(HOME)/Downloads:
 
 $(HOME)/$(xkb-notify): src/xkb-notify.c
 	gcc -O2 $< -lX11 -o $@
-$(home/dirs):
-	@mkdir -p $@
 
 .PHONY: $(install/files)
 $(install/files): install/%: $(HOME)/%
