@@ -16,12 +16,13 @@ home/symlink := .password-store Documents Downloads
 home/symlink := $(home/symlinks:%=$(HOME)/%)
 
 chrome/deb := /usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb
+home/xkb-notify := $(HOME)/.local/bin/xkb-notify
 
 install/files := $(files:%=install/%) install/$(xkb-notify)
 emacs/private := $(shell find -L submodule/.emacs.d/private/hatsusato -type f)
 home/emacs/private := $(emacs/private:submodule/%=$(HOME)/%)
 
-target := $(home/appends) $(home/install) $(HOME)/$(xkb-notify) $(home/dirs) $(home/symlink)
+target := $(home/appends) $(home/dirs) $(home/install) $(home/symlink) $(home/xkb-notify)
 
 .PHONY: all
 all: $(target)
@@ -42,8 +43,7 @@ $(HOME)/Documents:
 	@./script/link.sh $(HOME)/Dropbox/Documents $@
 $(HOME)/Downloads:
 	@./script/link.sh /tmp/$(USER)/Downloads $@
-
-$(HOME)/$(xkb-notify): src/xkb-notify.c
+$(home/xkb-notify): src/xkb-notify.c
 	gcc -O2 $< -lX11 -o $@
 
 .PHONY: $(install/files)
