@@ -6,20 +6,21 @@ xkb-notify := .local/bin/xkb-notify
 home/appends := .bashrc .profile
 home/appends := $(home/appends:%=$(HOME)/%)
 root/appends := /etc/default/grub
+home/install := $(shell find .config .local -type f)
+home/install += .bash_aliases .bash_completion .clang-format .inputrc .wgetrc
+home/install := $(home/install:%=$(HOME)/%)
+root/install := /etc/dconf/profile/user
 
 dirs := develop Dropbox Private
 home/dirs := $(dirs:%=$(HOME)/%)
 link/dirs := Documents Downloads
 home/link/dirs := $(link/dirs:%=$(HOME)/%)
 
-files := $(shell find -L .config .local -type f)
-files += .bash_aliases .bash_completion .clang-format .inputrc .wgetrc
-home/files := $(files:%=$(HOME)/%)
 install/files := $(files:%=install/%) install/$(xkb-notify)
 emacs/private := $(shell find -L submodule/.emacs.d/private/hatsusato -type f)
 home/emacs/private := $(emacs/private:submodule/%=$(HOME)/%)
 
-target := $(home/files) $(home/appends) $(HOME)/$(xkb-notify) $(home/dirs) $(home/link/dirs)
+target := $(home/appends) $(home/install) $(HOME)/$(xkb-notify) $(home/dirs) $(home/link/dirs)
 
 .PHONY: all
 all: $(target)
@@ -28,8 +29,11 @@ $(home/appends): $(HOME)/%: %.append
 	@./script/append.sh $< $@
 $(root/appends): /%: %.append
 	@./script/append.sh $< $@
-$(home/files): $(HOME)/%: %
+$(home/install): $(HOME)/%: %
 	@./script/install.sh $< $@
+$(root/install): /%: %
+	@./script/install.sh $< $@
+
 $(HOME)/$(xkb-notify): src/xkb-notify.c
 	gcc -O2 $< -lX11 -o $@
 $(home/dirs):
@@ -61,8 +65,6 @@ chrome: /usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb
 .PHONY: dconf
 dconf: $(HOME)/.config/dconf/user.txt /etc/dconf/profile/user
 	@sudo dconf update
-/etc/dconf/profile/user: /%: %
-	@./script/install.sh $< $@
 
 .PHONY: dropbox
 dropbox: $(HOME)/Documents $(HOME)/Dropbox
