@@ -1,7 +1,6 @@
 #!/usr/bin/make -f
 
 make := make --no-print-directory
-xkb-notify := .local/bin/xkb-notify
 
 home/appends := .bashrc .profile
 home/appends := $(home/appends:%=$(HOME)/%)
@@ -18,7 +17,6 @@ home/symlink := $(home/symlinks:%=$(HOME)/%)
 chrome/deb := /usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb
 home/xkb-notify := $(HOME)/.local/bin/xkb-notify
 
-install/files := $(files:%=install/%) install/$(xkb-notify)
 emacs/private := $(shell find -L submodule/.emacs.d/private/hatsusato -type f)
 home/emacs/private := $(emacs/private:submodule/%=$(HOME)/%)
 
@@ -45,9 +43,6 @@ $(HOME)/Downloads:
 	@./script/link.sh /tmp/$(USER)/Downloads $@
 $(home/xkb-notify): src/xkb-notify.c
 	gcc -O2 $< -lX11 -o $@
-
-.PHONY: $(install/files)
-$(install/files): install/%: $(HOME)/%
 
 .PHONY: browserpass
 browserpass: $(HOME)/.password-store $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native.json
