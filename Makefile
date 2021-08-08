@@ -9,7 +9,7 @@ home/dirs    := Dropbox Private develop
 home/dirs    := $(home/dirs:%=$(HOME)/%)
 home/emacs   := $(shell find -L .emacs.d -type f)
 home/emacs   := $(home/emacs:%=$(HOME)/%)
-home/install := $(shell find .config .emacs.d .local -type f)
+home/install := $(shell find -L .config .emacs.d .local -type f)
 home/install += .bash_aliases .bash_completion .clang-format .inputrc .wgetrc
 home/install := $(home/install:%=$(HOME)/%)
 root/install := /etc/dconf/profile/user
@@ -18,6 +18,9 @@ home/symlink := $(home/symlinks:%=$(HOME)/%)
 
 chrome/deb := /usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb
 home/xkb-notify := $(HOME)/.local/bin/xkb-notify
+browserpass/json := com.github.browserpass.native.json
+browserpass/config := $(HOME)/.config/google-chrome/NativeMessagingHosts/$(browserpass/json)
+browserpass/etc := /etc/chromium/native-messaging-hosts/$(browserpass/json)
 
 target := $(home/appends) $(home/dirs) $(home/install) $(home/symlink) $(home/xkb-notify)
 
@@ -44,12 +47,10 @@ $(home/xkb-notify): src/xkb-notify.c
 	gcc -O2 $< -lX11 -o $@
 
 .PHONY: browserpass
-browserpass: $(HOME)/.password-store $(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native.json
-	@./script/apt.sh pass pwgen
-$(HOME)/.config/google-chrome/NativeMessagingHosts/com.github.browserpass.native.json: /etc/chromium/native-messaging-hosts/com.github.browserpass.native.json
-	@./script/install.sh $< $@
-/etc/chromium/native-messaging-hosts/com.github.browserpass.native.json:
-	@./script/apt.sh webext-browserpass
+browserpass: $(HOME)/.password-store $(browserpass/config)
+$(browserpass/config): $(browserpass/etc)
+$(browserpass/etc):
+	@./script/apt.sh pass pwgen webext-browserpass
 
 .PHONY: chrome
 chrome: $(chrome/deb)
