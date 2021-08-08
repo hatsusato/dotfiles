@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -eu
+source "${BASH_SOURCE%/*}"/apt-register
 source "${BASH_SOURCE%/*}"/error
 
 is-installed() {
@@ -15,7 +16,7 @@ main() {
   done
   ((${#pkgs[@]} == 0)) && return
   sudo apt-get -y install "${pkgs[@]}"
-  "${BASH_SOURCE%/*}"/apt-register.sh "${pkgs[@]}"
+  apt-register "${pkgs[@]}"
 }
 
 main "$@"
