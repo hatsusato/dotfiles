@@ -70,10 +70,13 @@ dropbox: $(HOME)/Documents $(HOME)/Dropbox
 	@dropbox status | grep -Fqx '最新の状態'
 
 .PHONY: emacs
-emacs: $(HOME)/.emacs.d/.git $(home/emacs)
+emacs: $(HOME)/.spacemacs $(home/emacs)
 $(HOME)/.emacs.d/.git:
+	@./script/spacemacs-clone.sh
+$(HOME)/.spacemacs: $(HOME)/.emacs.d/.git
 	@./script/function/apt.sh emacs emacs-mozc
-	@./script/spacemacs.sh $(@D)
+	@./script/spacemacs-init.sh
+$(home/emacs): $(HOME)/.emacs.d/.git
 
 .PHONY: fcitx
 fcitx: $(HOME)/.config/fcitx/config
