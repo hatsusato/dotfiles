@@ -54,7 +54,7 @@ $(browserpass/etc):
 
 .PHONY: chrome
 chrome: $(chrome/deb)
-	@./script/chrome.sh $<
+	@./script/chrome-install.sh $<
 $(chrome/deb):
 	@./script/chrome-download.sh $@
 
