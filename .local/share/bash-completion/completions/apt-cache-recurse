@@ -1,11 +1,5 @@
 #!/bin/bash
 
 _apt-cache-recurse() {
-  local cur prev words cword
-  _init_completion || return
-  local cache=/var/cache/apt/pkgcache.bin
-  local -a reply
-  [[ -f $cache ]] || sudo apt-cache gencaches &>/dev/null
-  readarray -t reply < <(apt-cache --no-generate pkgnames "$cur")
-  ((${#reply[@]})) && COMPREPLY=($(printf '%q\n' "${reply[@]}"))
+  readarray -t COMPREPLY < <(apt-cache pkgnames "$2")
 } && complete -F _apt-cache-recurse apt-cache-recurse
