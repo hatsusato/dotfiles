@@ -1,12 +1,7 @@
 #!/bin/bash
 
 _socks-proxy() {
-  local cur prev words cword
-  _init_completion || return
   local proxy=$HOME/.config/local/.proxy list
-  local -a reply
-  list=$(awk '{print $1}' "$proxy" 2>/dev/null)
-  readarray -t reply < <(compgen -W "$list" -- "$cur")
-  ((cword == 1)) || reply=()
-  ((${#reply[@]})) && COMPREPLY=($(printf '%q\n' "${reply[@]}"))
+  [[ $1 == $3 ]] && list=$(awk '{print $1}' "$proxy" 2>/dev/null)
+  readarray -t COMPREPLY < <(IFS=$'\n'; compgen -W "$list" -- "$2")
 } && complete -F _socks-proxy socks-proxy
