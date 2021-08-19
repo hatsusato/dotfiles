@@ -1,7 +1,7 @@
 #!/bin/bash
 
 _xkb-load() {
-  local xkbdir=$HOME/.config/local/.xkb
+  local xkbdir=$HOME/.config/xkb
   [[ -d $xkbdir ]] || return
   [[ $1 == $3 ]] || return
   readarray -t COMPREPLY < <(cd "$xkbdir"; compgen -f -X '!*.xkb' -- "$2")

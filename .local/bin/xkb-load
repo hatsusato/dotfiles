@@ -30,7 +30,7 @@ load() {
   xkbcomp -I"$xkbdir" "$default" "${DISPLAY-:0}" 2>"$dir"/log
 }
 main() {
-  local xkbdir=$HOME/.config/local/.xkb
+  local xkbdir=$HOME/.config/xkb
   local default=$xkbdir/.default.xkb
   (($# == 0 || $# == 1)) || usage
   (($# == 1)) && set-default "$1"
