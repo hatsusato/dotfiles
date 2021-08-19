@@ -4,3 +4,6 @@
 [submodule "submodule/private-layer"]
 	path = submodule/private-layer
 	url = https://github.com/hatsusato/private-layer.git
+[submodule "submodule/tmux.conf"]
+	path = submodule/tmux.conf
+	url = https://gist.github.com/29d4dc885ff4639b429a47d811877f70.git
