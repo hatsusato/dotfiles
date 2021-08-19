@@ -1,11 +1,10 @@
-$include ~/.config/local/.inputrc.var
+$include ~/.config/inputrc/var
 
 set keymap emacs
 "\C-xvi": vi-editing-mode
 
 set keymap vi-insert
-$include ~/.config/local/.inputrc.all
-$include ~/.config/local/.inputrc.ctrl
+$include ~/.config/inputrc/ctrl
 "\C-@\C-@": vi-movement-mode
 "\C-@\C-i": "\e@shell-expand-line\e@glob-expand-word\e@tilde-expand"
 "\C-x\C-b": complete-into-braces
@@ -17,8 +16,7 @@ $include ~/.config/local/.inputrc.ctrl
 "\e[Z": menu-complete
 
 set keymap vi-command
-$include ~/.config/local/.inputrc.all
-$include ~/.config/local/.inputrc.ctrl
+$include ~/.config/inputrc/ctrl
 "v": set-mark
 "\C-x\C-l": clear-screen
 "\C-x\C-r": re-read-init-file
