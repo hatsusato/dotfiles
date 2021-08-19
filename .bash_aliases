@@ -24,6 +24,7 @@ alias sudo='sudo-wrapper'
 alias swap-reset='sudo swapoff -a && sudo swapon -a'
 alias t='tig --all'
 alias toggle-capslock='xdotool key Caps_Lock'
+alias tmux='tmux-wrapper'
 alias v='less'
 alias wget='wget --show-progress'
 alias xev="xev | sed -n 's/^ *\(.*keycode.*\), same_screen.*$/\1/p'"

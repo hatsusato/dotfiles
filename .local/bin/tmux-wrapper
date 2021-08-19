@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -eu
+
+main() {
+  if [[ -v TMUX || $# != 0 ]]; then
+    tmux "$@"
+  else
+    tmux new-session -A
+  fi
+}
+
+main "$@"
