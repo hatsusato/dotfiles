@@ -1,5 +1,5 @@
 #!/bin/bash
 
-if declare -fF _complete-reuse >/dev/null; then
-  _complete-reuse sshfs sshfs-open
+if declare -fF _alias_complete_reuse >/dev/null; then
+  _alias_complete_reuse sshfs sshfs-open
 fi
