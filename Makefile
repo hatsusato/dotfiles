@@ -65,7 +65,9 @@ dconf: $(HOME)/.config/dconf/user.txt /etc/dconf/profile/user
 .PHONY: dropbox
 dropbox: $(HOME)/Documents $(HOME)/Dropbox
 	@./script/function/apt.sh nautilus-dropbox
-	@./script/dropbox-init.sh
+	@dropbox start -i
+	@dropbox status
+	@dropbox status | grep -Fqx '最新の状態'
 
 .PHONY: emacs
 emacs/git := https://github.com/syl20bnr/spacemacs
