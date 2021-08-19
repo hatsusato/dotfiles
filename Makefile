@@ -73,7 +73,7 @@ $(HOME)/.emacs.d/.git:
 	@./script/spacemacs-clone.sh
 $(HOME)/.spacemacs: $(HOME)/.emacs.d/.git
 	@./script/function/apt.sh emacs emacs-mozc
-	@./script/spacemacs-init.sh
+	@test -f $@ || emacs
 $(home/emacs): $(HOME)/.emacs.d/.git
 
 .PHONY: fcitx
