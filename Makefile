@@ -78,9 +78,11 @@ $(HOME)/.spacemacs: $(HOME)/.emacs.d/.git
 $(home/emacs): $(HOME)/.emacs.d/.git
 
 .PHONY: fcitx
+fcitx/title := 'im-config instructions'
+fcitx/message := '1. OK, 2. YES, 3. [x] fcitx -> OK, 4. OK'
 fcitx: $(HOME)/.config/fcitx/config
 	@./script/function/apt.sh fcitx fcitx-mozc
-	@./script/fcitx-instruction.sh
+	@notify-send -u critical $(fcitx/title) $(fcitx/message)
 	@im-config &>/dev/null
 
 .PHONY: grub
