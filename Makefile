@@ -15,12 +15,7 @@ home/emacs := $(shell find -L .emacs.d -type f)
 home/emacs := $(home/emacs:%=$(HOME)/%)
 home/link := .password-store Documents Downloads
 home/link := $(home/links:%=$(HOME)/%)
-
-chrome/deb := /usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb
 home/xkb-notify := $(HOME)/.local/bin/xkb-notify
-browserpass/json := com.github.browserpass.native.json
-browserpass/config := $(HOME)/.config/google-chrome/NativeMessagingHosts/$(browserpass/json)
-browserpass/etc := /etc/chromium/native-messaging-hosts/$(browserpass/json)
 
 target := $(home/appends) $(home/dirs) $(home/copy) $(home/link) $(home/xkb-notify)
 
@@ -47,12 +42,16 @@ $(home/xkb-notify): src/xkb-notify.c
 	gcc -O2 $< -lX11 -o $@
 
 .PHONY: browserpass
+browserpass/json := com.github.browserpass.native.json
+browserpass/config := $(HOME)/.config/google-chrome/NativeMessagingHosts/$(browserpass/json)
+browserpass/etc := /etc/chromium/native-messaging-hosts/$(browserpass/json)
 browserpass: $(HOME)/.password-store $(browserpass/config)
 $(browserpass/config): $(browserpass/etc)
 $(browserpass/etc):
 	@./script/function/apt.sh pass pwgen webext-browserpass
 
 .PHONY: chrome
+chrome/deb := /usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb
 chrome: $(chrome/deb)
 	@./script/chrome-install.sh $<
 $(chrome/deb):
