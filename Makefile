@@ -68,9 +68,10 @@ dropbox: $(HOME)/Documents $(HOME)/Dropbox
 	@./script/dropbox-init.sh
 
 .PHONY: emacs
+emacs/git := https://github.com/syl20bnr/spacemacs
 emacs: $(HOME)/.spacemacs $(home/emacs)
 $(HOME)/.emacs.d/.git:
-	@./script/spacemacs-clone.sh
+	@test -d $@ || git clone --branch develop $(emacs/git) $(@D)
 $(HOME)/.spacemacs: $(HOME)/.emacs.d/.git
 	@./script/function/apt.sh emacs emacs-mozc
 	@test -f $@ || emacs
