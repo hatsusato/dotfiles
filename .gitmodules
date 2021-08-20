@@ -7,6 +7,6 @@
 [submodule "submodule/readline"]
 	path = submodule/readline
 	url = https://gist.github.com/b3ce7445e0a18c042c29510c78fb0f6f.git
-[submodule "submodule/tmux.conf"]
-	path = submodule/tmux.conf
+[submodule "submodule/tmux"]
+	path = submodule/tmux
 	url = https://gist.github.com/29d4dc885ff4639b429a47d811877f70.git
