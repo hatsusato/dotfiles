@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -eu
+
+print() {
+  local sock=$(gpgconf --list-dirs agent-ssh-socket)
+  cat <<EOF
+unset -v SSH_AGENT_PID;
+SSH_AUTH_SOCK=${sock@Q}; export SSH_AUTH_SOCK;
+EOF
+}
+main() {
+  local script enable
+  script='{if ($1 == "enable-ssh-support") print $10}'
+  enable=$(gpgconf --list-options gpg-agent | awk -F: "$script")
+  ((${enable:-0})) && print
+}
+
+main "$@"

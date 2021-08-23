@@ -17,8 +17,8 @@ if [ -x /usr/bin/tput ] && tput setaf 1 &>/dev/null; then
 else
   export PS1='($?)'"$PS1"
 fi
-if pgrep -x gpg-agent >/dev/null; then
-  export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
+if command -v gpg-agent-init >/dev/null; then
+  eval $(gpg-agent-init)
 fi
 
 #export GROFF_NO_SGR=1
