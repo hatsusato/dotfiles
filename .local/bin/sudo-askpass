@@ -4,7 +4,7 @@ set -eu
 
 set-askpass() {
   [[ ${1-} == -* ]] && return 1
-  xhost &>/dev/null
+  xhost &>/dev/null || return
   askpass=$(command -v pinentry-askpass)
 }
 main() {
