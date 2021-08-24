@@ -12,22 +12,23 @@ check-running() {
   esac
 }
 clean() {
-  rm -fr "$lock"
+  [[ -d $lock ]] && rm -fr "$lock"
 }
 prepare() {
   local dir
-  dir=$(mkdir-userbin spacemacs) || exit
+  dir=$(mkdir-userbin spacemacs) || return 0
   lock=$dir/lock
   log=$dir/daemon.log
   mkdir -m700 "$lock" 2>/dev/null
 }
 main() {
-  local lock log
+  local lock= log=
   check-running
-  prepare || error failed to retrieve lock: "$lock"
+  prepare
   (
     trap clean EXIT
-    exec -a spacemacs emacs --daemon 2>"$log" &
+    [[ $log ]] && exec 2>"$log"
+    exec -a spacemacs emacs --daemon &
   )
 }
 

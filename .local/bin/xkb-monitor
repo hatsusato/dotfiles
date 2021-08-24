@@ -4,7 +4,7 @@ set -eu
 source "${BASH_SOURCE%/*}"/function/mkdir-userbin
 
 clean() {
-  rm -fr "$lock"
+  [[ -d $lock ]] && rm -fr "$lock"
   kill ${pid--l} &>/dev/null
 }
 load() {

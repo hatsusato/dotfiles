@@ -81,8 +81,8 @@ update() {
 }
 prepare() {
   local dir
-  dir=$(mkdir-userbin spacemacs) || exit
-  log=$dir/daemon.log
+  dir=$(mkdir-userbin spacemacs) && log=$dir/daemon.log
+  return 0
 }
 stop-spacemacs() {
   spacemacs-exists && spacemacs-kill
@@ -96,7 +96,7 @@ run-spacemacs() {
   done
 }
 main() {
-  local template dotfile log
+  local template dotfile log=/dev/null
   template=$HOME/.emacs.d/core/templates/.spacemacs.template
   dotfile=$HOME/.spacemacs
   prepare

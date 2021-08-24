@@ -23,11 +23,17 @@ set-default() {
   [[ -f $keymap ]] || error file not found: "$keymap"
   ln -sf "$keymap" "$default"
 }
-load() {
+prepare() {
   local dir
-  dir=$(mkdir-userbin xkb-load) || exit
+  dir=$(mkdir-userbin xkb-load) && log=$dir/log
+  return 0
+}
+load() {
+  local log=
+  prepare
   [[ -f $default ]] || error file not found: "$default"
-  xkbcomp -I"$xkbdir" "$default" "${DISPLAY-:0}" 2>"$dir"/log
+  [[ $log ]] && exec 2>"$log"
+  xkbcomp -I"$xkbdir" "$default" "${DISPLAY-:0}"
 }
 main() {
   local xkbdir=$HOME/.config/xkb
