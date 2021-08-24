@@ -1,8 +1,10 @@
 #!/bin/bash
 
 mkdir-userbin() {
-  local dir=${XDB_RUNTIME_DIR-/run/user/$UID}/bin
+  local dir
   (($# == 1)) || return
+  [[ -d $XDG_RUNTIME_DIR ]] || return
+  dir=$XDG_RUNTIME_DIR/bin
   mkdir -m 700 -p "$dir"
   dir+=/$1
   if [[ $dir == *XXX ]]; then
