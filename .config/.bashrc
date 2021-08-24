@@ -6,23 +6,29 @@ if [ -x /usr/bin/stty ]; then
   stty werase undef # unix-word-rubout
   stty lnext $'\cQ'
 fi
-if [ -x /usr/bin/xkbset ]; then
-  xkbset nullify lock
+if [ -x /usr/bin/xhost ]; then
+  if xhost &>/dev/null; then
+    [ -x /usr/bin/xkbset ] && xkbset nullify lock
+  else
+    export LANG LC_ALL
+    LANG=C
+    LC_ALL=C
+  fi
 fi
-if [ -x /usr/bin/xhost ] && ! xhost &>/dev/null; then
-  export LANG=C
-fi
-if [ -x /usr/bin/tput ] && tput setaf 1 &>/dev/null; then
-  export PS1='(\[\033[01;31m\]$?\[\033[00m\])'"$PS1"
-else
-  export PS1='($?)'"$PS1"
+if [ -x /usr/bin/tput ]; then
+  export PS1
+  if tput setaf 1 &>/dev/null; then
+    PS1='(\[\033[01;31m\]$?\[\033[00m\])'${PS1-}
+  else
+    PS1='($?)'${PS1-}
+  fi
 fi
 if command -v gpg-agent-init >/dev/null; then
   eval $(gpg-agent-init)
 fi
 
-#export GROFF_NO_SGR=1
-export LESS='-M -R -x4'
-export LESSHISTFILE=/dev/null
-export LESSSECURE=1
-export PASSWORD_STORE_GENERATED_LENGTH=32
+export LESS LESSHISTFILE LESSSECURE PASSWORD_STORE_GENERATED_LENGTH
+LESS='-M -R -x4'
+LESSHISTFILE=/dev/null
+LESSSECURE=1
+PASSWORD_STORE_GENERATED_LENGTH=32
