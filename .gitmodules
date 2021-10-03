@@ -10,6 +10,6 @@
 [submodule "readline"]
 	path = .config/readline
 	url = https://gist.github.com/b3ce7445e0a18c042c29510c78fb0f6f.git
-[submodule "submodule/tmux"]
-	path = submodule/tmux
+[submodule "tmux"]
+	path = .config/tmux
 	url = https://gist.github.com/29d4dc885ff4639b429a47d811877f70.git
