@@ -4,8 +4,8 @@
 [submodule "submodule/gitconfig"]
 	path = submodule/gitconfig
 	url = https://gist.github.com/661fd52008f8f4813eac41fd59c85d05.git
-[submodule "submodule/private-layer"]
-	path = submodule/private-layer
+[submodule "private-layer"]
+	path = .emacs.d/private/hatsusato
 	url = https://github.com/hatsusato/private-layer.git
 [submodule "submodule/readline"]
 	path = submodule/readline
