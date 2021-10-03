@@ -1,5 +1,5 @@
-[submodule "submodule/bash_completion"]
-	path = submodule/bash_completion
+[submodule "bash-completion"]
+	path = .config/bash-completion
 	url = https://gist.github.com/ec5a0d8851ef7715911934cd4fd60d2b.git
 [submodule "submodule/gitconfig"]
 	path = submodule/gitconfig
