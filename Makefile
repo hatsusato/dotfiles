@@ -55,7 +55,8 @@ chrome/url := https://dl.google.com/linux/direct/google-chrome-stable_current_am
 chrome/dir := /usr/local/src/$(USER)
 chrome/deb := $(chrome/dir)/$(notdir $(chrome/url))
 chrome: $(chrome/deb)
-	@./script/chrome-install.sh $<
+	@dpkg -l google-chrome-stable 2>/dev/null | grep -q ^ii || \
+	sudo apt-get -qq install $<
 $(chrome/dir):
 	@sudo install -g $(USER) -o $(USER) -d $@
 $(chrome/deb): | $(chrome/dir)
