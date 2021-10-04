@@ -51,11 +51,15 @@ $(browserpass/etc):
 	@./script/function/apt.sh pass pwgen webext-browserpass
 
 .PHONY: chrome
-chrome/deb := /usr/local/src/$(USER)/google-chrome-stable_current_amd64.deb
+chrome/url := https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+chrome/dir := /usr/local/src/$(USER)
+chrome/deb := $(chrome/dir)/$(notdir $(chrome/url))
 chrome: $(chrome/deb)
 	@./script/chrome-install.sh $<
-$(chrome/deb):
-	@./script/chrome-download.sh $@
+$(chrome/dir):
+	@sudo install -g $(USER) -o $(USER) -d $@
+$(chrome/deb): | $(chrome/dir)
+	@wget --no-verbose --show-progress -O $@ $(chrome/url)
 
 .PHONY: dconf
 dconf: $(HOME)/.config/dconf/user.txt /etc/dconf/profile/user
