@@ -16,6 +16,7 @@ home/emacs := $(home/emacs:%=$(HOME)/%)
 home/link := .password-store Documents Downloads
 home/link := $(home/links:%=$(HOME)/%)
 home/xkb-notify := $(HOME)/.local/bin/xkb-notify
+script/dir := .local/bin/function
 
 target := $(home/appends) $(home/dirs) $(home/copy) $(home/link) $(home/xkb-notify)
 
@@ -23,21 +24,21 @@ target := $(home/appends) $(home/dirs) $(home/copy) $(home/link) $(home/xkb-noti
 all: $(target)
 
 $(home/appends): $(HOME)/%: %.append
-	@./script/function/append.sh $< $@
+	@$(script/dir)/append.sh $< $@
 $(root/appends): /%: %.append
-	@./script/function/append.sh $< $@
+	@$(script/dir)/append.sh $< $@
 $(home/dirs):
 	@mkdir -p $@
 $(home/copy): $(HOME)/%: %
-	@./script/function/copy.sh $< $@
+	@$(script/dir)/copy.sh $< $@
 $(root/copy): /%: %
-	@./script/function/copy.sh $< $@
+	@$(script/dir)/copy.sh $< $@
 $(HOME)/.password-store:
-	@./script/function/link.sh $(HOME)/Private/.password-store
+	@$(script/dir)/link.sh $(HOME)/Private/.password-store
 $(HOME)/Documents:
-	@./script/function/link.sh $(HOME)/Dropbox/Documents $@
+	@$(script/dir)/link.sh $(HOME)/Dropbox/Documents $@
 $(HOME)/Downloads:
-	@./script/function/link.sh /tmp/$(USER)/Downloads $@
+	@$(script/dir)/link.sh /tmp/$(USER)/Downloads $@
 $(home/xkb-notify): src/xkb-notify.c
 	gcc -O2 $< -lX11 -o $@
 
@@ -48,7 +49,7 @@ browserpass/etc := /etc/chromium/native-messaging-hosts/$(browserpass/json)
 browserpass: $(HOME)/.password-store $(browserpass/config)
 $(browserpass/config): $(browserpass/etc)
 $(browserpass/etc):
-	@./script/function/apt.sh pass pwgen webext-browserpass
+	@$(script/dir)/apt.sh pass pwgen webext-browserpass
 
 .PHONY: chrome
 chrome/url := https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
@@ -68,7 +69,7 @@ dconf: $(HOME)/.config/dconf/user.txt /etc/dconf/profile/user
 
 .PHONY: dropbox
 dropbox: $(HOME)/Documents $(HOME)/Dropbox
-	@./script/function/apt.sh nautilus-dropbox
+	@$(script/dir)/apt.sh nautilus-dropbox
 	@dropbox start -i
 	@dropbox status
 	@dropbox status | grep -Fqx '最新の状態'
@@ -79,7 +80,7 @@ emacs: $(HOME)/.spacemacs $(home/emacs)
 $(HOME)/.emacs.d/.git:
 	@test -d $@ || git clone --branch develop $(emacs/git) $(@D)
 $(HOME)/.spacemacs: $(HOME)/.emacs.d/.git
-	@./script/function/apt.sh emacs emacs-mozc
+	@$(script/dir)/apt.sh emacs emacs-mozc
 	@test -f $@ || emacs
 $(home/emacs): $(HOME)/.emacs.d/.git
 
@@ -87,7 +88,7 @@ $(home/emacs): $(HOME)/.emacs.d/.git
 fcitx/title := 'im-config instructions'
 fcitx/message := '1. OK, 2. YES, 3. [x] fcitx -> OK, 4. OK'
 fcitx: $(HOME)/.config/fcitx/config
-	@./script/function/apt.sh fcitx fcitx-mozc
+	@$(script/dir)/apt.sh fcitx fcitx-mozc
 	@notify-send -u critical $(fcitx/title) $(fcitx/message)
 	@im-config &>/dev/null
 
