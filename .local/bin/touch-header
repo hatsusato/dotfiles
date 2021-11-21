@@ -21,39 +21,61 @@ echo-ext() {
   [[ $modex ]] && ext=cpp
   echo $ext
 }
+process-ext() {
+  local name=${1-} suffix
+  if [[ $name == *.[ch]?(pp) ]]; then
+    name=${1%.*}
+    suffix=${1##*.[ch]}
+    style=c$suffix
+    [[ $modec ]] && style=c
+    [[ $modex ]] && style=cpp
+  else
+    style=c
+    [[ $modec ]] && style=c
+    [[ $modex ]] && style=cpp
+    suffix=${style#c}
+  fi
+  header=$name.h$suffix
+  source=$name.c$suffix
+}
 generate-header() {
-  local uuid guard comment
+  local uuid guard comment=
   uuid=$(uuidgen -r | tr '[:lower:]-' '[:upper:]_')
   guard=INCLUDE_GUARD_$uuid
-  case $ext in
-    c) comment="/* $guard */";;
-    cpp) comment="// $guard";;
+  case $style in
+    c) comment=" /* $guard */";;
+    cpp) comment=" // $guard";;
   esac
   cat <<EOF
 #ifndef $guard
 #define $guard
-#endif $comment
+#endif$comment
+EOF
+}
+generate-source() {
+  cat <<EOF
+#include "${header##*/}"
 EOF
 }
 generate() {
-  local header=$1 source=${1%.*}.$ext
-  generate-header | tee "$header"
-  if [[ -f $source ]]; then
-    touch "$source"
+  local -n ref=$1
+  if [[ -f $ref ]]; then
+    touch "$ref"
   else
-    cat <<EOF >"$source"
-#include "${header##*/}"
-EOF
+    generate-$1 | tee "$ref"
   fi
 }
 main() {
   local modec= modex= ext
   local -A opts=([c]=modec [x]=modex)
   parse-opts "$@" || shift $?
-  ext=$(echo-ext "$@")
+  local style header source
+  process-ext "$@"
+  declare -p header source
   case $# in
     0) generate-header;;
-    1) generate "$1";;
+    1) generate header
+       generate source >/dev/null;;
     *) usage;;
   esac
 }
