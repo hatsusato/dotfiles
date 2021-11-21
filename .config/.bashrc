@@ -27,7 +27,7 @@ if command -v gpg-agent-init >/dev/null; then
   eval $(gpg-agent-init)
 fi
 if command -v tmux-wrapper >/dev/null; then
-  [ -v TMUX ] || tmux-wrapper
+  [ -v TMUX ] || [ -v INSIDE_EMACS ] || tmux-wrapper
 fi
 
 export LESS LESSHISTFILE LESSSECURE PASSWORD_STORE_GENERATED_LENGTH
