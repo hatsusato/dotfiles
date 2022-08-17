@@ -2,6 +2,9 @@
 
 make := make --no-print-directory
 
+files := $(shell git ls-files .config/.local .config/dconf)
+home/files := $(files:%=$(HOME)/%)
+
 home/appends := .bashrc .profile
 home/appends := $(home/appends:%=$(HOME)/%)
 root/appends := /etc/default/grub
@@ -19,6 +22,12 @@ home/xkb-notify := $(HOME)/.local/bin/xkb-notify
 script/dir := .local/bin/function
 
 target := $(home/appends) $(home/dirs) $(home/copy) $(home/link) $(home/xkb-notify)
+
+.PHONY: all
+all: $(home/files)
+
+$(home/files): $(HOME)/%: %
+	@cp -afv $< $@
 
 #.PHONY: all
 #all: $(target)
