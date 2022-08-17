@@ -2,7 +2,7 @@
 
 make := make --no-print-directory
 
-files := $(shell git ls-files .config/.local .config/dconf)
+files := $(shell git ls-files .config/.local .config/dconf .bashrc)
 home/files := $(files:%=$(HOME)/%)
 
 home/appends := .bashrc .profile
@@ -27,6 +27,7 @@ target := $(home/appends) $(home/dirs) $(home/copy) $(home/link) $(home/xkb-noti
 all: $(home/files)
 
 $(home/files): $(HOME)/%: %
+	@mkdir -p $(@D)
 	@cp -afv $< $@
 
 #.PHONY: all

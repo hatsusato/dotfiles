@@ -1,5 +1,0 @@
-
-# local configuration
-if [ -f ~/.config/.bashrc ]; then
-    . ~/.config/.bashrc
-fi
