@@ -1,5 +1,0 @@
-
-# local configuration
-if [ -f "$HOME/.config/.profile" ]; then
-    . "$HOME/.config/.profile"
-fi
