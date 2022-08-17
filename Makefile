@@ -2,14 +2,12 @@
 
 make := make --no-print-directory
 
-files := $(shell git ls-files .config/.local .config/dconf .bashrc)
+files := $(shell git ls-files .config/.local .config/dconf .bashrc .profile)
 home/files := $(files:%=$(HOME)/%)
 
-home/appends := .bashrc .profile
-home/appends := $(home/appends:%=$(HOME)/%)
 root/appends := /etc/default/grub
 home/copy := $(shell find -L .config .emacs.d .local -type f)
-home/copy += .bash_aliases .bash_completion .clang-format .inputrc .tmux.conf .wgetrc
+home/copy += .bash_aliases .clang-format .inputrc .tmux.conf .wgetrc
 home/copy := $(home/copy:%=$(HOME)/%)
 root/copy := /etc/dconf/profile/user
 home/dirs := Dropbox Private develop
@@ -17,7 +15,7 @@ home/dirs := $(home/dirs:%=$(HOME)/%)
 home/emacs := $(shell find -L .emacs.d -type f)
 home/emacs := $(home/emacs:%=$(HOME)/%)
 home/link := .password-store Documents Downloads
-home/link := $(home/links:%=$(HOME)/%)
+home/link := $(home/link:%=$(HOME)/%)
 home/xkb-notify := $(HOME)/.local/bin/xkb-notify
 script/dir := .local/bin/function
 
