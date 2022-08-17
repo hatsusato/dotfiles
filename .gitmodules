@@ -8,7 +8,7 @@
 	path = .emacs.d/private/hatsusato
 	url = https://github.com/hatsusato/private-layer.git
 [submodule "readline"]
-	path = .config/readline
+	path = .config/.local/readline
 	url = https://gist.github.com/b3ce7445e0a18c042c29510c78fb0f6f.git
 [submodule "tmux"]
 	path = .config/tmux
