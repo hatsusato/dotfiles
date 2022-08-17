@@ -7,7 +7,7 @@ home/files := $(files:%=$(HOME)/%)
 
 root/appends := /etc/default/grub
 home/copy := $(shell find -L .config .emacs.d .local -type f)
-home/copy += .bash_aliases .clang-format .inputrc .tmux.conf .wgetrc
+home/copy += .clang-format .inputrc .tmux.conf .wgetrc
 home/copy := $(home/copy:%=$(HOME)/%)
 root/copy := /etc/dconf/profile/user
 home/dirs := Dropbox Private develop
