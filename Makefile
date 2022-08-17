@@ -2,12 +2,12 @@
 
 make := make --no-print-directory
 
-files := $(shell git ls-files .config/.local .config/dconf .bashrc .profile)
+files := $(shell git ls-files .config/.local .config/dconf .bashrc .profile develop/.clang-format)
 home/files := $(files:%=$(HOME)/%)
 
 root/appends := /etc/default/grub
 home/copy := $(shell find -L .config .emacs.d .local -type f)
-home/copy += .clang-format .inputrc .tmux.conf .wgetrc
+home/copy += .inputrc .tmux.conf .wgetrc
 home/copy := $(home/copy:%=$(HOME)/%)
 root/copy := /etc/dconf/profile/user
 home/dirs := Dropbox Private develop
