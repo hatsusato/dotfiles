@@ -1,9 +1,8 @@
 #!/usr/bin/make -f
 
 make := make --no-print-directory
-mkdir := mkdir -p
-cp := cp -afTv
-rm := rm -fr
+cp := cp -afv
+install := sudo install -DTv -m644
 
 dotfiles := .bash_aliases .bash_completion .bashrc .inputrc .profile .tmux.conf .wgetrc develop/.clang-format
 files := $(shell git ls-files .config/) $(dotfiles)
@@ -24,13 +23,10 @@ target := $(home/appends) $(home/dirs) $(home/copy) $(home/link)
 install: $(home/files) $(root/files)
 
 $(home/files): $(HOME)/%: %
-	@$(mkdir) $(@D)
-	@$(cp) $< $@
+	@$(cp) --parents $< $(HOME)
 
 $(root/files): /%: %
-	@sudo $(mkdir) $(@D)
-	@sudo $(cp) $< $@
-
+	@$(install) $< $@
 
 .PHONY: post-install update-dconf update-grub
 post-install:
