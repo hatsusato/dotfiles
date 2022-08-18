@@ -6,6 +6,8 @@ primary-color='#000000'
 sources=[('xkb', 'jp')]
 
 [org/gnome/desktop/interface]
+clock-show-seconds=true
+clock-show-weekday=true
 gtk-enable-primary-paste=false
 show-battery-percentage=true
 
