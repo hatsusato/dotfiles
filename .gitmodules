@@ -1,6 +1,3 @@
 [submodule "bash-completion"]
 	path = .config/.local/bash-completion
 	url = https://gist.github.com/ec5a0d8851ef7715911934cd4fd60d2b.git
-[submodule "tmux"]
-	path = .config/.local/tmux
-	url = https://gist.github.com/29d4dc885ff4639b429a47d811877f70.git
