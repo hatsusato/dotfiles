@@ -7,11 +7,11 @@ mkdir := mkdir -p
 wget := wget --no-config --quiet
 
 dotfiles := .bash_aliases .bash_completion .bashrc .inputrc .profile .tmux.conf .wgetrc develop/.clang-format
-files := $(shell git ls-files .config/) $(dotfiles)
-home/files := $(files:%=$(HOME)/%)
+home/files := $(shell git ls-files .config/) $(dotfiles)
+home/target := $(home/files:%=$(HOME)/%)
 
-files := $(shell git ls-files etc/)
-root/files := $(files:%=/%)
+root/files := $(shell git ls-files etc/)
+root/target := $(root/files:%=/%)
 
 keyring/google := https://dl-ssl.google.com/linux/linux_signing_key.pub
 keyring/microsoft := https://packages.microsoft.com/keys/microsoft.asc
@@ -30,12 +30,12 @@ script/dir := .local/bin/function
 target := $(home/appends) $(home/dirs) $(home/copy) $(home/link)
 
 .PHONY: install
-install: $(home/files) $(root/files) $(keyring/target)
+install: $(home/target) $(root/target) $(keyring/target)
 
-$(home/files): $(HOME)/%: %
+$(home/target): $(HOME)/%: %
 	@$(cp) --parents $< $(HOME)
 
-$(root/files): /%: %
+$(root/target): /%: %
 	@$(install) $< $@
 
 $(keyring/dir)/google.asc:
@@ -55,7 +55,7 @@ $(keyring/dir)/surface.asc:
 	@sudo $(mkdir) $(keyring/dir)
 	@sudo $(wget) -O $@ $(keyring/surface)
 
-.PHONY: post-install update-dconf update-grub
+.PHONY: post-install
 post-install:
 	sudo dconf update
 	sudo update-grub
