@@ -6,7 +6,7 @@ make := make --no-print-directory
 mkdir := mkdir -p
 wget := wget --no-config --quiet
 
-dotfiles := .bash_aliases .bash_completion .bashrc .inputrc .profile .tmux.conf .wgetrc develop/.clang-format
+dotfiles := .bash_aliases .bash_completion .bashrc .inputrc .password-store .profile .tmux.conf .wgetrc develop/.clang-format
 home/files := $(shell git ls-files .config/) $(dotfiles)
 home/target := $(home/files:%=$(HOME)/%)
 
@@ -23,7 +23,7 @@ keyring/target := $(keyring/files:%=$(keyring/dir)/%)
 
 home/dirs := Dropbox Private develop
 home/dirs := $(home/dirs:%=$(HOME)/%)
-home/link := .password-store Documents Downloads
+home/link := Documents Downloads
 home/link := $(home/link:%=$(HOME)/%)
 script/dir := .local/bin/function
 
@@ -74,21 +74,10 @@ post-install:
 #	@$(script/dir)/copy.sh $< $@
 #$(root/copy): /%: %
 #	@$(script/dir)/copy.sh $< $@
-#$(HOME)/.password-store:
-#	@$(script/dir)/link.sh $(HOME)/Private/.password-store
 #$(HOME)/Documents:
 #	@$(script/dir)/link.sh $(HOME)/Dropbox/Documents $@
 #$(HOME)/Downloads:
 #	@$(script/dir)/link.sh /tmp/$(USER)/Downloads $@
-#
-#.PHONY: browserpass
-#browserpass/json := com.github.browserpass.native.json
-#browserpass/config := $(HOME)/.config/google-chrome/NativeMessagingHosts/$(browserpass/json)
-#browserpass/etc := /etc/chromium/native-messaging-hosts/$(browserpass/json)
-#browserpass: $(HOME)/.password-store $(browserpass/config)
-#$(browserpass/config): $(browserpass/etc)
-#$(browserpass/etc):
-#	@$(script/dir)/apt.sh pass pwgen webext-browserpass
 #
 #.PHONY: chrome
 #chrome/url := https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
