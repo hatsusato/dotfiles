@@ -2,13 +2,11 @@
 
 make := make --no-print-directory
 
-dotfiles := .bash_aliases .bash_completion .bashrc .inputrc .profile .tmux.conf develop/.clang-format
+dotfiles := .bash_aliases .bash_completion .bashrc .inputrc .profile .tmux.conf .wgetrc develop/.clang-format
 files := $(shell git ls-files .config/) $(dotfiles)
 home/files := $(files:%=$(HOME)/%)
 
 root/appends := /etc/default/grub
-home/copy += .wgetrc
-home/copy := $(home/copy:%=$(HOME)/%)
 root/copy := /etc/dconf/profile/user
 home/dirs := Dropbox Private develop
 home/dirs := $(home/dirs:%=$(HOME)/%)
