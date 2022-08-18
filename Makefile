@@ -12,12 +12,6 @@ home/files := $(files:%=$(HOME)/%)
 files := $(shell git ls-files etc/)
 root/files := $(files:%=/%)
 
-dconf/trigger := $(shell git ls-files etc/dconf/profile)
-dconf/lock := /tmp/dconf.lock
-
-grub/trigger := $(shell git ls-files etc/default/grub.d)
-grub/lock := /tmp/grub.lock
-
 home/dirs := Dropbox Private develop
 home/dirs := $(home/dirs:%=$(HOME)/%)
 home/link := .password-store Documents Downloads
@@ -26,8 +20,8 @@ script/dir := .local/bin/function
 
 target := $(home/appends) $(home/dirs) $(home/copy) $(home/link)
 
-.PHONY: all
-all: $(home/files) $(root/files)
+.PHONY: install
+install: $(home/files) $(root/files)
 
 $(home/files): $(HOME)/%: %
 	@$(mkdir) $(@D)
@@ -37,24 +31,11 @@ $(root/files): /%: %
 	@sudo $(mkdir) $(@D)
 	@sudo $(cp) $< $@
 
-$(dconf/trigger): $(dconf/lock)
-$(grub/trigger): $(grub/lock)
-
 
 .PHONY: post-install update-dconf update-grub
-post-install: update-dconf update-grub
-
-update-dconf:
-	@if test -f $(dconf/lock); then sudo dconf update; fi
-	@$(rm) $(dconf/lock)
-$(dconf/lock):
-	@touch $@
-
-update-grub:
-	@if test -f $(grub/lock); then sudo update-grub; fi
-	@$(rm) $(grub/lock)
-$(grub/lock):
-	@touch $@
+post-install:
+	sudo dconf update
+	sudo update-grub
 
 #.PHONY: all
 #all: $(target)
