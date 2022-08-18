@@ -3,6 +3,7 @@
 make := make --no-print-directory
 mkdir := mkdir -p
 cp := cp -afTv
+rm := rm -fr
 
 dotfiles := .bash_aliases .bash_completion .bashrc .inputrc .profile .tmux.conf .wgetrc develop/.clang-format
 files := $(shell git ls-files .config/) $(dotfiles)
@@ -11,7 +12,9 @@ home/files := $(files:%=$(HOME)/%)
 files := $(shell git ls-files etc/)
 root/files := $(files:%=/%)
 
-root/appends := /etc/default/grub
+grub/trigger := $(shell git ls-files etc/default/grub.d)
+grub/lock := /tmp/update-grub.lock
+
 root/copy := /etc/dconf/profile/user
 home/dirs := Dropbox Private develop
 home/dirs := $(home/dirs:%=$(HOME)/%)
@@ -22,7 +25,7 @@ script/dir := .local/bin/function
 target := $(home/appends) $(home/dirs) $(home/copy) $(home/link)
 
 .PHONY: all
-all: $(home/files)
+all: $(home/files) $(root/files)
 
 $(home/files): $(HOME)/%: %
 	@$(mkdir) $(@D)
@@ -31,6 +34,18 @@ $(home/files): $(HOME)/%: %
 $(root/files): /%: %
 	@sudo $(mkdir) $(@D)
 	@sudo $(cp) $< $@
+
+$(grub/trigger): $(grub/lock)
+
+
+.PHONY: post-install update-grub
+post-install: update-grub
+
+update-grub:
+	@if test -f $(grub/lock); then sudo update-grub; fi
+	@$(rm) $(grub/lock)
+$(grub/lock):
+	@touch $@
 
 #.PHONY: all
 #all: $(target)
@@ -91,7 +106,3 @@ $(root/files): /%: %
 #	@$(script/dir)/apt.sh fcitx fcitx-mozc
 #	@notify-send -u critical $(fcitx/title) $(fcitx/message)
 #	@im-config &>/dev/null
-#
-#.PHONY: grub
-#grub: /etc/default/grub
-#	@sudo update-grub
