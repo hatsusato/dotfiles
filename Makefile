@@ -12,10 +12,12 @@ home/files := $(files:%=$(HOME)/%)
 files := $(shell git ls-files etc/)
 root/files := $(files:%=/%)
 
-grub/trigger := $(shell git ls-files etc/default/grub.d)
-grub/lock := /tmp/update-grub.lock
+dconf/trigger := $(shell git ls-files etc/dconf/profile)
+dconf/lock := /tmp/dconf.lock
 
-root/copy := /etc/dconf/profile/user
+grub/trigger := $(shell git ls-files etc/default/grub.d)
+grub/lock := /tmp/grub.lock
+
 home/dirs := Dropbox Private develop
 home/dirs := $(home/dirs:%=$(HOME)/%)
 home/link := .password-store Documents Downloads
@@ -35,11 +37,18 @@ $(root/files): /%: %
 	@sudo $(mkdir) $(@D)
 	@sudo $(cp) $< $@
 
+$(dconf/trigger): $(dconf/lock)
 $(grub/trigger): $(grub/lock)
 
 
-.PHONY: post-install update-grub
-post-install: update-grub
+.PHONY: post-install update-dconf update-grub
+post-install: update-dconf update-grub
+
+update-dconf:
+	@if test -f $(dconf/lock); then sudo dconf update; fi
+	@$(rm) $(dconf/lock)
+$(dconf/lock):
+	@touch $@
 
 update-grub:
 	@if test -f $(grub/lock); then sudo update-grub; fi
@@ -87,10 +96,6 @@ $(grub/lock):
 #	@sudo install -g $(USER) -o $(USER) -d $@
 #$(chrome/deb): | $(chrome/dir)
 #	@wget --no-verbose --show-progress -O $@ $(chrome/url)
-#
-#.PHONY: dconf
-#dconf: $(HOME)/.config/dconf/user.txt /etc/dconf/profile/user
-#	@sudo dconf update
 #
 #.PHONY: dropbox
 #dropbox: $(HOME)/Documents $(HOME)/Dropbox

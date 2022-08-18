@@ -1,2 +1,2 @@
 service-db:keyfile/user
-service-db:keyfile/local
+service-db:keyfile/default
