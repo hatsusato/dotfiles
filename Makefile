@@ -2,7 +2,7 @@
 
 make := make --no-print-directory
 
-files := $(shell git ls-files .config/.local .config/dconf .config/fcitx5 .bashrc .inputrc .profile develop/.clang-format)
+files := $(shell git ls-files .config/.local .config/dconf .config/fcitx5 .config/google-chrome .config/tig .bashrc .inputrc .profile develop/.clang-format)
 home/files := $(files:%=$(HOME)/%)
 
 root/appends := /etc/default/grub
