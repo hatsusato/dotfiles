@@ -57,6 +57,7 @@ $(keyring/dir)/surface.asc:
 
 .PHONY: post-install
 post-install:
+	im-config -n fcitx5
 	sudo dconf update
 	sudo update-grub
 
@@ -107,11 +108,3 @@ post-install:
 #	@dropbox start -i
 #	@dropbox status
 #	@dropbox status | grep -Fqx '最新の状態'
-#
-#.PHONY: fcitx
-#fcitx/title := 'im-config instructions'
-#fcitx/message := '1. OK, 2. YES, 3. [x] fcitx -> OK, 4. OK'
-#fcitx: $(HOME)/.config/fcitx/config
-#	@$(script/dir)/apt.sh fcitx fcitx-mozc
-#	@notify-send -u critical $(fcitx/title) $(fcitx/message)
-#	@im-config &>/dev/null
