@@ -7,14 +7,11 @@ files := $(shell git ls-files .config/) $(dotfiles)
 home/files := $(files:%=$(HOME)/%)
 
 root/appends := /etc/default/grub
-home/copy := $(shell find -L .config .emacs.d .local -type f)
 home/copy += .wgetrc
 home/copy := $(home/copy:%=$(HOME)/%)
 root/copy := /etc/dconf/profile/user
 home/dirs := Dropbox Private develop
 home/dirs := $(home/dirs:%=$(HOME)/%)
-home/emacs := $(shell find -L .emacs.d -type f)
-home/emacs := $(home/emacs:%=$(HOME)/%)
 home/link := .password-store Documents Downloads
 home/link := $(home/link:%=$(HOME)/%)
 script/dir := .local/bin/function
@@ -79,16 +76,6 @@ $(home/files): $(HOME)/%: %
 #	@dropbox start -i
 #	@dropbox status
 #	@dropbox status | grep -Fqx '最新の状態'
-#
-#.PHONY: emacs
-#emacs/git := https://github.com/syl20bnr/spacemacs
-#emacs: $(HOME)/.spacemacs $(home/emacs)
-#$(HOME)/.emacs.d/.git:
-#	@test -d $@ || git clone --branch develop $(emacs/git) $(@D)
-#$(HOME)/.spacemacs: $(HOME)/.emacs.d/.git
-#	@$(script/dir)/apt.sh emacs emacs-mozc
-#	@test -f $@ || emacs
-#$(home/emacs): $(HOME)/.emacs.d/.git
 #
 #.PHONY: fcitx
 #fcitx/title := 'im-config instructions'
