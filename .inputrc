@@ -1,4 +1,1 @@
-$include ~/.config/.local/readline/variable.conf
-
-set keymap emacs
-$include ~/.config/.local/readline/function.conf
+$include ~/.config/.local/.inputrc
