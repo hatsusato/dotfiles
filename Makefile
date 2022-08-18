@@ -2,7 +2,8 @@
 
 make := make --no-print-directory
 
-files := $(shell git ls-files .config/ .bashrc .inputrc .profile .tmux.conf develop/.clang-format)
+dotfiles := .bash_aliases .bash_completion .bashrc .inputrc .profile .tmux.conf develop/.clang-format
+files := $(shell git ls-files .config/) $(dotfiles)
 home/files := $(files:%=$(HOME)/%)
 
 root/appends := /etc/default/grub

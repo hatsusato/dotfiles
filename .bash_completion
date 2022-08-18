@@ -1,0 +1,3 @@
+if [ -f ~/.config/.local/bash-completion/.bash_completion ]; then
+    . ~/.config/.local/bash-completion/.bash_completion
+fi
