@@ -2,11 +2,12 @@
 
 cp := cp -afv
 install := sudo install -DTv -m644
+link := $(CURDIR)/link.sh
 make := make --no-print-directory
 mkdir := mkdir -p
 wget := wget --no-config --quiet
 
-dotfiles := .bash_aliases .bash_completion .bashrc .inputrc .password-store .profile .tmux.conf .wgetrc develop/.clang-format
+dotfiles := .bash_aliases .bash_completion .bashrc .inputrc .profile .tmux.conf .wgetrc develop/.clang-format
 home/files := $(shell git ls-files .config/) $(dotfiles)
 home/target := $(home/files:%=$(HOME)/%)
 
@@ -21,19 +22,15 @@ keyring/files := google.asc microsoft.asc slack.asc surface.asc
 keyring/dir := /etc/apt/keyrings
 keyring/target := $(keyring/files:%=$(keyring/dir)/%)
 
-home/dirs := Dropbox Private develop
-home/dirs := $(home/dirs:%=$(HOME)/%)
-home/link := Documents Downloads
-home/link := $(home/link:%=$(HOME)/%)
-script/dir := .local/bin/function
+.PHONY: install install/home install/root
+install: install/home install/root
 
-target := $(home/appends) $(home/dirs) $(home/copy) $(home/link)
-
-.PHONY: install
-install: $(home/target) $(root/target) $(keyring/target)
+install/home: $(home/target)
 
 $(home/target): $(HOME)/%: %
 	@$(cp) --parents $< $(HOME)
+
+install/root: $(root/target) $(keyring/target)
 
 $(root/target): /%: %
 	@$(install) $< $@
@@ -55,45 +52,19 @@ $(keyring/dir)/surface.asc:
 	@sudo $(mkdir) $(keyring/dir)
 	@sudo $(wget) -O $@ $(keyring/surface)
 
-.PHONY: post-install
+
+post/target := .password-store Documents Downloads
+
+.PHONY: post-install $(post/target)
 post-install:
+	@$(make) $(post/target)
 	im-config -n fcitx5
 	sudo dconf update
 	sudo update-grub
 
-#.PHONY: all
-#all: $(target)
-#
-#$(home/appends): $(HOME)/%: %.append
-#	@$(script/dir)/append.sh $< $@
-#$(root/appends): /%: %.append
-#	@$(script/dir)/append.sh $< $@
-#$(home/dirs):
-#	@mkdir -p $@
-#$(home/copy): $(HOME)/%: %
-#	@$(script/dir)/copy.sh $< $@
-#$(root/copy): /%: %
-#	@$(script/dir)/copy.sh $< $@
-#$(HOME)/Documents:
-#	@$(script/dir)/link.sh $(HOME)/Dropbox/Documents $@
-#$(HOME)/Downloads:
-#	@$(script/dir)/link.sh /tmp/$(USER)/Downloads $@
-#
-#.PHONY: chrome
-#chrome/url := https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-#chrome/dir := /usr/local/src/$(USER)
-#chrome/deb := $(chrome/dir)/$(notdir $(chrome/url))
-#chrome: $(chrome/deb)
-#	@dpkg -l google-chrome-stable 2>/dev/null | grep -q ^ii || \
-#	sudo apt-get -qq install $<
-#$(chrome/dir):
-#	@sudo install -g $(USER) -o $(USER) -d $@
-#$(chrome/deb): | $(chrome/dir)
-#	@wget --no-verbose --show-progress -O $@ $(chrome/url)
-#
-#.PHONY: dropbox
-#dropbox: $(HOME)/Documents $(HOME)/Dropbox
-#	@$(script/dir)/apt.sh nautilus-dropbox
-#	@dropbox start -i
-#	@dropbox status
-#	@dropbox status | grep -Fqx '最新の状態'
+.password-store:
+	@$(link) Private/$@ $(HOME)/$@
+Documents:
+	@$(link) Dropbox/$@ $(HOME)/$@
+Downloads:
+	@$(link) /tmp/$(USER)/$@ $(HOME)/$@
