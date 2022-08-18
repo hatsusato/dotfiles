@@ -23,8 +23,19 @@ if [ -x /usr/bin/tput ]; then
     PS1='($?)'${PS1-}
   fi
 fi
-if command -v gpg-agent-init >/dev/null; then
-  eval $(gpg-agent-init)
+if [[ $(type -t check-enable-ssh-support) != function ]]; then
+  check-enable-ssh-support() {
+    command -v gpgconf >/dev/null || return
+    local script='{if ($1 == "enable-ssh-support") print $10}'
+    local enable=$(gpgconf --list-options gpg-agent | awk -F: "$script")
+    ((${enable:-0}))
+  }
+  if check-enable-ssh-support; then
+    unset -v SSH_AGENT_PID
+    export SSH_AUTH_SOCK
+    SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
+  fi
+  unset -f check-enable-ssh-support
 fi
 if command -v tmux-wrapper >/dev/null; then
   [ -v TMUX ] || [ -v INSIDE_EMACS ] || tmux-wrapper
