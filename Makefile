@@ -47,16 +47,17 @@ $(keyring/files):
 post/names := .password-store Documents Downloads
 post/target := $(post/names:%=post-install/%)
 
-.PHONY: post-install $(post/target)
+.PHONY: post-install
 post-install:
 	@$(make) $(post/target)
 	im-config -n fcitx5
 	sudo dconf update
 	sudo update-grub
 
-post-install/.password-store:
-	@$(link) Private/$@ $(HOME)/$@
-post-install/Documents:
-	@$(link) Dropbox/$@ $(HOME)/$@
-post-install/Downloads:
-	@$(link) /tmp/$(USER)/$@ $(HOME)/$@
+.PHONY: $(post/target)
+post-install/.password-store: post-install/%:
+	@$(link) Private/$* $(HOME)/$*
+post-install/Documents: post-install/%:
+	@$(link) Dropbox/$* $(HOME)/$*
+post-install/Downloads: post-install/%:
+	@$(link) /tmp/$(USER)/$* $(HOME)/$*
