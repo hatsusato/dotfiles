@@ -7,53 +7,45 @@ make := make --no-print-directory
 mkdir := mkdir -p
 wget := wget --no-config --quiet
 
-dotfiles := .bash_aliases .bash_completion .bashrc .inputrc .profile .tmux.conf .wgetrc develop/.clang-format
-home/files := $(shell git ls-files .config/) $(dotfiles)
-home/target := $(home/files:%=$(HOME)/%)
+home/files := $(shell git ls-files .config/)
+home/files += .bash_aliases .bash_completion .bashrc .profile
+home/files += .inputrc .tmux.conf .wgetrc develop/.clang-format
+home/files := $(home/files:%=$(HOME)/%)
 
 root/files := $(shell git ls-files etc/)
-root/target := $(root/files:%=/%)
+root/files := $(root/files:%=/%)
 
+keyring/names := google microsoft slack surface
 keyring/google := https://dl-ssl.google.com/linux/linux_signing_key.pub
 keyring/microsoft := https://packages.microsoft.com/keys/microsoft.asc
 keyring/slack := https://packagecloud.io/slacktechnologies/slack/gpgkey
 keyring/surface := https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc
-keyring/files := google.asc microsoft.asc slack.asc surface.asc
-keyring/dir := /etc/apt/keyrings
-keyring/target := $(keyring/files:%=$(keyring/dir)/%)
+keyring/ext := asc
+keyring/files := $(keyring/names:%=/etc/apt/keyrings/%.$(keyring/ext))
 
-.PHONY: install install/home install/root
+.PHONY: install
 install: install/home install/root
 
-install/home: $(home/target)
+.PHONY: install/home
+install/home: $(home/files)
 
-$(home/target): $(HOME)/%: %
+$(home/files): $(HOME)/%: %
 	@$(cp) --parents $< $(HOME)
 
-install/root: $(root/target) $(keyring/target)
+.PHONY: install/root
+install/root: $(root/files) $(keyring/files)
 
-$(root/target): /%: %
+$(root/files): /%: %
 	@$(install) $< $@
 
-$(keyring/dir)/google.asc:
+$(keyring/files):
 	@echo Download $(@F)
-	@sudo $(mkdir) $(keyring/dir)
-	@sudo $(wget) -O $@ $(keyring/google)
-$(keyring/dir)/microsoft.asc:
-	@echo Download $(@F)
-	@sudo $(mkdir) $(keyring/dir)
-	@sudo $(wget) -O $@ $(keyring/microsoft)
-$(keyring/dir)/slack.asc:
-	@echo Download $(@F)
-	@sudo $(mkdir) $(keyring/dir)
-	@sudo $(wget) -O $@ $(keyring/slack)
-$(keyring/dir)/surface.asc:
-	@echo Download $(@F)
-	@sudo $(mkdir) $(keyring/dir)
-	@sudo $(wget) -O $@ $(keyring/surface)
+	@sudo $(mkdir) $(@D)
+	@sudo $(wget) -O $@ $(keyring/$(@F:%.$(keyring/ext)=%))
 
 
-post/target := .password-store Documents Downloads
+post/names := .password-store Documents Downloads
+post/target := $(post/names:%=post-install/%)
 
 .PHONY: post-install $(post/target)
 post-install:
@@ -62,9 +54,9 @@ post-install:
 	sudo dconf update
 	sudo update-grub
 
-.password-store:
+post-install/.password-store:
 	@$(link) Private/$@ $(HOME)/$@
-Documents:
+post-install/Documents:
 	@$(link) Dropbox/$@ $(HOME)/$@
-Downloads:
+post-install/Downloads:
 	@$(link) /tmp/$(USER)/$@ $(HOME)/$@
