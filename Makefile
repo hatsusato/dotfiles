@@ -2,7 +2,7 @@
 
 make := make --no-print-directory
 
-files := $(shell git ls-files .config/.local .config/dconf .config/fcitx5 .config/git .config/google-chrome .config/tig .bashrc .inputrc .profile .tmux.conf develop/.clang-format)
+files := $(shell git ls-files .config/ .bashrc .inputrc .profile .tmux.conf develop/.clang-format)
 home/files := $(files:%=$(HOME)/%)
 
 root/appends := /etc/default/grub
@@ -25,7 +25,7 @@ all: $(home/files)
 
 $(home/files): $(HOME)/%: %
 	@mkdir -p $(@D)
-	@cp -afv $< $@
+	@cp -afTv $< $@
 
 #.PHONY: all
 #all: $(target)

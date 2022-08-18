@@ -1,0 +1,4 @@
+[include]
+  path = include/alias.config
+  path = include/options.config
+  path = include/user.config
