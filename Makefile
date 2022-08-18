@@ -1,10 +1,15 @@
 #!/usr/bin/make -f
 
 make := make --no-print-directory
+mkdir := mkdir -p
+cp := cp -afTv
 
 dotfiles := .bash_aliases .bash_completion .bashrc .inputrc .profile .tmux.conf .wgetrc develop/.clang-format
 files := $(shell git ls-files .config/) $(dotfiles)
 home/files := $(files:%=$(HOME)/%)
+
+files := $(shell git ls-files etc/)
+root/files := $(files:%=/%)
 
 root/appends := /etc/default/grub
 root/copy := /etc/dconf/profile/user
@@ -20,8 +25,12 @@ target := $(home/appends) $(home/dirs) $(home/copy) $(home/link)
 all: $(home/files)
 
 $(home/files): $(HOME)/%: %
-	@mkdir -p $(@D)
-	@cp -afTv $< $@
+	@$(mkdir) $(@D)
+	@$(cp) $< $@
+
+$(root/files): /%: %
+	@sudo $(mkdir) $(@D)
+	@sudo $(cp) $< $@
 
 #.PHONY: all
 #all: $(target)
