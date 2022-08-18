@@ -1,8 +1,10 @@
 #!/usr/bin/make -f
 
-make := make --no-print-directory
 cp := cp -afv
 install := sudo install -DTv -m644
+make := make --no-print-directory
+mkdir := mkdir -p
+wget := wget --no-config --quiet
 
 dotfiles := .bash_aliases .bash_completion .bashrc .inputrc .profile .tmux.conf .wgetrc develop/.clang-format
 files := $(shell git ls-files .config/) $(dotfiles)
@@ -10,6 +12,14 @@ home/files := $(files:%=$(HOME)/%)
 
 files := $(shell git ls-files etc/)
 root/files := $(files:%=/%)
+
+keyring/google := https://dl-ssl.google.com/linux/linux_signing_key.pub
+keyring/microsoft := https://packages.microsoft.com/keys/microsoft.asc
+keyring/slack := https://packagecloud.io/slacktechnologies/slack/gpgkey
+keyring/surface := https://raw.githubusercontent.com/linux-surface/linux-surface/master/pkg/keys/surface.asc
+keyring/files := google.asc microsoft.asc slack.asc surface.asc
+keyring/dir := /etc/apt/keyrings
+keyring/target := $(keyring/files:%=$(keyring/dir)/%)
 
 home/dirs := Dropbox Private develop
 home/dirs := $(home/dirs:%=$(HOME)/%)
@@ -20,13 +30,30 @@ script/dir := .local/bin/function
 target := $(home/appends) $(home/dirs) $(home/copy) $(home/link)
 
 .PHONY: install
-install: $(home/files) $(root/files)
+install: $(home/files) $(root/files) $(keyring/target)
 
 $(home/files): $(HOME)/%: %
 	@$(cp) --parents $< $(HOME)
 
 $(root/files): /%: %
 	@$(install) $< $@
+
+$(keyring/dir)/google.asc:
+	@echo Download $(@F)
+	@sudo $(mkdir) $(keyring/dir)
+	@sudo $(wget) -O $@ $(keyring/google)
+$(keyring/dir)/microsoft.asc:
+	@echo Download $(@F)
+	@sudo $(mkdir) $(keyring/dir)
+	@sudo $(wget) -O $@ $(keyring/microsoft)
+$(keyring/dir)/slack.asc:
+	@echo Download $(@F)
+	@sudo $(mkdir) $(keyring/dir)
+	@sudo $(wget) -O $@ $(keyring/slack)
+$(keyring/dir)/surface.asc:
+	@echo Download $(@F)
+	@sudo $(mkdir) $(keyring/dir)
+	@sudo $(wget) -O $@ $(keyring/surface)
 
 .PHONY: post-install update-dconf update-grub
 post-install:
