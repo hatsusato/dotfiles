@@ -16,10 +16,9 @@ home/emacs := $(shell find -L .emacs.d -type f)
 home/emacs := $(home/emacs:%=$(HOME)/%)
 home/link := .password-store Documents Downloads
 home/link := $(home/link:%=$(HOME)/%)
-home/xkb-notify := $(HOME)/.local/bin/xkb-notify
 script/dir := .local/bin/function
 
-target := $(home/appends) $(home/dirs) $(home/copy) $(home/link) $(home/xkb-notify)
+target := $(home/appends) $(home/dirs) $(home/copy) $(home/link)
 
 .PHONY: all
 all: $(home/files)
@@ -47,8 +46,6 @@ $(home/files): $(HOME)/%: %
 #	@$(script/dir)/link.sh $(HOME)/Dropbox/Documents $@
 #$(HOME)/Downloads:
 #	@$(script/dir)/link.sh /tmp/$(USER)/Downloads $@
-#$(home/xkb-notify): src/xkb-notify.c
-#	gcc -O2 $< -lX11 -o $@
 #
 #.PHONY: browserpass
 #browserpass/json := com.github.browserpass.native.json
