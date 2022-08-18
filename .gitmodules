@@ -1,9 +1,6 @@
 [submodule "bash-completion"]
 	path = .config/.local/bash-completion
 	url = https://gist.github.com/ec5a0d8851ef7715911934cd4fd60d2b.git
-[submodule "private-layer"]
-	path = .emacs.d/private/hatsusato
-	url = https://github.com/hatsusato/private-layer.git
 [submodule "readline"]
 	path = .config/.local/readline
 	url = https://gist.github.com/b3ce7445e0a18c042c29510c78fb0f6f.git
