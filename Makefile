@@ -2,7 +2,6 @@
 
 cp := cp -afv
 install := sudo install -DTv -m644
-link := $(CURDIR)/link.sh
 make := make --no-print-directory
 mkdir := mkdir -p
 wget := wget --no-config --quiet
@@ -42,22 +41,3 @@ $(keyring/files):
 	@echo Download $(@F)
 	@sudo $(mkdir) $(@D)
 	@sudo $(wget) -O $@ $(keyring/$(@F:%.$(keyring/ext)=%))
-
-
-post/names := .password-store Documents Downloads
-post/target := $(post/names:%=post-install/%)
-
-.PHONY: post-install
-post-install:
-	@$(make) $(post/target)
-	im-config -n fcitx5
-	sudo dconf update
-	sudo update-grub
-
-.PHONY: $(post/target)
-post-install/.password-store: post-install/%:
-	@$(link) Private/$* $(HOME)/$*
-post-install/Documents: post-install/%:
-	@$(link) Dropbox/$* $(HOME)/$*
-post-install/Downloads: post-install/%:
-	@$(link) /tmp/$(USER)/$* $(HOME)/$*
