@@ -19,6 +19,7 @@ link() {
 }
 
 apt='apt-get -qy'
+mkdir='mkdir -p'
 packages=()
 packages+=(code google-chrome-stable slack-desktop)
 packages+=(linux-image-surface linux-headers-surface iptsd libwacom-surface)
@@ -27,6 +28,7 @@ link {Private,"$HOME"}/.password-store
 link {Dropbox,"$HOME"}/Documents
 link {/tmp/"$USER","$HOME"}/Downloads
 chmod 700 "$HOME"/.gnupg
+$mkdir "$HOME"/.local/share/tig
 im-config -n fcitx5
 sudo dconf update
 sudo $apt update
