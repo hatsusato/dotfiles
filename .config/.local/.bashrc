@@ -1,5 +1,12 @@
 #!/bin/bash
 
+PS1='($?)'${PS1% }$'\n\$ '
+if command -v tput >/dev/null; then
+  if tput setaf 1 &>/dev/null; then
+    PS1='(\[\033[01;31m\]$?\[\033[00m\])'${PS1#'($?)'}
+  fi
+fi
+
 set +o ignoreeof
 if command -v stty >/dev/null; then
   stty kill undef # unix-line-discard
