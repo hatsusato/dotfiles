@@ -1,5 +1,0 @@
-#!/bin/bash
-
-_apt-cache-recurse() {
-  readarray -t COMPREPLY < <(apt-cache pkgnames "$2")
-} && complete -F _apt-cache-recurse apt-cache-recurse

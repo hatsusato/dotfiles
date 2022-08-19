@@ -1,7 +1,0 @@
-#!/bin/bash
-
-_socks-proxy() {
-  local proxy=$HOME/.config/local/.proxy list
-  [[ $1 == $3 ]] && list=$(awk '{print $1}' "$proxy" 2>/dev/null)
-  readarray -t COMPREPLY < <(IFS=$'\n'; compgen -W "$list" -- "$2")
-} && complete -F _socks-proxy socks-proxy
