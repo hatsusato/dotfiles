@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -eu
+
+use-askpass() {
+  [[ ${1-} == -* ]] && return 1
+  command -v xhost pinentry-askpass >/dev/null || return
+  xhost &>/dev/null || return
+}
+
+if use-askpass "$@"; then
+  export SUDO_ASKPASS=$(command -v pinentry-askpass)
+  set -- -A "$@"
+fi
+/usr/bin/sudo "$@"
