@@ -1,0 +1,6 @@
+#!/bin/bash
+
+set -eu
+
+(($# == 0)) && exit
+exec -a "$1" "$@" &>/dev/null &
