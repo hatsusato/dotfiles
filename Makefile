@@ -8,7 +8,7 @@ wget := wget --no-config --quiet
 
 home/files := $(shell git ls-files .config/ .gnupg/)
 home/files += .bash_aliases .bash_completion .bashrc .profile
-home/files += .inputrc .tmux.conf .wgetrc develop/.clang-format
+home/files += .inputrc .tmux.conf .wgetrc .xbindkeysrc develop/.clang-format
 home/files := $(home/files:%=$(HOME)/%)
 
 root/files := $(shell git ls-files etc/)
