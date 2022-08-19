@@ -29,6 +29,7 @@ link {Dropbox,"$HOME"}/Documents
 link {/tmp/"$USER","$HOME"}/Downloads
 chmod 700 "$HOME"/.gnupg
 $mkdir "$HOME"/.local/share/tig
+$mkdir "$HOME"/Private
 im-config -n fcitx5
 sudo dconf update
 sudo $apt update

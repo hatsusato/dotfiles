@@ -1,0 +1,20 @@
+#!/bin/bash
+
+set -eu
+
+list-mounted() {
+  awk '{if ($3 == "fuse.gocryptfs") print $2}' /etc/mtab
+}
+
+cipherdir=$HOME/Dropbox/Private
+mountpoint=$HOME/Private
+if list-mounted | grep -Fqx "$mountpoint"; then
+  fusermount -u "$mountpoint"
+  notify-send "Successfully unmounted: $mountpoint"
+else
+  gocryptfs=(gocryptfs)
+  if command -v pinentry-askpass >/dev/null; then
+    gocryptfs+=(-extpass pinentry-askpass)
+  fi
+  "${gocryptfs[@]}" "$cipherdir" "$mountpoint"
+fi
