@@ -6,7 +6,7 @@ make := make --no-print-directory
 mkdir := mkdir -p
 wget := wget --no-config --quiet
 
-home/files := $(shell git ls-files .config/ .gnupg/)
+home/files := $(shell git ls-files .config/ .gnupg/ bin/)
 home/files += .bash_aliases .bash_completion .bashrc .profile
 home/files += .inputrc .tmux.conf .wgetrc .xbindkeysrc develop/.clang-format
 home/files := $(home/files:%=$(HOME)/%)

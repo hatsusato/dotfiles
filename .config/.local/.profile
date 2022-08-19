@@ -13,18 +13,11 @@ if command -v tput >/dev/null; then
   fi
 fi
 
-if [[ $(type -t check-ssh-support) != function  ]]; then
-  check-ssh-support() {
-    command -v gpgconf >/dev/null || return
-    local script='{if ($1 == "enable-ssh-support") print $10}'
-    local enable=$(gpgconf --list-options gpg-agent | awk -F: "$script")
-    ((${enable:-0}))
-  }
-  if check-ssh-support; then
+if command -v gpg-agent-ssh-socket >/dev/null; then
+  if gpg-agent-ssh-socket >/dev/null; then
     unset -v SSH_AGENT_PID
-    export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
+    export SSH_AUTH_SOCK=$(gpg-agent-ssh-socket)
   fi
-  unset -f check-ssh-support
 fi
 
 export LESS='-M -R -x4'

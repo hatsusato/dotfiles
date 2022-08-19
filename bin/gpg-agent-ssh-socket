@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -eu
+
+command -v gpgconf >/dev/null || exit
+awk=(awk -F: '{if ($1 == "enable-ssh-support") print $10}')
+support=$(gpgconf --list-options gpg-agent 2>/dev/null | "${awk[@]}")
+((${support:-0})) || exit
+gpgconf --list-dirs agent-ssh-socket
