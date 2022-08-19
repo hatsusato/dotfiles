@@ -3,13 +3,12 @@
 set -eu
 
 use-askpass() {
-  [[ ${1-} == -* ]] && return 1
-  command -v xhost pinentry-askpass >/dev/null || return
-  xhost &>/dev/null || return
+  [[ -v DISPLAY ]] || return
+  command -v pinentry-askpass
 }
 
-if use-askpass "$@"; then
-  export SUDO_ASKPASS=$(command -v pinentry-askpass)
+if use-askpass >/dev/null; then
+  export SUDO_ASKPASS=$(use-askpass)
   set -- -A "$@"
 fi
 /usr/bin/sudo "$@"

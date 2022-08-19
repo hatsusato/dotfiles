@@ -1,9 +1,7 @@
 #!/bin/bash
 
-if command -v xhost >/dev/null; then
-  if ! xhost &>/dev/null; then
-    export LANG=C LANGUAGE=C LC_ALL=C
-  fi
+if [[ ! -v DISPLAY ]]; then
+  export LANG=C.UTF-8 LANGUAGE=C.UTF-8 LC_ALL=C.UTF-8
 fi
 
 if command -v gpg-agent-ssh-socket >/dev/null; then
