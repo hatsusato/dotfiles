@@ -1,1 +1,2 @@
-../.local/tig/config
+set line-graphics = ascii
+set vertical-split = no

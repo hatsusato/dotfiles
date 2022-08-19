@@ -1,1 +1,6 @@
-../.config/.local/.clang-format
+---
+Language: Cpp
+BasedOnStyle: Google
+Standard: Cpp11
+IndentCaseLabels: false
+AllowShortFunctionsOnASingleLine: Empty
