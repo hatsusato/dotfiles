@@ -1,0 +1,5 @@
+#!/bin/bash
+
+if declare -F _alias_complete_reuse >/dev/null; then
+  _alias_complete_reuse sshfs sshfs-toggle
+fi

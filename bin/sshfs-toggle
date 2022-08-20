@@ -1,0 +1,47 @@
+#!/bin/bash
+# depends: awk fusermount sshfs
+
+set -eu
+
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} [USER@]HOST:[TARGET]
+    open/close sshfs connection to remote HOST
+
+    if connection closed, mount remote HOST to mountpoint
+    if connection opened, close sshfs connection from mountpoint
+    mountpoint: ~/HOST on localhost
+EOF
+  exit 1
+}
+sshfs-opts() {
+  local opts=(reconnect ServerAliveInterval=5 ServerAliveCountMax=3)
+  IFS=,
+  echo "${opts[*]}"
+}
+open() {
+  mkdir -p "$mountpoint"
+  sshfs "$remote" "$mountpoint" -o "$(sshfs-opts)"
+}
+close() {
+  fusermount -uz "$mountpoint"
+  rmdir "$mountpoint"
+}
+list_mounted() {
+  awk '{if ($3 == "fuse.sshfs") print $2}' /etc/mtab
+}
+main() {
+  local remote=$1 host=${1%%:*}
+  host=${host#*@}
+  local mountpoint=$HOME/$host
+  if list_mounted | grep -Fqx "$mountpoint"; then
+    close
+    echo "Connection closed: $mountpoint"
+  else
+    open
+    echo "Connection to '$remote': $mountpoint"
+  fi
+}
+
+(($# == 0)) && usage
+main "$1"
