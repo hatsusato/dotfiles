@@ -1,0 +1,11 @@
+#!/bin/bash
+# depends: notify-send
+set -eu
+
+cmd=echo
+if [[ -v DISPLAY ]]; then
+  if command -v notify-send >/dev/null; then
+    cmd=notify-send
+  fi
+fi
+$cmd "$@"

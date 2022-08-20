@@ -1,5 +1,5 @@
 #!/bin/bash
-# depends: (parse-opts) uuidgen
+# depends: 'parse-opts' uuidgen
 set -eu
 
 usage() {

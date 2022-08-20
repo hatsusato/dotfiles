@@ -1,5 +1,5 @@
 #!/bin/bash
-# depends: (pinentry-askpass) sudo
+# depends: 'pinentry-askpass' sudo
 set -eu
 
 use-askpass() {

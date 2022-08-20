@@ -1,16 +1,7 @@
 #!/bin/bash
-# depends: fusermount gocryptfs list-mounted (notify-send) (pinentry-askpass)
+# depends: fusermount gocryptfs 'list-mounted' 'message-send' 'pinentry-askpass'
 set -eu
 
-send() {
-  local cmd=echo
-  if [[ -v DISPLAY ]]; then
-    if command -v notify-send >/dev/null; then
-      cmd=notify-send
-    fi
-  fi
-  $cmd "$@"
-}
 open() {
   local gocryptfs=(gocryptfs)
   if command -v pinentry-askpass >/dev/null; then
@@ -24,7 +15,7 @@ open() {
 }
 close() {
   fusermount -u "$mountpoint"
-  send "Successfully unmounted: $mountpoint"
+  message-send "Successfully unmounted: $mountpoint"
 }
 
 cipherdir=$HOME/Dropbox/Private

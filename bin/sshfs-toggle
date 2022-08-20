@@ -1,5 +1,5 @@
 #!/bin/bash
-# depends: fusermount list-mounted sshfs
+# depends: fusermount 'list-mounted' sshfs
 set -eu
 
 usage() {
