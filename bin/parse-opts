@@ -26,13 +26,17 @@ assign() {
   local var=$1 arg=$2
   echo "${map[$var]}=${arg@Q}"
 }
+main() {
+  local -A map
+  OPTFUNC=define
+  parse "$@"
+  shift $OPTIND
+  OPTFUNC=assign
+  parse "$@"
+}
 
-declare -A map
+OPTIND=0
 OPTSTRING=$(printf %s: {a..z})
-OPTFUNC=define
-parse "$@"
-shift $OPTIND
-OPTFUNC=assign
-parse "$@"
+main "$@"
 echo "OPTSHIFT=$OPTIND"
 echo "OPTSTRING=$OPTSTRING"
