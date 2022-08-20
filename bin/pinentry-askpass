@@ -2,30 +2,48 @@
 # depends: pinentry-gnome3
 set -eu
 
-protocol() {
-  local desc="[sudo] password for $USER: "
-  cat <<EOF
-SETPROMPT Authentication Required
-SETDESC ${1-$desc}
-SETOK Authenticate
-GETPIN
-BYE
-EOF
+message() {
+  echo "$@" >&2
 }
 process() {
   local IFS= line
-  local ok='OK ' d='D ' cancel='ERR 83886179 Operation cancelled'
+  local cancel=83886179 timeout=83886142
   while read -r line; do
     case $line in
-      $ok* | OK) continue;;
-      $cancel*) exit 255;;
-      $d*) line=${line#$d};;
-      *) echo "ERROR: unknown response: $line" >&2; exit 1;;
+      'D '*) line=${line#D };;
+      'OK '* | OK) continue;;
+      'S '*) continue;;
+      'ERR '$cancel*) exit -1;;
+      'ERR '$timeout*) message "ERROR: timeout"; exit -2;;
+      *) message "ERROR: unknown response: $line"; exit -3;;
     esac
     line=${line//\\/\\x5C}
     line=${line//%/\\x}
     echo -e "$line"
   done
 }
+prepare-protocol() {
+  local prop var msg
+  for prop in "$@"; do
+    var=PINENTRY_ASKPASS_$prop
+    [[ -v $var ]] || continue
+    msg=${!var}
+    msg=${msg//%/%25}
+    msg=${msg//$'\n'/%0A}
+    echo "SET$prop $msg"
+  done
+}
+main() {
+  local props=(TIMEOUT DESC PROMPT TITLE OK CANCEL NOTOK ERROR)
+  (
+    prepare-protocol "${props[@]}"
+    case ${PINENTRY_ASKPASS_ASK-} in
+      CONFIRM) echo CONFIRM;;
+      MESSAGE) echo MESSAGE;;
+      *) echo GETPIN;;
+    esac
+    echo BYE
+  ) | pinentry-gnome3 | process
+}
 
-protocol "$@" | pinentry-gnome3 | process
+main
