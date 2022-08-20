@@ -5,14 +5,17 @@ set -eu
 list-mounted() {
   awk '{if ($3 == "fuse.gocryptfs") print $2}' /etc/mtab
 }
-
-cipherdir=$HOME/Dropbox/Private
-mountpoint=$HOME/Private
-if list-mounted | grep -Fqx "$mountpoint"; then
-  fusermount -u "$mountpoint"
-  notify-send "Successfully unmounted: $mountpoint"
-else
-  gocryptfs=(gocryptfs)
+send() {
+  local cmd=echo
+  if [[ -v DISPLAY ]]; then
+    if command -v notify-send >/dev/null; then
+      cmd=notify-send
+    fi
+  fi
+  $cmd "$@"
+}
+open() {
+  local gocryptfs=(gocryptfs)
   if command -v pinentry-askpass >/dev/null; then
     export PINENTRY_ASKPASS_PROMPT='Decrypting master key'
     export PINENTRY_ASKPASS_DESC="[gocryptfs] password for '$cipherdir':"
@@ -21,4 +24,16 @@ else
     gocryptfs+=(-extpass pinentry-askpass)
   fi
   "${gocryptfs[@]}" "$cipherdir" "$mountpoint"
+}
+close() {
+  fusermount -u "$mountpoint"
+  send "Successfully unmounted: $mountpoint"
+}
+
+cipherdir=$HOME/Dropbox/Private
+mountpoint=$HOME/Private
+if list-mounted | grep -Fqx "$mountpoint"; then
+  close
+else
+  open
 fi
