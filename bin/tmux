@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# depends: tmux
 set -eu
 
 if (($# == 0)) && [[ ! -v TMUX ]]; then

@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# depends: awk fusermount gocryptfs notify-send (pinentry-askpass)
 set -eu
 
 list-mounted() {

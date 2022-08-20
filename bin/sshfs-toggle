@@ -1,6 +1,5 @@
 #!/bin/bash
 # depends: awk fusermount sshfs
-
 set -eu
 
 usage() {

@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# depends: awk gpgconf
 set -eu
 
 command -v gpgconf >/dev/null || exit
