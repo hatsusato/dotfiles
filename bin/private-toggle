@@ -1,10 +1,7 @@
 #!/bin/bash
-# depends: awk fusermount gocryptfs notify-send (pinentry-askpass)
+# depends: fusermount gocryptfs list-mounted (notify-send) (pinentry-askpass)
 set -eu
 
-list-mounted() {
-  awk '{if ($3 == "fuse.gocryptfs") print $2}' /etc/mtab
-}
 send() {
   local cmd=echo
   if [[ -v DISPLAY ]]; then
@@ -32,7 +29,7 @@ close() {
 
 cipherdir=$HOME/Dropbox/Private
 mountpoint=$HOME/Private
-if list-mounted | grep -Fqx "$mountpoint"; then
+if list-mounted fuse.gocryptfs | grep -Fqx "$mountpoint"; then
   close
 else
   open

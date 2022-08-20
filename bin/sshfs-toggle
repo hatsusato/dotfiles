@@ -1,5 +1,5 @@
 #!/bin/bash
-# depends: awk fusermount sshfs
+# depends: fusermount list-mounted sshfs
 set -eu
 
 usage() {
@@ -26,14 +26,11 @@ close() {
   fusermount -uz "$mountpoint"
   rmdir "$mountpoint"
 }
-list_mounted() {
-  awk '{if ($3 == "fuse.sshfs") print $2}' /etc/mtab
-}
 main() {
   local remote=$1 host=${1%%:*}
   host=${host#*@}
   local mountpoint=$HOME/$host
-  if list_mounted | grep -Fqx "$mountpoint"; then
+  if list-mounted | grep -Fqx "$mountpoint"; then
     close
     echo "Connection closed: $mountpoint"
   else
