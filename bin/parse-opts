@@ -1,0 +1,38 @@
+#!/bin/bash
+
+set -eu
+
+parse() {
+  local optstr=$OPTSTRING errors=0 var
+  OPTIND=0 OPTSTRING=
+  while getopts "$optstr" var; do
+    OPTSTRING+=$var
+    if [[ $var == \? ]]; then
+      ((errors++)) && :
+    else
+      "$OPTFUNC" "$var" "${OPTARG-$var}"
+    fi
+  done
+  ((OPTIND--)) && :
+  ((errors == 0)) && return
+  exit $errors
+}
+define() {
+  local var=$1 arg=$2
+  [[ $arg == :* ]] && OPTSTRING+=:
+  map[$var]=${arg#:}
+}
+assign() {
+  local var=$1 arg=$2
+  echo "${map[$var]}=${arg@Q}"
+}
+
+declare -A map
+OPTSTRING=$(printf %s: {a..z})
+OPTFUNC=define
+parse "$@"
+shift $OPTIND
+OPTFUNC=assign
+parse "$@"
+echo "OPTSHIFT=$OPTIND"
+echo "OPTSTRING=$OPTSTRING"
