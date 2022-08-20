@@ -31,7 +31,10 @@ main() {
   opts=$(parse-opts -c mode -x mode -- "$@") || usage
   eval "$opts"
   shift $OPTSHIFT
-  (($# == 0)) && usage
+  if (($# == 0)); then
+    generate-header
+    return
+  fi
   for f in "$@"; do
     [[ -f $f ]] && continue
     generate-header >"$f"
