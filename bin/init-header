@@ -1,0 +1,42 @@
+#!/bin/bash
+# depends: (parse-opts) uuidgen
+set -eu
+
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} [-c] [-x] FILE...
+    initialize header file with include guard
+
+    -c  with C style comment
+    -x  with C++ style comment
+EOF
+  exit 1
+}
+generate-header() {
+  local guard comment
+  guard=INCLUDE_GUARD_$(uuidgen -r | tr '[:lower:]-' '[:upper:]_')
+  case ${mode-} in
+    c) comment=" /* $guard */";;
+    x) comment=" // $guard";;
+  esac
+  cat <<EOF
+#ifndef $guard
+#define $guard
+
+#endif${comment-}
+EOF
+}
+main() {
+  local opts mode f
+  opts=$(parse-opts -c mode -x mode -- "$@") || usage
+  eval "$opts"
+  shift $OPTSHIFT
+  (($# == 0)) && usage
+  for f in "$@"; do
+    [[ -f $f ]] && continue
+    generate-header >"$f"
+    echo "Initialized: $f"
+  done
+}
+
+main "$@"
