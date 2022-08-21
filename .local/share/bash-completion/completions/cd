@@ -1,0 +1,38 @@
+#!/bin/bash
+
+_cd_history_show() {
+  local i=0 dir list=()
+  for ((i=0; ; i++)); do
+    dir=$(dirs "$@" +$i 2>/dev/null) || break
+    list+=("$dir")
+  done
+  printf '%s\0' "${list[@]}"
+}
+_cd_history_unique() {
+  local limit=${1-10} i=1 dir list
+  readarray -d '' -s 1 list < <(_cd_history_show)
+  for dir in "${list[@]}"; do
+    if ((i == limit)) || [[ $dir == '~' ]]; then
+      popd -n +$i >/dev/null
+    elif _cd_history_show | head -n $i -z | grep -Fqxz "$dir"; then
+      popd -n +$i >/dev/null
+    else
+      i=$((i + 1))
+    fi
+  done
+}
+_cd_history_complete() {
+  local cur prev words cword i dir
+  _init_completion || return
+  _cd_history_unique 10
+  [[ $cur == -[1-9]* ]] && i=${cur:1:1}
+  if [[ -v i ]] && dir=$(dirs +$i 2>/dev/null); then
+    COMPREPLY=("$dir")
+  elif [[ $cur == -* ]]; then
+    local sed=(sed -z 's/^ \([1-9]\) /-\1:/')
+    readarray -d '' -s 1 COMPREPLY < <(_cd_history_show -v | "${sed[@]}")
+    ((${#COMPREPLY[@]} == 1)) && COMPREPLY+=(-)
+  else
+    _cd
+  fi
+} && complete -o nosort -o nospace -F _cd_history_complete cd

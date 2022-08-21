@@ -7,6 +7,7 @@ if command -v tput >/dev/null; then
   fi
 fi
 
+shopt -s globstar
 set +o ignoreeof
 if command -v stty >/dev/null; then
   stty kill undef # unix-line-discard
@@ -20,6 +21,10 @@ if command -v xbindkeys >/dev/null; then
   if ! pgrep -x xbindkeys >/dev/null; then
     xbindkeys
   fi
+fi
+
+if [[ -f "$HOME"/.local/share/bash-completion/completions/cd ]]; then
+  complete -r cd
 fi
 
 (umask 0077; mkdir -p /tmp/"$USER"/Downloads)
