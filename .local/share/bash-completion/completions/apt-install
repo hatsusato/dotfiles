@@ -1,0 +1,8 @@
+#!/bin/bash
+
+_apt-install() {
+  local cur prev words cword
+  _init_completion || return
+  local cache=(apt-cache --no-generate pkgnames "$cur")
+  readarray -t COMPREPLY < <("${cache[@]}" 2>/dev/null)
+} && complete -F _apt-install apt-install
