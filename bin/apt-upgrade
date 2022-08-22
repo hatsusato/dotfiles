@@ -1,0 +1,17 @@
+#!/bin/bash
+# depends: apt-get
+set -eu
+
+lock=${XDG_RUNTIME_DIR-/run/user/$UID}/.local/apt/update.lock
+last=0
+[[ -f $lock ]] && last=$(date -r "$lock" +%s)
+now=$(date +%s)
+daily=$((24 * 60 * 60))
+if ((last + daily < now)); then
+  sudo apt update
+  mkdir -p "${lock%/*}"
+  touch "$lock"
+fi
+list=$(LANG=C apt list --upgradable 2>/dev/null | tail -n+2 | cut -d/ -f1)
+[[ -z $list ]] && exit
+sudo apt-get --only-upgrade --yes install $list

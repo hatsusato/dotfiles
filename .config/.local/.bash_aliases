@@ -1,6 +1,5 @@
 #!/bin/bash
 
-alias apt-upgrade='sudo apt update && sudo apt upgrade -y'
 alias asciicode='man 7 ascii'
 alias caps-to-ctrl='setxkbmap -option ctrl:nocaps'
 alias CAPSLOCK-toggle='xdotool key Caps_Lock'
