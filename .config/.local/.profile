@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [[ ! -v DISPLAY ]]; then
+if [[ ! -v DISPLAY && ${TERM-} == linux && -t 0 ]]; then
   export LANG=C.UTF-8 LANGUAGE=C.UTF-8 LC_ALL=C.UTF-8
 fi
 
