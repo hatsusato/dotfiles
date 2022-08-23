@@ -1,0 +1,38 @@
+#!/bin/bash
+# depends: 'parse-opts'
+set -eu
+
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} [-dhn] RELATIVE_PATH
+  touch the specified file and print its full path
+  file full path: XDG_RUNTIME_DIR/.local/RELATIVE_PATH
+  intermediate directories are also created
+
+OPTIONS:
+  -d  use mkdir instead of touch
+  -h  show this help
+  -n  dry run; just print the path
+EOF
+  exit 1
+}
+
+if [[ $(id -u) == 0 ]]; then
+  echo "ERROR: you must run as normal user" >&2
+  exit 1
+fi
+opts=$(parse-opts -d d -h h -n n -- "$@") || exit
+eval "$opts"
+shift $OPTSHIFT
+[[ -v h || ! -v 1 ]] && usage
+path=${XDG_RUNTIME_DIR-/run/user/$UID}/.local/$1
+if [[ ! -v n ]]; then
+  umask 0077
+  if [[ -v d ]]; then
+    mkdir -p "$path"
+  else
+    mkdir -p "${path%/*}"
+    touch "$path"
+  fi
+fi
+echo "$path"
