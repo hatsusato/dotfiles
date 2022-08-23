@@ -27,4 +27,4 @@ if [[ -f "$HOME"/.local/share/bash-completion/completions/cd ]]; then
   complete -r cd
 fi
 
-(umask 0077; mkdir -p /tmp/"$USER"/Downloads)
+mkdir -m 700 -p /tmp/"$USER"{,/Downloads}
