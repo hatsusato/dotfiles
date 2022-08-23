@@ -16,6 +16,7 @@ alias swap-reset='sudo swapoff -a && sudo swapon -a'
 alias t='tig --all'
 alias v='less'
 alias wget='wget --show-progress'
+alias xclip='xclip -selection clipboard'
 alias xev="xev | sed -n 's/^ *\(.*keycode.*\), same_screen.*$/\1/p'"
 alias xkb-output='setxkbmap -print'
 alias youtube-mp4='youtube-dl -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]"'
