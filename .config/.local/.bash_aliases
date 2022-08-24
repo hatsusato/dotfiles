@@ -3,7 +3,7 @@
 alias asciicode='man 7 ascii'
 alias caps-to-ctrl='setxkbmap -option ctrl:nocaps'
 alias CAPSLOCK-toggle='xdotool key Caps_Lock'
-alias cd='builtin pushd . >/dev/null; builtin cd'
+alias cd='pushd . >/dev/null; cd'
 alias cgrep='grep --color=always'
 alias dropbox-conflict='find ~/Dropbox -name "*競合*"'
 alias dropbox-resolve='find ~/Dropbox -name "*競合*" -delete'
