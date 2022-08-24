@@ -1,0 +1,25 @@
+#!/bin/bash
+# depends: awk gpg
+set -eu
+
+yubikey-detect() {
+  local var eot=$'\x04'
+  echo -n 'Insert Yubikey... ' >&2
+  until gpg --card-status &>/dev/null; do
+    read -n 1 -s -t 1 var || continue
+    if [[ $var == $eot ]]; then
+      echo >&2
+      return 1
+    fi
+  done
+  echo >&2
+}
+yubikey-fetch() {
+  local gpg='gpg --batch --card-edit --status-fd 1'
+  LANG=C $gpg --command-file <(printf 'fetch\nquit\n')
+}
+
+yubikey-detect
+fingerprint='$2 == "IMPORT_OK" {print $4}'
+fpr=$(yubikey-fetch 2> >(grep ^gpg: >&2) | awk "$fingerprint")
+echo "$fpr:6:" | gpg --import-ownertrust
