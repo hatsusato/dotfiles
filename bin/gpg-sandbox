@@ -1,0 +1,32 @@
+#!/bin/bash -i
+# depends: bash 'touch-local'
+set -eu
+
+error() {
+  trap - EXIT
+  echo "ERROR: $@" >&2
+  exit 1
+}
+prepare-sandbox() {
+  local dir
+  dir=$(touch-local -d gnupg) || return
+  dir=$(mktemp -d -q "$dir"/sandbox-XXXXXX) || return
+  echo "$dir"
+}
+open-sandbox() {
+  local init=() bashrc=$HOME/.bashrc
+  if [[ -f $bashrc ]]; then
+    init+=("$(declare -p bashrc)")
+    init+=('source "$bashrc"')
+  fi
+  export PS1='(gpg-sandbox)'$PS1 GNUPGHOME
+  init+=("$(declare -p PS1)")
+  init+=("$(declare -p GNUPGHOME)")
+  bash --init-file <(printf '%s; ' "${init[@]}")
+}
+
+[[ -v GNUPGHOME ]] && error "GNUPGHOME is already set: $GNUPGHOME"
+GNUPGHOME=
+trap 'rm -fr "$GNUPGHOME"' EXIT
+GNUPGHOME=$(prepare-sandbox) || error 'failed to prepare sandbox'
+open-sandbox
