@@ -1,0 +1,38 @@
+#!/bin/bash
+# depends: apt bash sudo
+set -eu
+
+list-packages() {
+  local arg install
+  for arg in "$@"; do
+    [[ $arg == @(-|.|/|~)* ]] && continue
+    if [[ -v install ]]; then
+      echo "$arg"
+    else
+      [[ $arg == install ]] || return
+      install=on
+    fi
+  done
+  [[ -v install ]]
+}
+record() {
+  local pkg log=$HOME/.config/.local/apt/install.log
+  [[ $(id -u) == 0 ]] && return
+  mkdir -p "${log%/*}"
+  touch "$log"
+  [[ -w $log ]] && return
+  for pkg in "$@"; do
+    grep -Fqx "$pkg" <"$log" && continue
+    echo "$pkg" >>"$log"
+  done
+}
+
+/usr/bin/apt "$@"
+packages=$(list-packages "$@") || exit 0
+[[ -v SUDO_USER ]] || exit 0
+lines=()
+lines+=("$(declare -f record)")
+lines+=("$(declare -p packages)")
+lines+=('record "${packages[@]}"')
+script=$(printf '%s; ' "${lines[@]}")
+sudo -u "$SUDO_USER" bash -c "$script"
