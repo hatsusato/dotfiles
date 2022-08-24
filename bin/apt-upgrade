@@ -1,17 +1,30 @@
 #!/bin/bash
-# depends: apt-get
+# depends: apt-get 'touch-local'
 set -eu
 
-lock=${XDG_RUNTIME_DIR-/run/user/$UID}/.local/apt/update.lock
-last=0
-[[ -f $lock ]] && last=$(date -r "$lock" +%s)
-now=$(date +%s)
-daily=$((24 * 60 * 60))
-if ((last + daily < now)); then
+needs-update() {
+  local lock=$1 now=$(date +%s) last=0 daily=$((24 * 60 * 60))
+  local path=$(touch-local -n "$lock")
+  [[ -f $path ]] && last=$(date -r "$path" +%s)
+  ((last + daily < now))
+}
+list-upgradable() {
+  LANG=C apt list --upgradable 2>/dev/null
+}
+split-package() {
+  local pkg
+  for pkg in "$@"; do
+    echo "${pkg%%/*}"
+  done
+}
+
+lock=apt/update.lock
+if needs-update "$lock"; then
   sudo apt update
-  mkdir -p "${lock%/*}"
-  touch "$lock"
+  touch-local "$lock" >/dev/null
 fi
-list=$(LANG=C apt list --upgradable 2>/dev/null | tail -n+2 | cut -d/ -f1)
-[[ -z $list ]] && exit
-sudo apt-get --only-upgrade --yes install $list
+readarray -s 1 -t list < <(list-upgradable)
+((${#list[@]} == 0)) && exit
+readarray -t list < <(split-package "${list[@]}")
+apt='apt-get --only-upgrade --yes'
+sudo $apt install "${list[@]}"
