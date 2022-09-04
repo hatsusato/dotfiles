@@ -1,5 +1,5 @@
 #!/bin/bash
-# depends: fusermount 'list-mounted' sshfs
+# depends: fusermount sshfs
 set -eu
 
 usage() {
@@ -13,31 +13,27 @@ USAGE: ${0##*/} [USER@]HOST:[TARGET]
 EOF
   exit 1
 }
-sshfs-opts() {
-  local opts=(reconnect ServerAliveInterval=5 ServerAliveCountMax=3)
-  IFS=,
-  echo "${opts[*]}"
-}
 open() {
+  local opts=(reconnect ServerAlive{Interval=5,CountMax=3})
   mkdir -p "$mountpoint"
-  sshfs "$remote" "$mountpoint" -o "$(sshfs-opts)"
+  sshfs "$remote" "$mountpoint" -o "$(IFS=,; echo ${opts[*]})"
 }
 close() {
   fusermount -uz "$mountpoint"
   rmdir "$mountpoint"
 }
-main() {
-  local remote=$1 host=${1%%:*}
-  host=${host#*@}
-  local mountpoint=$HOME/$host
-  if list-mounted | grep -Fqx "$mountpoint"; then
-    close
-    echo "Connection closed: $mountpoint"
-  else
-    open
-    echo "Connection to '$remote': $mountpoint"
-  fi
+list-mounted() {
+  awk '{if ($3 == "fuse.sshfs") print $2}' /etc/mtab
 }
 
 (($# == 0)) && usage
-main "$1"
+remote=$1
+host=${1%%:*}
+mountpoint=$HOME/${host#*@}
+if list-mounted | grep -Fqx "$mountpoint"; then
+  close
+  echo "Connection closed: $mountpoint"
+else
+  open
+  echo "Connection to '$remote': $mountpoint"
+fi

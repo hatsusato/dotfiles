@@ -1,5 +1,5 @@
 #!/bin/bash
-# depends: fusermount gocryptfs 'list-mounted' 'message-send' 'pinentry-askpass'
+# depends: fusermount gocryptfs 'message-send' 'pinentry-askpass'
 set -eu
 
 open() {
@@ -17,10 +17,13 @@ close() {
   fusermount -u "$mountpoint"
   message-send "Successfully unmounted: $mountpoint"
 }
+list-mounted() {
+  awk '{if ($3 == "fuse.gocryptfs") print $2}' /etc/mtab
+}
 
 cipherdir=$HOME/Dropbox/Private
 mountpoint=$HOME/Private
-if list-mounted fuse.gocryptfs | grep -Fqx "$mountpoint"; then
+if list-mounted | grep -Fqx "$mountpoint"; then
   close
 else
   open
