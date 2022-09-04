@@ -1,30 +1,37 @@
 #!/bin/bash
-# depends: apt-get 'touch-local'
+# depends: apt apt-get 'parse-opts' 'touch-local'
 set -eu
 
+usage() {
+  cat <<EOF >&2
+USAGE: ${0##*/} [-h] [-f]
+    sudo apt update && sudo apt upgrade
+    do update once a day
+
+    -h  show this help
+    -f  force update
+EOF
+  exit 1
+}
 needs-update() {
   local lock=$1 now=$(date +%s) last=0 daily=$((24 * 60 * 60))
   local path=$(touch-local -n "$lock")
   [[ -f $path ]] && last=$(date -r "$path" +%s)
   ((last + daily < now))
 }
-list-upgradable() {
-  LANG=C apt list --upgradable 2>/dev/null
-}
-split-package() {
-  local pkg
-  for pkg in "$@"; do
-    echo "${pkg%%/*}"
-  done
-}
 
+opts=$(parse-opts -h help -f force -- "$@") || usage
+eval "$opts"
+shift $OPTSHIFT
+[[ -v help ]] && usage
 lock=apt/update.lock
-if needs-update "$lock"; then
-  sudo apt update
+if [[ -v force ]] || needs-update "$lock"; then
+  sudo apt-get update
   touch-local "$lock" >/dev/null
 fi
-readarray -s 1 -t list < <(list-upgradable)
+readarray -s 1 -t list < <(LANG=C apt list --upgradable 2>/dev/null)
 ((${#list[@]} == 0)) && exit
-readarray -t list < <(split-package "${list[@]}")
-apt='apt-get --only-upgrade --yes'
-sudo $apt install "${list[@]}"
+for i in "${!list[@]}"; do
+  list[i]=${list[i]%%/*}
+done
+sudo apt-get --only-upgrade --yes install "${list[@]}"
