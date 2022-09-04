@@ -2,7 +2,5 @@
 # depends: tmux
 set -eu
 
-if (($# == 0)) && [[ ! -v TMUX ]]; then
-  set -- new-session -A
-fi
+[[ $# == 0 && ! -v TMUX ]] && set -- new-session -A
 /usr/bin/tmux "$@"

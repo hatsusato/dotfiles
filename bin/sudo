@@ -3,12 +3,11 @@
 set -eu
 
 use-askpass() {
-  [[ -v DISPLAY ]] || return
-  command -v pinentry-askpass
+  [[ -v DISPLAY ]] && command -v pinentry-askpass
 }
 
-if use-askpass >/dev/null; then
-  export SUDO_ASKPASS=$(use-askpass)
+if askpass=$(use-askpass); then
+  export SUDO_ASKPASS=$askpass
   export PINENTRY_ASKPASS_PROMPT='Authentication Required'
   export PINENTRY_ASKPASS_DESC="[sudo] password for $USER:"
   export PINENTRY_ASKPASS_OK=Authenticate
