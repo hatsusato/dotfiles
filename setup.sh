@@ -2,76 +2,27 @@
 
 set -eu
 
-setup-pkgs() {
-  pkgs+=(
-    build-essential clang 'fonts-noto*' git gocryptfs libx11-dev
-    neovim paperkey scdaemon sshfs tig xclip xkbset
-  )
-  log=$HOME/.config/local/.install
+readonly pkgs=(
+  build-essential clang 'fonts-noto*' git gocryptfs libterm-readkey-perl
+  neovim paperkey scdaemon sshfs tig webext-browserpass xclip xkbset
+)
+readonly url=https://github.com/hatsusato/dotfiles.git
+readonly log=$HOME/.config/.local/.install
+readonly tmp=/tmp/$USER/dotfiles-XXXXXX
+
+main() {
   mkdir -p "${log%/*}"
   touch "$log"
-}
-register-pkgs() {
-  local pkg
-  for pkg; do
-    grep -qx "$pkg" "$log" &>/dev/null && continue
-    tee -a "$log" <<<"$pkg" >/dev/null
-  done
-}
-install-pkgs() {
-  local -a pkgs
-  local log
-  setup-pkgs
   sudo apt-get install -q "${pkgs[@]}"
-  register-pkgs "${pkgs[@]}"
-}
-setup-tmpdir() {
-  local dir=/tmp/$USER
+  local pkg
+  for pkg in "${pkgs[@]}"; do
+    fgrep -qx "$pkg" "$log" &>/dev/null || echo "$pkg"
+  done | tee -a "$log" >/dev/null
   umask 0077
-  mkdir -p "$dir"
-  mktemp -d "$dir"/dotfiles-XXXXXX
-}
-download-zip() {
-  local url
-  url=https://github.com/hatsusato/dotfiles/archive/refs/heads/master.zip
-  dst=$dir/${url##*/}
-  wget --no-verbose --show-progress -O "$dst" "$url"
-}
-setup-zip() {
-  local dst
-  dir=$(setup-tmpdir)
-  download-zip
-  unzip -q "$dst" -d "$dir"
-  dir+=/dotfiles-master
-}
-remove-done() {
-  local -a todo
-  local cmd
-  for cmd in ${cmds[@]}; do
-    [[ $cmd == $1 ]] || todo+=($cmd)
-  done
-  cmds=(${todo[@]})
-}
-prompt() {
-  local var
-  select var in ${cmds[@]}; do
-    if [[ -n $var ]]; then
-      remove-done $var
-      target=$var
-      return
-    fi
-  done
-  return 1
-}
-main() {
-  local dir target
-  local -a cmds=(chrome dconf dropbox grub im-config spacemacs)
-  install-pkgs
-  setup-zip
-  make -C "$dir" all
-  while prompt; do
-    make -C "$dir" $target
-  done
+  mkdir -p "${tmp%/*}"
+  local dir=$(mktemp -d "$tmp")
+  git clone "$url" "$dir"
+  make -C "$dir"
 }
 
 main
