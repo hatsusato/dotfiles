@@ -41,3 +41,45 @@ $(keyring/files):
 	@echo Download $(@F)
 	@sudo $(mkdir) $(@D)
 	@sudo $(wget) -O $@ $(keyring/$(@F:%.$(keyring/ext)=%))
+
+mkdir/$(HOME)/Private:
+	mkdir -m 700 -p $(HOME)/Private
+
+link/$(HOME)/.password-store:
+	ln -s $(HOME)/Private/.password-store $(HOME)/.password-store
+
+link/$(HOME)/Documents:
+	ln -s $(HOME)/Dropbox/Documents $(HOME)/Documents
+
+mkdir/tmp/$(USER):
+	mkdir -m 700 -p /tmp/$(USER)
+mkdir/tmp/$(USER)/Downloads:
+	mkdir -m 700 -p /tmp/$(USER)/Downloads
+
+link/tmp/$(USER)/Downloads:
+	ln -s /tmp/$(USER)/Downloads $(HOME)/Downloads
+
+mkdir/$(HOME)/.gnupg:
+	mkdir -p $(HOME)/.gnupg
+	chmod 700 $(HOME)/.gnupg
+
+mkdir/$(HOME)/.local/share/tig:
+	mkdir -p $(HOME)/.local/share/tig
+
+linux-surface/packages := linux-image-surface linux-headers-surface iptsd libwacom-surface
+install/linux-surface:
+	sudo apt-get -qy update
+	sudo apt-get -qy install $(linux-surface/packages)
+	sudo systemctl enable iptsd
+	sudo apt-get -qy install linux-surface-secureboot-mok
+
+dropbox_url := https://www.dropbox.com/download?plat=lnx.x86_64
+post-install:
+	cd $(HOME) && wget -O - $(dropbox_url) | tar xzf -
+	$(HOME)/.dropbox-dist/dropboxd
+	im-config -n fcitx5
+	sudo dconf update
+	sudo apt-get -qy update
+	sudo apt-get -qy install code google-chrome-stable slack-desktop
+	sudo update-grub
+	sudo localectl set-locale LANG=ja_JP.UTF-8
