@@ -236,6 +236,7 @@ exit 0
 STUB
 	chmod +x "$FAKE_BIN/make"
 	cp "$(command -v grep)" "$FAKE_BIN/grep"
+	cp "$(command -v mkdir)" "$FAKE_BIN/mkdir"
 	# DOTFILES_DIR must NOT exist before run
 
 	run env PATH="$FAKE_BIN" HOME="$FAKE_HOME" DOTFILES_DIR="$FAKE_HOME/dotfiles" \
