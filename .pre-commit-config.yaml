@@ -1,0 +1,35 @@
+minimum_pre_commit_version: "3.0.0"
+
+repos:
+  # Shell: format (shfmt defaults — tab indent, binary ops at line end)
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.12.0-2
+    hooks:
+      - id: shfmt
+        files: (\.sh$|^\.local/bin/)
+
+  # Shell: lint
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        args: [--severity=info, --shell=bash]
+        files: (\.sh$|^\.local/bin/)
+
+  # General
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: mixed-line-ending
+        args: [--fix=lf]
+        files: (\.sh$|^\.local/bin/)
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+
+  # YAML lint for GitHub Actions
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        args: [--strict]
+        files: ^\.github/workflows/.*\.yml$
