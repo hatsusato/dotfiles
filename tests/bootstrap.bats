@@ -287,3 +287,20 @@ STUB
 		"$BASH_BIN" "$BOOTSTRAP"
 	assert_failure
 }
+
+# ---------------------------------------------------------------------------
+# BOOT-07: bootstrap.sh is located at repository root
+# ---------------------------------------------------------------------------
+
+@test "BOOT-07: bootstrap.sh is located at repository root" {
+	test -f "$BOOTSTRAP"
+}
+
+# ---------------------------------------------------------------------------
+# BOOT-08: CI workflow file exists
+# ---------------------------------------------------------------------------
+
+@test "BOOT-08: .github/workflows/lint-bootstrap.yml exists" {
+	REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+	test -f "$REPO_ROOT/.github/workflows/lint-bootstrap.yml"
+}

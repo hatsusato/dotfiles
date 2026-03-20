@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
 # bootstrap.sh — Bootstrap dotfiles on a fresh machine.
-# Usage: curl --fail --show-error <gist_url> | bash
+# Usage: curl -L --fail --show-error https://github.com/hatsusato/dotfiles/raw/main/bootstrap.sh | bash
 #        DOTFILES_DIR=$HOME/myconfig bash bootstrap.sh
-#
-# TODO(phase4): Replace placeholder with real Gist URL before publishing.
-# GIST_URL="https://gist.githubusercontent.com/OWNER/HASH/raw/bootstrap.sh"
 
 set -euo pipefail
 
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.local/share/dotfiles}"
-REPO_URL="https://github.com/hatsu/dotfiles.git" # TODO: replace with real repo URL
+REPO_URL="https://github.com/hatsusato/dotfiles.git"
 
 # ---------------------------------------------------------------------------
 # Minimal env detection for pre-clone phase (lib/env-detect.sh not yet available)
