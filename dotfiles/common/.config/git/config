@@ -1,0 +1,19 @@
+# ~/.config/git/config
+# XDG Base Directory location for git global config.
+#
+# WARNING: Running `git config --global` writes to ~/.gitconfig which takes
+# precedence over this file. Use `git config --file ~/.config/git/config` to
+# modify settings in this file directly.
+#
+# Verify active config source: git config --list --show-origin
+
+[user]
+	name = Your Name
+	email = you@example.com
+
+[core]
+	autocrlf = false
+	editor = vim
+
+[pull]
+	rebase = false
