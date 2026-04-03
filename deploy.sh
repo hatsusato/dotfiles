@@ -7,6 +7,8 @@ if [[ -z "${ENV_TYPE:-}" ]]; then
 	eval "$(bash "${SCRIPT_DIR}/lib/env-detect.sh")"
 fi
 
+source "${SCRIPT_DIR}/lib/safe-delete.sh"
+
 DOTFILES_ROOT="${SCRIPT_DIR}/dotfiles"
 VERBOSE="${VERBOSE:-0}"
 
