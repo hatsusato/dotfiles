@@ -70,6 +70,19 @@ main() {
 
 	deploy_dir "${DOTFILES_ROOT}/common"
 	deploy_dir "${DOTFILES_ROOT}/${ENV_TYPE}"
+
+	# D-04: Log backup summary after deployment
+	# Initialize TRASH_DIR explicitly (safe-delete.sh exports it with default $HOME/.trash)
+	TRASH_DIR="${TRASH_DIR:-$HOME/.trash}"
+
+	local backup_count
+	if [[ -d "$TRASH_DIR" ]]; then
+		# Count all files except metadata.jsonl
+		backup_count=$(find "$TRASH_DIR" -maxdepth 1 -type f ! -name 'metadata.jsonl' 2>/dev/null | wc -l || echo 0)
+		if [[ "$backup_count" -gt 0 ]]; then
+			echo "[deploy] Backed up $backup_count files to $TRASH_DIR" >&2
+		fi
+	fi
 }
 
 main "$@"
