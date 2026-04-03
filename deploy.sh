@@ -15,6 +15,20 @@ VERBOSE="${VERBOSE:-0}"
 copy_file() {
 	local src="$1" target="$2"
 	mkdir -p "$(dirname "$target")"
+
+	# D-01: Call safe_delete BEFORE copying if target exists
+	if [[ -e "$target" ]]; then
+		# D-02: Abort deploy if safe_delete fails
+		if ! safe_delete "$target"; then
+			echo "[deploy] ERROR: failed to backup $target" >&2
+			exit 1
+		fi
+		# D-03, D-06: Log backed-up file if VERBOSE=1
+		if [[ "$VERBOSE" == "1" ]]; then
+			echo "[deploy] Backed up ${target/$HOME/\~}" >&2
+		fi
+	fi
+
 	cp -f "$src" "$target"
 	if [[ "$VERBOSE" == "1" ]]; then
 		echo "Copying ${src} -> ${target/$HOME/\~}" >&2
