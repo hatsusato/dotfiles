@@ -75,7 +75,7 @@ setup() {
 # DEPL-04: warning shown when existing files would be overwritten
 # ---------------------------------------------------------------------------
 
-@test "DEPL-04: warning shown when existing files would be overwritten" {
+@test "DEPL-02-WARNING: warning shown when existing files would be overwritten" {
 	mkdir -p "$FAKE_HOME/.config/git"
 	echo "old content" >"$FAKE_HOME/.config/git/config"
 	run env HOME="$FAKE_HOME" ENV_TYPE="linux" "$BASH_BIN" "$DEPLOY"
@@ -101,9 +101,53 @@ setup() {
 # DEPL-04: no warning on clean deploy (DEPL-05)
 # ---------------------------------------------------------------------------
 
-@test "DEPL-04: no warning on clean deploy" {
+@test "DEPL-03-WARNING: no warning on clean deploy" {
 	# FAKE_HOME is empty — no pre-existing files
 	run env HOME="$FAKE_HOME" ENV_TYPE="linux" "$BASH_BIN" "$DEPLOY"
 	assert_success
 	refute_output --partial "Warning"
+}
+
+# ---------------------------------------------------------------------------
+# DEPL-04: existing file backed up to TRASH_DIR before overwrite
+# ---------------------------------------------------------------------------
+
+@test "DEPL-04: existing file backed up to TRASH_DIR before overwrite" {
+	# Pre-create a file that will be overwritten
+	mkdir -p "$FAKE_HOME/.config/git"
+	echo "old content" >"$FAKE_HOME/.config/git/config"
+
+	# Run deploy
+	run env HOME="$FAKE_HOME" ENV_TYPE="linux" TRASH_DIR="$FAKE_HOME/.trash" "$BASH_BIN" "$DEPLOY"
+	assert_success
+
+	# New file must exist with new content
+	assert [ -f "$FAKE_HOME/.config/git/config" ]
+	# Content must have changed (not same as "old content")
+	run grep -q "old content" "$FAKE_HOME/.config/git/config"
+	assert_failure
+
+	# Backup directory must exist (safe_delete must have been called)
+	assert [ -d "$FAKE_HOME/.trash" ]
+
+	# At least one file must be in TRASH_DIR (the old .config/git/config)
+	trash_file_count=$(find "$FAKE_HOME/.trash" -maxdepth 1 -type f ! -name 'metadata.jsonl' | wc -l)
+	assert [ "$trash_file_count" -ge 1 ]
+}
+
+# ---------------------------------------------------------------------------
+# DEPL-05: backup summary logged to stderr with file count
+# ---------------------------------------------------------------------------
+
+@test "DEPL-05: backup summary logged to stderr with file count" {
+	# Pre-create a file that will be overwritten
+	mkdir -p "$FAKE_HOME/.config/git"
+	echo "old content" >"$FAKE_HOME/.config/git/config"
+
+	# Run deploy and capture output
+	run env HOME="$FAKE_HOME" ENV_TYPE="linux" TRASH_DIR="$FAKE_HOME/.trash" "$BASH_BIN" "$DEPLOY"
+	assert_success
+
+	# Output must mention backup
+	assert_output --partial "Backed up"
 }
