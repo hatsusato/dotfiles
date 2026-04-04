@@ -27,18 +27,6 @@ copy_file() {
 	log_info "Copied ${src} -> ${target/$HOME/\~}"
 }
 
-collect_overwrites() {
-	local src_dir="$1"
-	local -n _list="$2"
-	local file rel_path target
-	[[ -d "$src_dir" ]] || return 0
-	while IFS= read -r -d '' file; do
-		rel_path="${file#"${src_dir}/"}"
-		target="${HOME}/${rel_path}"
-		if [[ -e "$target" ]]; then _list+=("$target"); fi
-	done < <(find "$src_dir" -type f -print0)
-}
-
 deploy_dir() {
 	local src_dir="$1"
 	local file rel_path target

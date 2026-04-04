@@ -1,46 +1,28 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Note: NO set -euo pipefail (this is sourced, not executed)
 
-# Bashrc module loader — outputs source commands for configuration and function modules
-# from ~/.config/bash/conf.d/ and ~/.config/bash/func.d/ in alphabetical order
-# This script outputs bash source commands to stdout for eval-based invocation
-# Loop variables are isolated to this subshell (no leakage into caller's namespace)
-
-# Source logging library if available (graceful degradation)
-if [[ -f ~/.local/lib/logging.sh ]]; then
-	source ~/.local/lib/logging.sh
-	LOG_PREFIX="bashrc"
-else
-	# Fallback: define no-op log functions if logging library is missing
-	log_debug() { :; }
-	log_info() { :; }
-	log_warn() { :; }
-	log_error() { :; }
-fi
-
-# Ensure directories exist (fail-safe for fresh installs)
 BASH_CONFIG_DIR="${HOME}/.config/bash"
 mkdir -p "$BASH_CONFIG_DIR/conf.d" "$BASH_CONFIG_DIR/func.d"
 
-# Output setup commands for eval to execute
-# Source logging library and set LOG_PREFIX for error logging in eval context
-echo "source ~/.local/lib/logging.sh 2>/dev/null || true"
-echo "LOG_PREFIX=\"bashrc\""
+# Source logging library in a subshell (prevent output pollution)
+# Use subshell to avoid logging side effects in output
+(
+    if [[ -f ~/.local/lib/logging.sh ]]; then
+        source ~/.local/lib/logging.sh
+        LOG_PREFIX="main"
+    fi
+) 2>/dev/null || true
 
-# Output source commands for conf.d/ modules in alphabetical order
-# Include error handling that logs failures with LOG_PREFIX
-# Use nullglob to prevent error if directory is empty (expands to nothing instead of glob pattern)
+# Output source commands for conf.d/ modules
 shopt -s nullglob
 for module in "$BASH_CONFIG_DIR/conf.d"/*.sh; do
-	log_debug "Found conf.d module: $module"
-	echo "source \"$module\" || log_error \"Failed to source $(basename "$module")\""
+    module_escaped=$(printf '%q' "$module")
+    echo "source $module_escaped || true"
 done
-shopt -u nullglob
 
-# Output source commands for func.d/ modules in alphabetical order (same pattern)
-shopt -s nullglob
+# Output source commands for func.d/ modules
 for module in "$BASH_CONFIG_DIR/func.d"/*.sh; do
-	log_debug "Found func.d module: $module"
-	echo "source \"$module\" || log_error \"Failed to source $(basename "$module")\""
+    module_escaped=$(printf '%q' "$module")
+    echo "source $module_escaped || true"
 done
 shopt -u nullglob
