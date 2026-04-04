@@ -8,7 +8,7 @@ if [[ -z "${ENV_TYPE:-}" ]]; then
 fi
 
 source "${SCRIPT_DIR}/lib/safe-delete.sh"
-source "${SCRIPT_DIR}/lib/logging.sh"
+source "${SCRIPT_DIR}/dotfiles/common/.local/lib/logging.sh"
 LOG_PREFIX="deploy"
 
 DOTFILES_ROOT="${SCRIPT_DIR}/dotfiles"
