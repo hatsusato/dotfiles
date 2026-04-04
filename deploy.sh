@@ -12,7 +12,6 @@ source "${SCRIPT_DIR}/lib/logging.sh"
 LOG_PREFIX="deploy"
 
 DOTFILES_ROOT="${SCRIPT_DIR}/dotfiles"
-VERBOSE="${VERBOSE:-0}"
 
 copy_file() {
 	local src="$1" target="$2"
@@ -25,9 +24,7 @@ copy_file() {
 	fi
 
 	cp -f "$src" "$target"
-	if [[ "$VERBOSE" == "1" ]]; then
-		log_info "Copied ${src} -> ${target/$HOME/\~}"
-	fi
+	log_info "Copied ${src} -> ${target/$HOME/\~}"
 }
 
 collect_overwrites() {

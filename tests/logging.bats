@@ -127,26 +127,26 @@ setup() {
 	assert_output --partial 'error msg'
 }
 
-# LOG-09: Default LOG_LEVEL (if unset) equals warn
-@test "LOG-09: default LOG_LEVEL equals warn (debug suppressed)" {
+# LOG-09: Default LOG_LEVEL (if unset) equals info
+@test "LOG-09: default LOG_LEVEL equals info (debug suppressed)" {
 	run bash -c 'source lib/logging.sh; unset LOG_LEVEL; export LOG_PREFIX=test; log_debug "debug msg" 2>&1'
 	assert_success
 	refute_output --partial 'debug msg'
 }
 
-@test "LOG-09b: default LOG_LEVEL equals warn (info suppressed)" {
+@test "LOG-09b: default LOG_LEVEL equals info (info output)" {
 	run bash -c 'source lib/logging.sh; unset LOG_LEVEL; export LOG_PREFIX=test; log_info "info msg" 2>&1'
 	assert_success
-	refute_output --partial 'info msg'
+	assert_output --partial 'info msg'
 }
 
-@test "LOG-09c: default LOG_LEVEL equals warn (warn output)" {
+@test "LOG-09c: default LOG_LEVEL equals info (warn output)" {
 	run bash -c 'source lib/logging.sh; unset LOG_LEVEL; export LOG_PREFIX=test; log_warn "warn msg" 2>&1'
 	assert_success
 	assert_output --partial 'warn msg'
 }
 
-@test "LOG-09d: default LOG_LEVEL equals warn (error output)" {
+@test "LOG-09d: default LOG_LEVEL equals info (error output)" {
 	run bash -c 'source lib/logging.sh; unset LOG_LEVEL; export LOG_PREFIX=test; log_error "error msg" 2>&1'
 	assert_success
 	assert_output --partial 'error msg'

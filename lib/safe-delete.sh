@@ -13,7 +13,7 @@ LOG_PREFIX="safe-delete"
 # Moves FILE to $TRASH_DIR/{sha256hash} and records metadata.
 # Returns 0 if FILE does not exist (no-op). (per BACK-02)
 # Creates $TRASH_DIR automatically if absent. (per BACK-03)
-# Logs backup to stderr if VERBOSE=1.
+# Logs backup to stderr when LOG_LEVEL permits INFO.
 #
 # Usage: source lib/safe-delete.sh && safe_delete /path/to/file
 safe_delete() {
@@ -37,8 +37,5 @@ safe_delete() {
     printf '{"hash":"%s","path":"%s","date":"%s"}\n' \
         "$hash" "$file" "$date" >>"$TRASH_DIR/metadata.jsonl"
 
-    # Log backup if VERBOSE mode enabled
-    if [[ "${VERBOSE:-0}" == "1" ]]; then
-        log_info "Backed up ${file/$HOME/\~}"
-    fi
+    log_info "Backed up ${file/$HOME/\~}"
 }

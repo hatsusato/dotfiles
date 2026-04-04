@@ -5,7 +5,7 @@ set -euo pipefail
 # with support for LOG_LEVEL, LOG_PREFIX, LOG_FORMAT, and NO_COLOR environment variables
 
 # Environment variable defaults
-LOG_LEVEL="${LOG_LEVEL:-warn}"
+LOG_LEVEL="${LOG_LEVEL:-info}"
 LOG_PREFIX="${LOG_PREFIX:-}"
 LOG_FORMAT="${LOG_FORMAT:-[%timestamp%] [%level%] [%prefix%] %message%}"
 LOG_NO_COLOR="${LOG_NO_COLOR:-0}"
@@ -55,15 +55,11 @@ _log_format() {
 }
 
 # _should_log LEVEL
-# Returns 0 if the message should be logged, 1 otherwise (based on LOG_LEVEL and VERBOSE)
+# Returns 0 if the message should be logged, 1 otherwise (based on LOG_LEVEL only)
 _should_log() {
 	local msg_level="$1"
-	# VERBOSE=1 forces all INFO/WARN messages to be logged (for backward compatibility)
-	if [[ "${VERBOSE:-0}" == "1" ]] && [[ "$msg_level" =~ ^(INFO|WARN|DEBUG)$ ]]; then
-		return 0
-	fi
 	# Map levels to numeric priority: debug=0, info=1, warn=2, error=3
-	case "${LOG_LEVEL:-warn}" in
+	case "${LOG_LEVEL:-info}" in
 		debug) return 0 ;;
 		info)  [[ "$msg_level" =~ ^(INFO|WARN|ERROR)$ ]] && return 0; return 1 ;;
 		warn)  [[ "$msg_level" =~ ^(WARN|ERROR)$ ]] && return 0; return 1 ;;
