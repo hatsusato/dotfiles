@@ -1,12 +1,4 @@
-# ~/.bashrc — Linux-specific shell configuration
-# Sourced for interactive non-login shells.
+#!/usr/bin/env bash
 
-# Source global definitions
-[[ -f /etc/bashrc ]] && source /etc/bashrc
-
-# Prompt
-PS1='\u@\h:\w\$ '
-
-# Aliases
-alias ll='ls -la'
-alias la='ls -A'
+# OS-specific .bashrc wrapper — load modular configuration from ~/.config/bash/
+[[ -f ~/.config/bash/main.sh ]] && source ~/.config/bash/main.sh

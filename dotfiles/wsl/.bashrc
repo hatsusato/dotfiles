@@ -1,15 +1,4 @@
-# ~/.bashrc — WSL-specific shell configuration
-# Sourced for interactive non-login shells.
+#!/usr/bin/env bash
 
-# Source global definitions
-[[ -f /etc/bashrc ]] && source /etc/bashrc
-
-# Prompt (indicates WSL context)
-PS1='[WSL] \u@\h:\w\$ '
-
-# Aliases
-alias ll='ls -la'
-alias la='ls -A'
-
-# Windows interop: add Windows tools to PATH selectively
-# export PATH="$PATH:/mnt/c/Windows/System32"
+# OS-specific .bashrc wrapper — load modular configuration from ~/.config/bash/
+[[ -f ~/.config/bash/main.sh ]] && source ~/.config/bash/main.sh
