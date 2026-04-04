@@ -4,8 +4,10 @@ set -euo pipefail
 # Backup directory — overridable via TRASH_DIR environment variable (per D-01)
 TRASH_DIR="${TRASH_DIR:-$HOME/.trash}"
 
-# Source logging library
-source "$(dirname "${BASH_SOURCE[0]}")/logging.sh"
+# Source logging library from canonical location
+# Get the project root directory (2 levels up from lib/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${SCRIPT_DIR}/dotfiles/common/.local/lib/logging.sh" || true
 LOG_PREFIX="safe-delete"
 
 # safe_delete FILE
