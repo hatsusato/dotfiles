@@ -8,8 +8,9 @@ setup() {
 	mkdir -p "$FAKE_HOME/.config/bash"
 	export HOME="$FAKE_HOME"
 
-	# Point to the main.sh in dotfiles (will be created in GREEN phase)
-	MAIN_SH="$BATS_TEST_TMPDIR/../../../dotfiles/common/.config/bash/main.sh"
+	# Point to the main.sh in dotfiles (relative to project root)
+	# When tests run from /home/hatsu/dotfiles, the file is at ./dotfiles/common/.config/bash/main.sh
+	MAIN_SH="${PWD}/dotfiles/common/.config/bash/main.sh"
 }
 
 # ---------------------------------------------------------------------------
@@ -315,15 +316,15 @@ EOF
 	assert_output --partial "bashrc"
 }
 
-# BASH-04i: NO_COLOR=1 disables colors in error output
-@test "BASH-04i: NO_COLOR=1 disables ANSI colors in errors" {
+# BASH-04i: LOG_NO_COLOR=1 disables colors in error output
+@test "BASH-04i: LOG_NO_COLOR=1 disables ANSI colors in errors" {
 	mkdir -p "$HOME/.config/bash/conf.d"
 
 	cat > "$HOME/.config/bash/conf.d/10-bad.sh" << 'EOF'
 syntax_error {
 EOF
 
-	run bash -c "export HOME='$HOME' LOG_LEVEL=error NO_COLOR=1; source '$MAIN_SH' 2>&1"
+	run bash -c "export HOME='$HOME' LOG_LEVEL=error LOG_NO_COLOR=1; source '$MAIN_SH' 2>&1"
 
 	refute_output --partial $'\033['
 }
