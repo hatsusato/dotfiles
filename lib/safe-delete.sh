@@ -9,6 +9,7 @@ TRASH_DIR="${TRASH_DIR:-$HOME/.trash}"
 # Moves FILE to $TRASH_DIR/{sha256hash} and records metadata.
 # Returns 0 if FILE does not exist (no-op). (per BACK-02)
 # Creates $TRASH_DIR automatically if absent. (per BACK-03)
+# Logs backup to stderr if VERBOSE=1.
 #
 # Usage: source lib/safe-delete.sh && safe_delete /path/to/file
 safe_delete() {
@@ -31,4 +32,9 @@ safe_delete() {
     date=$(date -u '+%Y-%m-%dT%H:%M:%S')
     printf '{"hash":"%s","path":"%s","date":"%s"}\n' \
         "$hash" "$file" "$date" >>"$TRASH_DIR/metadata.jsonl"
+
+    # Log backup if VERBOSE mode enabled
+    if [[ "${VERBOSE:-0}" == "1" ]]; then
+        echo "[safe-delete] Backed up ${file/$HOME/\~}" >&2
+    fi
 }

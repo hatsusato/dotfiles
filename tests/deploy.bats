@@ -75,13 +75,12 @@ setup() {
 # DEPL-04: warning shown when existing files would be overwritten
 # ---------------------------------------------------------------------------
 
-@test "DEPL-02-WARNING: warning shown when existing files would be overwritten" {
+@test "DEPL-02-WARNING: existing files backed up silently (no warning)" {
 	mkdir -p "$FAKE_HOME/.config/git"
 	echo "old content" >"$FAKE_HOME/.config/git/config"
 	run env HOME="$FAKE_HOME" ENV_TYPE="linux" "$BASH_BIN" "$DEPLOY"
 	assert_success
-	assert_output --partial "Warning"
-	assert_output --partial ".config/git/config"
+	refute_output --partial "Warning"
 }
 
 # ---------------------------------------------------------------------------
@@ -144,8 +143,8 @@ setup() {
 	mkdir -p "$FAKE_HOME/.config/git"
 	echo "old content" >"$FAKE_HOME/.config/git/config"
 
-	# Run deploy and capture output
-	run env HOME="$FAKE_HOME" ENV_TYPE="linux" TRASH_DIR="$FAKE_HOME/.trash" "$BASH_BIN" "$DEPLOY"
+	# Run deploy and capture output (with VERBOSE=1 to show per-file backups)
+	run env HOME="$FAKE_HOME" ENV_TYPE="linux" TRASH_DIR="$FAKE_HOME/.trash" VERBOSE=1 "$BASH_BIN" "$DEPLOY"
 	assert_success
 
 	# Output must mention backup

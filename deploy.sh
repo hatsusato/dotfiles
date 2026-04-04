@@ -16,17 +16,10 @@ copy_file() {
 	local src="$1" target="$2"
 	mkdir -p "$(dirname "$target")"
 
-	# D-01: Call safe_delete BEFORE copying if target exists
-	if [[ -e "$target" ]]; then
-		# D-02: Abort deploy if safe_delete fails
-		if ! safe_delete "$target"; then
-			echo "[deploy] ERROR: failed to backup $target" >&2
-			exit 1
-		fi
-		# D-03, D-06: Log backed-up file if VERBOSE=1
-		if [[ "$VERBOSE" == "1" ]]; then
-			echo "[deploy] Backed up ${target/$HOME/\~}" >&2
-		fi
+	# safe_delete handles both existing and non-existent files
+	if ! safe_delete "$target"; then
+		echo "[deploy] ERROR: failed to backup $target" >&2
+		exit 1
 	fi
 
 	cp -f "$src" "$target"
@@ -59,30 +52,8 @@ deploy_dir() {
 }
 
 main() {
-	local overwrite_list=()
-	collect_overwrites "${DOTFILES_ROOT}/common" overwrite_list
-	collect_overwrites "${DOTFILES_ROOT}/${ENV_TYPE}" overwrite_list
-
-	if [[ ${#overwrite_list[@]} -gt 0 ]]; then
-		echo "[deploy] Warning: the following existing files will be overwritten:" >&2
-		printf '  %s\n' "${overwrite_list[@]}" >&2
-	fi
-
 	deploy_dir "${DOTFILES_ROOT}/common"
 	deploy_dir "${DOTFILES_ROOT}/${ENV_TYPE}"
-
-	# D-04: Log backup summary after deployment
-	# Initialize TRASH_DIR explicitly (safe-delete.sh exports it with default $HOME/.trash)
-	TRASH_DIR="${TRASH_DIR:-$HOME/.trash}"
-
-	local backup_count
-	if [[ -d "$TRASH_DIR" ]]; then
-		# Count all files except metadata.jsonl
-		backup_count=$(find "$TRASH_DIR" -maxdepth 1 -type f ! -name 'metadata.jsonl' 2>/dev/null | wc -l || echo 0)
-		if [[ "$backup_count" -gt 0 ]]; then
-			echo "[deploy] Backed up $backup_count files to $TRASH_DIR" >&2
-		fi
-	fi
 }
 
 main "$@"
