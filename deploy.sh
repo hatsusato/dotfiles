@@ -8,6 +8,8 @@ if [[ -z "${ENV_TYPE:-}" ]]; then
 fi
 
 source "${SCRIPT_DIR}/lib/safe-delete.sh"
+source "${SCRIPT_DIR}/lib/logging.sh"
+LOG_PREFIX="deploy"
 
 DOTFILES_ROOT="${SCRIPT_DIR}/dotfiles"
 VERBOSE="${VERBOSE:-0}"
@@ -18,13 +20,13 @@ copy_file() {
 
 	# safe_delete handles both existing and non-existent files
 	if ! safe_delete "$target"; then
-		echo "[deploy] ERROR: failed to backup $target" >&2
+		log_error "Failed to backup $target"
 		exit 1
 	fi
 
 	cp -f "$src" "$target"
 	if [[ "$VERBOSE" == "1" ]]; then
-		echo "Copying ${src} -> ${target/$HOME/\~}" >&2
+		log_info "Copied ${src} -> ${target/$HOME/\~}"
 	fi
 }
 

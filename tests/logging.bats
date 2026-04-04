@@ -185,19 +185,19 @@ setup() {
 @test "LOG-13: output format includes timestamp [YYYY-MM-DD HH:MM:SS]" {
 	run bash -c 'source lib/logging.sh; export LOG_LEVEL=info LOG_PREFIX=deploy; log_info "test" 2>&1'
 	assert_success
-	assert_output --regex '\[20[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\]'
+	assert_output --regexp '\[20[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\]'
 }
 
 @test "LOG-13b: output format includes [LEVEL]" {
 	run bash -c 'source lib/logging.sh; export LOG_LEVEL=info LOG_PREFIX=deploy; log_info "test" 2>&1'
 	assert_success
-	assert_output --regex '\[INFO\]'
+	assert_output --regexp '\[INFO\]'
 }
 
 @test "LOG-13c: output format includes [PREFIX]" {
 	run bash -c 'source lib/logging.sh; export LOG_LEVEL=info LOG_PREFIX=deploy; log_info "test" 2>&1'
 	assert_success
-	assert_output --regex '\[deploy\]'
+	assert_output --regexp '\[deploy\]'
 }
 
 @test "LOG-13d: output format includes MESSAGE" {
@@ -210,32 +210,32 @@ setup() {
 @test "LOG-14: timestamp is ISO-8601 compliant [YYYY-MM-DD HH:MM:SS]" {
 	run bash -c 'source lib/logging.sh; export LOG_LEVEL=warn LOG_PREFIX=test; log_warn "message" 2>&1'
 	assert_success
-	assert_output --regex '\[20[0-9]{2}-[0-1][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9]:[0-5][0-9]\]'
+	assert_output --regexp '\[20[0-9]{2}-[0-1][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9]:[0-5][0-9]\]'
 }
 
 # LOG-15: LEVEL field is uppercase for DEBUG
 @test "LOG-15: LEVEL field is uppercase (DEBUG)" {
 	run bash -c 'source lib/logging.sh; export LOG_LEVEL=debug LOG_PREFIX=test; log_debug "msg" 2>&1'
 	assert_success
-	assert_output --regex '\[DEBUG\]'
+	assert_output --regexp '\[DEBUG\]'
 }
 
 @test "LOG-15b: LEVEL field is uppercase (INFO)" {
 	run bash -c 'source lib/logging.sh; export LOG_LEVEL=debug LOG_PREFIX=test; log_info "msg" 2>&1'
 	assert_success
-	assert_output --regex '\[INFO\]'
+	assert_output --regexp '\[INFO\]'
 }
 
 @test "LOG-15c: LEVEL field is uppercase (WARN)" {
 	run bash -c 'source lib/logging.sh; export LOG_LEVEL=debug LOG_PREFIX=test; log_warn "msg" 2>&1'
 	assert_success
-	assert_output --regex '\[WARN\]'
+	assert_output --regexp '\[WARN\]'
 }
 
 @test "LOG-15d: LEVEL field is uppercase (ERROR)" {
 	run bash -c 'source lib/logging.sh; export LOG_LEVEL=debug LOG_PREFIX=test; log_error "msg" 2>&1'
 	assert_success
-	assert_output --regex '\[ERROR\]'
+	assert_output --regexp '\[ERROR\]'
 }
 
 # ---------------------------------------------------------------------------
@@ -302,35 +302,35 @@ setup() {
 @test "LOG-17: ERROR output includes red ANSI color code [31m" {
 	run bash -c 'source lib/logging.sh; export LOG_LEVEL=error LOG_PREFIX=test; log_error "error msg" 2>&1'
 	assert_success
-	assert_output --regex '\033\[31m'
+	assert_output --regexp "$(printf '\033')\[31m"
 }
 
 # LOG-18: WARN output includes yellow ANSI color code
 @test "LOG-18: WARN output includes yellow ANSI color code [33m" {
 	run bash -c 'source lib/logging.sh; export LOG_LEVEL=warn LOG_PREFIX=test; log_warn "warn msg" 2>&1'
 	assert_success
-	assert_output --regex '\033\[33m'
+	assert_output --regexp "$(printf '\033')\[33m"
 }
 
 # LOG-19: INFO output includes cyan ANSI color code
 @test "LOG-19: INFO output includes cyan ANSI color code [36m" {
 	run bash -c 'source lib/logging.sh; export LOG_LEVEL=info LOG_PREFIX=test; log_info "info msg" 2>&1'
 	assert_success
-	assert_output --regex '\033\[36m'
+	assert_output --regexp "$(printf '\033')\[36m"
 }
 
 # LOG-20: DEBUG output includes gray/dim ANSI color code
 @test "LOG-20: DEBUG output includes gray/dim ANSI color code [2m or [90m" {
 	run bash -c 'source lib/logging.sh; export LOG_LEVEL=debug LOG_PREFIX=test; log_debug "debug msg" 2>&1'
 	assert_success
-	assert_output --regex '\033\[([29]0m|2m)'
+	assert_output --regexp "$(printf '\033')\[([29]0m|2m)"
 }
 
 # LOG-21: Colors are disabled when LOG_NO_COLOR=1
 @test "LOG-21: colors disabled when LOG_NO_COLOR=1" {
-	run bash -c 'source lib/logging.sh; export LOG_LEVEL=error LOG_PREFIX=test LOG_NO_COLOR=1; log_error "msg" 2>&1'
+	run bash -c 'export LOG_NO_COLOR=1; source lib/logging.sh; export LOG_LEVEL=error LOG_PREFIX=test; log_error "msg" 2>&1'
 	assert_success
-	refute_output --regex '\033\['
+	refute_output --regexp "$(printf '\033')\["
 }
 
 # ---------------------------------------------------------------------------
@@ -339,7 +339,7 @@ setup() {
 
 # LOG-22: LOG_FORMAT env var can override output format
 @test "LOG-22: LOG_FORMAT can customize output format" {
-	run bash -c 'source lib/logging.sh; export LOG_LEVEL=info LOG_PREFIX=test LOG_FORMAT="[LEVEL] [PREFIX] MESSAGE"; log_info "msg" 2>&1'
+	run bash -c 'source lib/logging.sh; export LOG_LEVEL=info LOG_PREFIX=test LOG_FORMAT="[%level%] [%prefix%] %message%"; log_info "msg" 2>&1'
 	assert_success
 	assert_output --partial '[INFO]'
 	assert_output --partial '[test]'
@@ -348,7 +348,7 @@ setup() {
 
 # LOG-23: Custom LOG_FORMAT simplification ([LEVEL] MESSAGE)
 @test "LOG-23: LOG_FORMAT simplification [LEVEL] MESSAGE" {
-	run bash -c 'source lib/logging.sh; export LOG_LEVEL=warn LOG_PREFIX=test LOG_FORMAT="[LEVEL] MESSAGE"; log_warn "warning" 2>&1'
+	run bash -c 'source lib/logging.sh; export LOG_LEVEL=warn LOG_PREFIX=test LOG_FORMAT="[%level%] %message%"; log_warn "warning" 2>&1'
 	assert_success
 	assert_output --partial '[WARN]'
 	assert_output --partial 'warning'

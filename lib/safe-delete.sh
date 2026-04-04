@@ -4,6 +4,10 @@ set -euo pipefail
 # Backup directory — overridable via TRASH_DIR environment variable (per D-01)
 TRASH_DIR="${TRASH_DIR:-$HOME/.trash}"
 
+# Source logging library
+source "$(dirname "${BASH_SOURCE[0]}")/logging.sh"
+LOG_PREFIX="safe-delete"
+
 # safe_delete FILE
 #
 # Moves FILE to $TRASH_DIR/{sha256hash} and records metadata.
@@ -35,6 +39,6 @@ safe_delete() {
 
     # Log backup if VERBOSE mode enabled
     if [[ "${VERBOSE:-0}" == "1" ]]; then
-        echo "[safe-delete] Backed up ${file/$HOME/\~}" >&2
+        log_info "Backed up ${file/$HOME/\~}"
     fi
 }
