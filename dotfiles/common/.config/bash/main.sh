@@ -22,12 +22,18 @@ fi
 BASH_CONFIG_DIR="${HOME}/.config/bash"
 mkdir -p "$BASH_CONFIG_DIR/conf.d" "$BASH_CONFIG_DIR/func.d"
 
+# Output setup commands for eval to execute
+# Source logging library and set LOG_PREFIX for error logging in eval context
+echo "source ~/.local/lib/logging.sh 2>/dev/null || true"
+echo "LOG_PREFIX=\"bashrc\""
+
 # Output source commands for conf.d/ modules in alphabetical order
+# Include error handling that logs failures with LOG_PREFIX
 # Use nullglob to prevent error if directory is empty (expands to nothing instead of glob pattern)
 shopt -s nullglob
 for module in "$BASH_CONFIG_DIR/conf.d"/*.sh; do
 	log_debug "Found conf.d module: $module"
-	echo "source \"$module\""
+	echo "source \"$module\" || log_error \"Failed to source $(basename "$module")\""
 done
 shopt -u nullglob
 
@@ -35,6 +41,6 @@ shopt -u nullglob
 shopt -s nullglob
 for module in "$BASH_CONFIG_DIR/func.d"/*.sh; do
 	log_debug "Found func.d module: $module"
-	echo "source \"$module\""
+	echo "source \"$module\" || log_error \"Failed to source $(basename "$module")\""
 done
 shopt -u nullglob
