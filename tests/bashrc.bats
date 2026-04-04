@@ -14,13 +14,25 @@ setup() {
 
 	# Create fake logging library in ~/.local/lib/logging.sh
 	# (This will be sourced by main.sh in the new eval-based design)
+	# The fake library respects LOG_LEVEL like the real one
 	mkdir -p "$HOME/.local/lib"
 	cat > "$HOME/.local/lib/logging.sh" << 'LOGGING_EOF'
-# Fake logging library for tests
-log_debug() { echo "DEBUG: $1" >&2; }
-log_info()  { echo "INFO: $1" >&2; }
-log_warn()  { echo "WARN: $1" >&2; }
-log_error() { echo "ERROR: $1" >&2; }
+# Fake logging library for tests with LOG_LEVEL support
+_should_log() {
+	local msg_level="$1"
+	case "${LOG_LEVEL:-info}" in
+		debug) return 0 ;;
+		info)  [[ "$msg_level" =~ ^(INFO|WARN|ERROR)$ ]] && return 0; return 1 ;;
+		warn)  [[ "$msg_level" =~ ^(WARN|ERROR)$ ]] && return 0; return 1 ;;
+		error) [[ "$msg_level" == "ERROR" ]] && return 0; return 1 ;;
+		*) return 0 ;;
+	esac
+}
+
+log_debug() { _should_log "DEBUG" || return 0; echo "DEBUG: ${LOG_PREFIX:+[$LOG_PREFIX] }$1" >&2; }
+log_info()  { _should_log "INFO" || return 0; echo "INFO: ${LOG_PREFIX:+[$LOG_PREFIX] }$1" >&2; }
+log_warn()  { _should_log "WARN" || return 0; echo "WARN: ${LOG_PREFIX:+[$LOG_PREFIX] }$1" >&2; }
+log_error() { echo "ERROR: ${LOG_PREFIX:+[$LOG_PREFIX] }$1" >&2; }
 LOGGING_EOF
 }
 
