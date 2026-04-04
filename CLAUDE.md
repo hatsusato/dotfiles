@@ -38,6 +38,30 @@ Run hooks manually:
 pre-commit run --all-files
 ```
 
+## Important
+
+### Do NOT commit .planning/ directory
+
+The `.planning/` directory is explicitly listed in `.gitignore` and must NEVER be committed to git.
+
+**Rule:** When creating commits (via `gsd-tools commit` or `git commit`), do NOT include any files from `.planning/`.
+
+This applies to ALL agents and all workflows:
+- STATE.md
+- ROADMAP.md
+- SUMMARY.md
+- PLAN.md
+- CONTEXT.md
+- VERIFICATION.md
+- Any other file in `.planning/`
+
+**Implementation guidance:** When the gsd-executor agent creates commits, it should ONLY commit files from the working directory (`src/`, `tests/`, `lib/`, `dotfiles/`, config files, etc.). If the agent's workflow uses STATE.md or other .planning files for state management, that's fine — just don't add them to commits.
+
+**Enforcement:** Use `git check-ignore` to verify before committing:
+```bash
+git check-ignore .planning/STATE.md  # Returns 0 (ignored) ✓
+```
+
 ## Architecture
 
 This repository is a personal dotfiles deployment system for Linux, WSL, and Git Bash on Windows, built with a strict TDD workflow.
