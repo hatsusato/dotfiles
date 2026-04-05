@@ -561,8 +561,8 @@ eval \"\$output\" 2>&1
 [[ -f '$SKEL_BASHRC' ]] && echo 'SKEL_EXISTS' || echo 'SKEL_NOT_FOUND'
 "
 	assert_success
-	# Fails in RED phase - file doesn't exist yet
-	assert_output "SKEL_NOT_FOUND"
+	# GREEN phase - file now exists
+	assert_output "SKEL_EXISTS"
 }
 
 # BASH-05b: Main .bashrc sources system bash_completion
@@ -657,8 +657,8 @@ echo 'SHELL_CONTINUED'
 [[ -f '$DOTFILES_PATH' ]] && echo 'PATH_MODULE_EXISTS' || echo 'PATH_MODULE_NOT_FOUND'
 "
 	assert_success
-	# Fails in RED phase - module file doesn't exist yet
-	assert_output "PATH_MODULE_NOT_FOUND"
+	# GREEN phase - module file now exists
+	assert_output "PATH_MODULE_EXISTS"
 }
 
 # BASH-06b: PATH module when loaded adds directories to PATH
@@ -668,9 +668,9 @@ echo 'SHELL_CONTINUED'
 	mkdir -p "$HOME/.local/bin"
 
 	cat > "$HOME/.config/bash/conf.d/05-path.sh" << 'EOF'
-[[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
-[[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
 [[ -d ~/.cargo/bin ]] && PATH="$HOME/.cargo/bin:$PATH"
+[[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
+[[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
 export PATH
 EOF
 
@@ -695,9 +695,9 @@ eval \"\$output\" 2>/dev/null
 	mkdir -p "$HOME/.cargo/bin"
 
 	cat > "$HOME/.config/bash/conf.d/05-path.sh" << 'EOF'
-[[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
-[[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
 [[ -d ~/.cargo/bin ]] && PATH="$HOME/.cargo/bin:$PATH"
+[[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
+[[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
 export PATH
 EOF
 
@@ -746,9 +746,9 @@ echo \"\$PATH\" | grep -q \"\$HOME/bin:\" && echo 'BIN_FOUND' || echo 'BIN_NOT_F
 	mkdir -p "$HOME/.cargo/bin"
 
 	cat > "$HOME/.config/bash/conf.d/05-path.sh" << 'EOF'
-[[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
-[[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
 [[ -d ~/.cargo/bin ]] && PATH="$HOME/.cargo/bin:$PATH"
+[[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
+[[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
 export PATH
 EOF
 
@@ -772,9 +772,9 @@ echo \"\$PATH\" | grep -q 'local/bin' && echo 'LOCAL_FOUND' || echo 'MISSING'
 	# Intentionally don't create ~/bin
 
 	cat > "$HOME/.config/bash/conf.d/05-path.sh" << 'EOF'
-[[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
-[[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
 [[ -d ~/.cargo/bin ]] && PATH="$HOME/.cargo/bin:$PATH"
+[[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
+[[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
 export PATH
 EOF
 
@@ -802,8 +802,8 @@ echo \"\$PATH\" | grep -q 'local/bin' && echo 'LOCAL_FOUND' || echo 'MISSING'
 [[ -f '$INPUTRC_FILE' ]] && echo 'INPUTRC_EXISTS' || echo 'INPUTRC_NOT_FOUND'
 "
 	assert_success
-	# Fails in RED phase - file doesn't exist yet
-	assert_output "INPUTRC_NOT_FOUND"
+	# GREEN phase - file now exists
+	assert_output "INPUTRC_EXISTS"
 }
 
 # BASH-07b: .inputrc contains colored completions setting

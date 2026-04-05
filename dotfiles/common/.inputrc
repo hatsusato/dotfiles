@@ -1,0 +1,17 @@
+# .inputrc — Readline configuration for bash
+# Controls Tab completion, history search, and keybindings
+
+# Colored completions (distinguish files, dirs, symlinks by LS_COLORS)
+set colored-completion-prefix on
+set colored-stats on
+
+# Case-insensitive Tab completion
+set completion-ignore-case on
+
+# History search with Ctrl-P/N (prefix-based, non-incremental)
+# Binds to history-search-backward and history-search-forward (native readline functions)
+"\C-p": history-search-backward
+"\C-n": history-search-forward
+
+# Emacs mode (default for bash)
+# Default keybindings: Ctrl-A (line start), Ctrl-E (line end), Ctrl-K (kill line), etc.

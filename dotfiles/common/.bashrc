@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
-# Eval main.sh output to source modules
-# Fail-safe: continue on error, do not exit
-if [[ -f ~/.config/bash/main.sh ]]; then
-	eval "$(source ~/.config/bash/main.sh)" || true
+# Source system bash_completion setup if available (early, before main.sh)
+if [[ -f /etc/skel/.bashrc ]]; then
+  source /etc/skel/.bashrc || true
 fi
+
+# Source main bash configuration loader (modules, functions)
+source ~/.config/bash/main.sh

@@ -18,6 +18,11 @@ _output_modules() {
 main() {
 	_output_modules "${HOME}/.config/bash/conf.d"
 	_output_modules "${HOME}/.config/bash/func.d"
+
+	# Source fallback bash_completion if /etc/skel/.bashrc not available (containers, WSL)
+	if [[ ! -f /etc/skel/.bashrc ]] && [[ -f ~/.config/bash/skel/.bashrc ]]; then
+		printf 'source %q || log_warn "Failed to source fallback bash_completion";\n' ~/.config/bash/skel/.bashrc
+	fi
 }
 
 (
