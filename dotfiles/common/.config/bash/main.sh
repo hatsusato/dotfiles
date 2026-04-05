@@ -6,19 +6,18 @@
 _output_modules() {
 	local dir="$1"
 	local module
+	shopt -s nullglob
 	for module in "$dir"/*.sh; do
-		if bash -n "$module" 2>&1; then
-			printf 'source %q || true\n' "$module"
+		if bash -n "$module"; then
+			printf 'source %q || true;\n' "$module"
 		fi
 	done
+	shopt -u nullglob
 }
 
 main() {
-	local BASH_CONFIG_DIR="${HOME}/.config/bash"
-	shopt -s nullglob
-	_output_modules "$BASH_CONFIG_DIR/conf.d"
-	_output_modules "$BASH_CONFIG_DIR/func.d"
-	shopt -u nullglob
+	_output_modules "${HOME}/.config/bash/conf.d"
+	_output_modules "${HOME}/.config/bash/func.d"
 }
 
 (

@@ -2,4 +2,6 @@
 
 # Eval main.sh output to source modules
 # Fail-safe: continue on error, do not exit
-[[ -f ~/.config/bash/main.sh ]] && eval "$(source ~/.config/bash/main.sh)" || true
+if [[ -f ~/.config/bash/main.sh ]]; then
+	eval "$(source ~/.config/bash/main.sh)" || true
+fi
