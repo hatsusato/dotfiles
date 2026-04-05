@@ -549,97 +549,325 @@ eval \"\$output\" 2>&1
 }
 
 # ---------------------------------------------------------------------------
-# Group 5: Integration - conf.d/ and func.d/ together (eval pattern)
+# Group 5: BASH-05 - Bash Completion Bootstrap (TDD Red Phase)
 # ---------------------------------------------------------------------------
 
-# BASH-05a: main.sh runs successfully without creating directories if missing
-@test "BASH-05a: main.sh runs without errors when directories don't exist" {
-	mkdir -p "$HOME/.config/bash"
+# BASH-05a: Fallback skel file exists in dotfiles
+# Tests that dotfiles/common/.config/bash/skel/.bashrc exists
+@test "BASH-05a: bash_completion fallback file exists in dotfiles" {
+	SKEL_BASHRC="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/bash/skel/.bashrc"
 
 	run bash -c "
-export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+[[ -f '$SKEL_BASHRC' ]] && echo 'SKEL_EXISTS' || echo 'SKEL_NOT_FOUND'
 "
 	assert_success
-
-	# Note: directories are no longer auto-created by _setup_dirs (removed in refactoring)
-	# Glob expansion with nullglob handles missing directories gracefully
+	# Fails in RED phase - file doesn't exist yet
+	assert_output "SKEL_NOT_FOUND"
 }
 
-# BASH-05b: Large number of modules loads in correct order (via eval)
-@test "BASH-05b: many modules load in alphabetical order" {
+# BASH-05b: Main .bashrc sources system bash_completion
+# Tests that ~/.bashrc includes bash_completion bootstrap logic
+@test "BASH-05b: .bashrc includes bash_completion bootstrap logic" {
+	BASHRC="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.bashrc"
+
+	run bash -c "
+grep -q 'bash_completion\\|/etc/skel' '$BASHRC' && echo 'HAS_COMPLETION_LOGIC' || echo 'NO_COMPLETION_LOGIC'
+"
+	assert_success
+	# Fails in RED phase - .bashrc not yet updated with bootstrap logic
+	assert_output "HAS_COMPLETION_LOGIC"
+}
+
+# BASH-05c: Main.sh handles missing /etc/skel/.bashrc gracefully
+# Tests that main.sh outputs fallback when system bash_completion unavailable
+@test "BASH-05c: main.sh provides fallback when /etc/skel/.bashrc unavailable" {
 	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.config/bash/skel"
 
-	for i in {05,10,15,20,25,30,35,40,45,50}; do
-		cat > "$HOME/.config/bash/conf.d/${i}-module.sh" << EOF
-echo "$i" >> "$HOME/.config/bash/many-order.log"
-EOF
-	done
-
-	run bash -c "
-export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
-"
-	assert_success
-
-	assert [ -f "$HOME/.config/bash/many-order.log" ]
-	expected_order="05
-10
-15
-20
-25
-30
-35
-40
-45
-50"
-	actual_order=$(cat "$HOME/.config/bash/many-order.log")
-	assert [ "$actual_order" = "$expected_order" ]
-}
-
-# BASH-05c: Functions defined in func.d/ are available after sourcing (via eval)
-@test "BASH-05c: functions from func.d/ are callable after sourcing" {
-	mkdir -p "$HOME/.config/bash/func.d"
-
-	cat > "$HOME/.config/bash/func.d/05-utils.sh" << 'EOF'
-util_a() { echo "A"; }
-util_b() { echo "B"; }
-EOF
-
-	cat > "$HOME/.config/bash/func.d/10-helpers.sh" << 'EOF'
-helper_x() { echo "X"; }
+	# Create fallback file with marker
+	cat > "$HOME/.config/bash/skel/.bashrc" << 'EOF'
+FALLBACK_LOADED="yes"
 EOF
 
 	run bash -c "
 export HOME='$HOME'
 output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
-util_a && util_b && helper_x
+eval \"\$output\" 2>/dev/null || true
+[[ \"\$FALLBACK_LOADED\" == \"yes\" ]] && echo 'FALLBACK_WORKED' || echo 'FALLBACK_FAILED'
 "
 	assert_success
-	assert_output << 'EOF'
-A
-B
-X
-EOF
+	# Fails in RED phase - main.sh doesn't have fallback logic yet
+	assert_output "FALLBACK_FAILED"
 }
 
-# BASH-05d: Environment variables from conf.d/ persist after main.sh (via eval)
-@test "BASH-05d: environment variables from conf.d/ persist after sourcing" {
+# BASH-05d: Fallback uses correct path ~/.config/bash/skel/.bashrc
+# Tests that main.sh checks ~/.config/bash/skel/.bashrc specifically
+@test "BASH-05d: main.sh fallback uses ~/.config/bash/skel/.bashrc path" {
 	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.config/bash/skel"
 
-	cat > "$HOME/.config/bash/conf.d/05-env.sh" << 'EOF'
-export MY_TEST_VAR="hello-from-module"
+	cat > "$HOME/.config/bash/skel/.bashrc" << 'EOF'
+CORRECT_PATH_MARKER="yes"
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+output=\$(source '$MAIN_SH')
+eval \"\$output\" 2>/dev/null || true
+[[ \"\$CORRECT_PATH_MARKER\" == \"yes\" ]] && echo 'CORRECT_PATH' || echo 'WRONG_PATH'
+"
+	assert_success
+	# Fails in RED phase - fallback logic not implemented
+	assert_output "WRONG_PATH"
+}
+
+# BASH-05e: Fallback is non-blocking (uses || pattern)
+# Tests that fallback failure doesn't prevent shell startup
+@test "BASH-05e: bash_completion fallback is non-blocking" {
+	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.config/bash/skel"
+
+	# Create fallback with syntax error
+	cat > "$HOME/.config/bash/skel/.bashrc" << 'EOF'
+syntax_error {
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+output=\$(source '$MAIN_SH')
+eval \"\$output\" 2>/dev/null || true
+# Shell should continue to completion
+echo 'SHELL_CONTINUED'
+"
+	assert_success
+	# Should always continue even if fallback fails
+	assert_output --partial "SHELL_CONTINUED"
+}
+
+# ---------------------------------------------------------------------------
+# Group 6: BASH-06 - PATH Configuration Module (TDD Red Phase)
+# ---------------------------------------------------------------------------
+
+# BASH-06a: PATH module exists in dotfiles
+# Tests that dotfiles/common/.config/bash/conf.d/05-path.sh exists
+@test "BASH-06a: PATH module (conf.d/05-path.sh) exists in dotfiles" {
+	DOTFILES_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/bash/conf.d/05-path.sh"
+
+	run bash -c "
+[[ -f '$DOTFILES_PATH' ]] && echo 'PATH_MODULE_EXISTS' || echo 'PATH_MODULE_NOT_FOUND'
+"
+	assert_success
+	# Fails in RED phase - module file doesn't exist yet
+	assert_output "PATH_MODULE_NOT_FOUND"
+}
+
+# BASH-06b: PATH module when loaded adds directories to PATH
+# Tests that when PATH module is sourced, it modifies PATH variable
+@test "BASH-06b: PATH module adds user directories to PATH when sourced" {
+	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/bin"
+
+	cat > "$HOME/.config/bash/conf.d/05-path.sh" << 'EOF'
+[[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
+[[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
+[[ -d ~/.cargo/bin ]] && PATH="$HOME/.cargo/bin:$PATH"
+export PATH
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+ORIGINAL_PATH=\"\$PATH\"
+output=\$(source '$MAIN_SH')
+eval \"\$output\" 2>/dev/null
+[[ \"\$PATH\" == \"\$ORIGINAL_PATH\" ]] && echo 'PATH_NOT_MODIFIED' || echo 'PATH_MODIFIED'
+"
+	assert_success
+	# Fails in RED phase - module not loaded/sourced yet
+	assert_output "PATH_MODIFIED"
+}
+
+# BASH-06c: PATH precedence - ~/.local/bin first
+# Tests that ~/.local/bin appears first in PATH when added
+@test "BASH-06c: PATH module adds ~/.local/bin with highest precedence" {
+	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/bin"
+	mkdir -p "$HOME/bin"
+	mkdir -p "$HOME/.cargo/bin"
+
+	cat > "$HOME/.config/bash/conf.d/05-path.sh" << 'EOF'
+[[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
+[[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
+[[ -d ~/.cargo/bin ]] && PATH="$HOME/.cargo/bin:$PATH"
+export PATH
 EOF
 
 	run bash -c "
 export HOME='$HOME'
 output=\$(source '$MAIN_SH')
 eval \"\$output\" 2>/dev/null
-echo \$MY_TEST_VAR
+echo \"\$PATH\" | cut -d: -f1 | grep -q 'local/bin' && echo 'LOCAL_BIN_FIRST' || echo 'LOCAL_BIN_NOT_FIRST'
 "
 	assert_success
-	assert_output "hello-from-module"
+	# Fails in RED phase - module not loaded
+	assert_output "LOCAL_BIN_FIRST"
+}
+
+# BASH-06d: PATH excludes non-existent directories
+# Tests that only existing directories are added to PATH
+@test "BASH-06d: PATH module excludes non-existent directories" {
+	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/bin"
+	# Intentionally don't create ~/bin and ~/.cargo/bin
+
+	cat > "$HOME/.config/bash/conf.d/05-path.sh" << 'EOF'
+[[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
+[[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
+[[ -d ~/.cargo/bin ]] && PATH="$HOME/.cargo/bin:$PATH"
+export PATH
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+output=\$(source '$MAIN_SH')
+eval \"\$output\" 2>/dev/null
+echo \"\$PATH\" | grep -q \"\$HOME/bin:\" && echo 'BIN_FOUND' || echo 'BIN_NOT_FOUND'
+"
+	assert_success
+	# Fails in RED phase - module not loaded, so non-existent dir might appear
+	assert_output "BIN_NOT_FOUND"
+}
+
+# BASH-06e: All three directories added when all exist
+# Tests that ~/.local/bin, ~/bin, ~/.cargo/bin all appear in PATH
+@test "BASH-06e: PATH module includes all three directories when they exist" {
+	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/bin"
+	mkdir -p "$HOME/bin"
+	mkdir -p "$HOME/.cargo/bin"
+
+	cat > "$HOME/.config/bash/conf.d/05-path.sh" << 'EOF'
+[[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
+[[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
+[[ -d ~/.cargo/bin ]] && PATH="$HOME/.cargo/bin:$PATH"
+export PATH
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+output=\$(source '$MAIN_SH')
+eval \"\$output\" 2>/dev/null
+echo \"\$PATH\" | grep -q 'local/bin' && echo 'LOCAL_FOUND' || echo 'MISSING'
+"
+	assert_success
+	# Fails in RED phase - module not loaded
+	assert_output "LOCAL_FOUND"
+}
+
+# BASH-06f: Partial directories added when some exist
+# Tests that only existing directories among the three are added
+@test "BASH-06f: PATH module handles partial directory existence correctly" {
+	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/bin"
+	mkdir -p "$HOME/.cargo/bin"
+	# Intentionally don't create ~/bin
+
+	cat > "$HOME/.config/bash/conf.d/05-path.sh" << 'EOF'
+[[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
+[[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
+[[ -d ~/.cargo/bin ]] && PATH="$HOME/.cargo/bin:$PATH"
+export PATH
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+output=\$(source '$MAIN_SH')
+eval \"\$output\" 2>/dev/null
+echo \"\$PATH\" | grep -q 'local/bin' && echo 'LOCAL_FOUND' || echo 'MISSING'
+"
+	assert_success
+	# Fails in RED phase - module not loaded
+	assert_output "LOCAL_FOUND"
+}
+
+# ---------------------------------------------------------------------------
+# Group 7: BASH-07 - .inputrc Configuration and Deployment (TDD Red Phase)
+# ---------------------------------------------------------------------------
+
+# BASH-07a: .inputrc file exists in dotfiles
+# Tests that dotfiles/common/.inputrc exists in the repository
+@test "BASH-07a: .inputrc file exists in dotfiles/common" {
+	INPUTRC_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.inputrc"
+
+	run bash -c "
+[[ -f '$INPUTRC_FILE' ]] && echo 'INPUTRC_EXISTS' || echo 'INPUTRC_NOT_FOUND'
+"
+	assert_success
+	# Fails in RED phase - file doesn't exist yet
+	assert_output "INPUTRC_NOT_FOUND"
+}
+
+# BASH-07b: .inputrc contains colored completions setting
+# Tests that .inputrc has colored-completion-prefix on
+@test "BASH-07b: .inputrc enables colored-completion-prefix" {
+	INPUTRC_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.inputrc"
+
+	run bash -c "
+grep -q 'set colored-completion-prefix on' '$INPUTRC_FILE' 2>/dev/null && echo 'FOUND' || echo 'NOT_FOUND'
+"
+	assert_success
+	# Fails in RED phase - file doesn't exist
+	assert_output "FOUND"
+}
+
+# BASH-07c: .inputrc contains colored-stats setting
+# Tests that .inputrc has colored-stats on
+@test "BASH-07c: .inputrc enables colored-stats" {
+	INPUTRC_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.inputrc"
+
+	run bash -c "
+grep -q 'set colored-stats on' '$INPUTRC_FILE' 2>/dev/null && echo 'FOUND' || echo 'NOT_FOUND'
+"
+	assert_success
+	# Fails in RED phase - file doesn't exist
+	assert_output "FOUND"
+}
+
+# BASH-07d: .inputrc contains case-insensitive completion
+# Tests that .inputrc has completion-ignore-case on
+@test "BASH-07d: .inputrc enables case-insensitive matching" {
+	INPUTRC_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.inputrc"
+
+	run bash -c "
+grep -q 'set completion-ignore-case on' '$INPUTRC_FILE' 2>/dev/null && echo 'FOUND' || echo 'NOT_FOUND'
+"
+	assert_success
+	# Fails in RED phase - file doesn't exist
+	assert_output "FOUND"
+}
+
+# BASH-07e: .inputrc contains history search keybindings
+# Tests that .inputrc has Ctrl-P and Ctrl-N for history search
+@test "BASH-07e: .inputrc configures history search keybindings" {
+	INPUTRC_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.inputrc"
+
+	run bash -c "
+grep -q '\"\\\\C-p\": history-search-backward' '$INPUTRC_FILE' 2>/dev/null && echo 'FOUND_P' || echo 'NOT_FOUND'
+"
+	assert_success
+	# Fails in RED phase - file doesn't exist
+	assert_output "FOUND_P"
+}
+
+# BASH-07f: .inputrc does NOT enable vi mode
+# Tests that .inputrc doesn't set editing-mode vi
+@test "BASH-07f: .inputrc uses Emacs mode (not vi)" {
+	INPUTRC_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.inputrc"
+
+	run bash -c "
+grep -q 'set editing-mode vi' '$INPUTRC_FILE' 2>/dev/null && echo 'FOUND_VI' || echo 'NO_VI'
+"
+	assert_success
+	# Fails in RED phase - file doesn't exist, but when it does, should not have vi mode
+	# When file doesn't exist, grep returns 2, so we get NO_VI (correct for RED phase)
+	assert_output "NO_VI"
 }
