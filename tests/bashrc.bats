@@ -100,6 +100,61 @@ eval \"\$output\" 2>/dev/null
 	grep -q "VALID" "$HOME/.config/bash/test-output.log"
 }
 
+# BASH-01d: main.sh handles filenames with spaces via printf %q
+@test "BASH-01d: main.sh handles filenames with spaces via printf %q" {
+	mkdir -p "$HOME/.config/bash/conf.d"
+
+	cat > "$HOME/.config/bash/conf.d/05-my conf.sh" << 'EOF'
+echo "SPACE-TEST" >> "$HOME/.config/bash/test-output.log"
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+output=\$(source '$MAIN_SH')
+eval \"\$output\" 2>/dev/null
+"
+	assert_success
+
+	assert [ -f "$HOME/.config/bash/test-output.log" ]
+	grep -q "SPACE-TEST" "$HOME/.config/bash/test-output.log"
+}
+
+# BASH-01e: main.sh handles multiple special characters in filenames
+@test "BASH-01e: main.sh handles multiple special characters in filenames" {
+	mkdir -p "$HOME/.config/bash/conf.d"
+
+	cat > "$HOME/.config/bash/conf.d/05-file'quote.sh" << 'EOF'
+echo "QUOTE" >> "$HOME/.config/bash/special-chars.log"
+EOF
+
+	cat > "$HOME/.config/bash/conf.d/10-file\$var.sh" << 'EOF'
+echo "DOLLAR" >> "$HOME/.config/bash/special-chars.log"
+EOF
+
+	cat > "$HOME/.config/bash/conf.d/15-load(1).sh" << 'EOF'
+echo "PAREN" >> "$HOME/.config/bash/special-chars.log"
+EOF
+
+	cat > "$HOME/.config/bash/conf.d/20-my test.sh" << 'EOF'
+echo "SPACE" >> "$HOME/.config/bash/special-chars.log"
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+output=\$(source '$MAIN_SH')
+eval \"\$output\" 2>/dev/null
+"
+	assert_success
+
+	assert [ -f "$HOME/.config/bash/special-chars.log" ]
+	expected_order="QUOTE
+DOLLAR
+PAREN
+SPACE"
+	actual_order=$(cat "$HOME/.config/bash/special-chars.log")
+	assert [ "$actual_order" = "$expected_order" ]
+}
+
 # ---------------------------------------------------------------------------
 # Group 2: BASH-02 - Module discovery from func.d/ (eval pattern)
 # ---------------------------------------------------------------------------
