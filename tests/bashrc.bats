@@ -497,8 +497,8 @@ eval \"\$output\" 2>&1
 # Group 5: Integration - conf.d/ and func.d/ together (eval pattern)
 # ---------------------------------------------------------------------------
 
-# BASH-05a: Both conf.d/ and func.d/ directories created if missing
-@test "BASH-05a: main.sh creates conf.d/ and func.d/ if missing" {
+# BASH-05a: main.sh runs successfully without creating directories if missing
+@test "BASH-05a: main.sh runs without errors when directories don't exist" {
 	mkdir -p "$HOME/.config/bash"
 
 	run bash -c "
@@ -508,8 +508,8 @@ eval \"\$output\" 2>/dev/null
 "
 	assert_success
 
-	assert [ -d "$HOME/.config/bash/conf.d" ]
-	assert [ -d "$HOME/.config/bash/func.d" ]
+	# Note: directories are no longer auto-created by _setup_dirs (removed in refactoring)
+	# Glob expansion with nullglob handles missing directories gracefully
 }
 
 # BASH-05b: Large number of modules loads in correct order (via eval)
