@@ -60,11 +60,20 @@ _should_log() {
 	local msg_level="$1"
 	# Map levels to numeric priority: debug=0, info=1, warn=2, error=3
 	case "${LOG_LEVEL:-info}" in
-		debug) return 0 ;;
-		info)  [[ "$msg_level" =~ ^(INFO|WARN|ERROR)$ ]] && return 0; return 1 ;;
-		warn)  [[ "$msg_level" =~ ^(WARN|ERROR)$ ]] && return 0; return 1 ;;
-		error) [[ "$msg_level" == "ERROR" ]] && return 0; return 1 ;;
-		*) return 0 ;; # fallback: show everything
+	debug) return 0 ;;
+	info)
+		[[ "$msg_level" =~ ^(INFO|WARN|ERROR)$ ]] && return 0
+		return 1
+		;;
+	warn)
+		[[ "$msg_level" =~ ^(WARN|ERROR)$ ]] && return 0
+		return 1
+		;;
+	error)
+		[[ "$msg_level" == "ERROR" ]] && return 0
+		return 1
+		;;
+	*) return 0 ;; # fallback: show everything
 	esac
 }
 
