@@ -62,6 +62,53 @@ This applies to ALL agents and all workflows:
 git check-ignore .planning/STATE.md  # Returns 0 (ignored) ✓
 ```
 
+### Code Comments Must Be in English
+
+All source code comments (inline comments, function docstrings, block comments) must be written in **English**.
+
+**Why:** This keeps the codebase accessible and maintainable across different environments and team contexts.
+
+**Example:**
+```bash
+# ✓ Good: English comment
+# Load config files in alphabetical order
+for file in "${config_dir}"/*.sh; do
+  source "$file"
+done
+
+# ✗ Bad: Japanese comment
+# 設定ファイルを英数字順にロード
+for file in "${config_dir}"/*.sh; do
+  source "$file"
+done
+```
+
+### Avoid shellcheck Disable Directives
+
+Do **NOT** use `shellcheck disable=SC####` directives to suppress warnings. Instead:
+
+1. **Fix the code** if shellcheck is correct (most cases)
+2. **Justify inline** with a clear comment explaining why the pattern is necessary (rare cases)
+3. **Use `shellcheck source=`** to help shellcheck understand included files
+
+If you find yourself wanting to disable a check, that's a sign the code pattern may need rethinking.
+
+**Example:**
+```bash
+# ✗ Avoid this:
+# shellcheck disable=SC1090
+source "$HOME/.bashrc"
+
+# ✓ Do this instead (if the warning is valid):
+# shellcheck source=~/.bashrc
+source "${HOME}/.bashrc"  # Properly quote the variable
+
+# ✓ Or justify if there's a good reason:
+# shellcheck disable=SC2086
+# Note: word splitting is intentional here for glob expansion
+eval "$modules"
+```
+
 ## Architecture
 
 This repository is a personal dotfiles deployment system for Linux, WSL, and Git Bash on Windows, built with a strict TDD workflow.
