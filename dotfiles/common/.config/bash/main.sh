@@ -17,7 +17,7 @@ _output_modules() {
 main() {
 	local output
 
-	# 1. skel fallback を最初にロード（/etc/skel/.bashrc が存在しない環境向け）
+	# 1. Load skel fallback first (for environments where /etc/skel/.bashrc does not exist)
 	# SKEL_SYSTEM allows tests to override the system skel path
 	local skel_system="${SKEL_SYSTEM:-/etc/skel/.bashrc}"
 	if [[ ! -f "${skel_system}" ]] && [[ -f "${HOME}/.config/bash/skel/.bashrc" ]]; then
@@ -25,11 +25,11 @@ main() {
 		source "${HOME}/.config/bash/skel/.bashrc" || true
 	fi
 
-	# 2. conf.d モジュールを内部 eval
+	# 2. Load conf.d modules via internal eval
 	output=$(_output_modules "${HOME}/.config/bash/conf.d")
 	eval "$output" || true
 
-	# 3. func.d モジュールを内部 eval
+	# 3. Load func.d modules via internal eval
 	output=$(_output_modules "${HOME}/.config/bash/func.d")
 	eval "$output" || true
 }
