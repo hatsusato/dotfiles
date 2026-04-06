@@ -21,6 +21,7 @@ main() {
 	# SKEL_SYSTEM allows tests to override the system skel path
 	local skel_system="${SKEL_SYSTEM:-/etc/skel/.bashrc}"
 	if [[ ! -f "${skel_system}" ]] && [[ -f "${HOME}/.config/bash/skel/.bashrc" ]]; then
+		# shellcheck source=skel/.bashrc
 		# SC1091: path uses $HOME which shellcheck cannot resolve statically; file exists at dotfiles/common/.config/bash/skel/.bashrc
 		# shellcheck disable=SC1091
 		source "${HOME}/.config/bash/skel/.bashrc" || true
