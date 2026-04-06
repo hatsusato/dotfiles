@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Note: No top-level set -euo pipefail — this file is sourced by .bashrc.
-# Strict mode runs inside the subshell invocation at the bottom to avoid
-# leaking into the caller's shell environment.
+# Modules are loaded via internal eval so effects propagate to caller's shell.
 
 _output_modules() {
 	local dir="$1"
@@ -16,16 +15,24 @@ _output_modules() {
 }
 
 main() {
-	_output_modules "${HOME}/.config/bash/conf.d"
-	_output_modules "${HOME}/.config/bash/func.d"
+	local output
 
-	# Source fallback bash_completion if /etc/skel/.bashrc not available (containers, WSL)
-	if [[ ! -f /etc/skel/.bashrc ]] && [[ -f ~/.config/bash/skel/.bashrc ]]; then
-		printf 'source %q || log_warn "Failed to source fallback bash_completion";\n' ~/.config/bash/skel/.bashrc
+	# 1. skel fallback を最初にロード（/etc/skel/.bashrc が存在しない環境向け）
+	# SKEL_SYSTEM allows tests to override the system skel path
+	local skel_system="${SKEL_SYSTEM:-/etc/skel/.bashrc}"
+	if [[ ! -f "${skel_system}" ]] && [[ -f "${HOME}/.config/bash/skel/.bashrc" ]]; then
+		# shellcheck disable=SC1090,SC1091
+		source "${HOME}/.config/bash/skel/.bashrc" || true
 	fi
+
+	# 2. conf.d モジュールを内部 eval
+	output=$(_output_modules "${HOME}/.config/bash/conf.d")
+	eval "$output" || true
+
+	# 3. func.d モジュールを内部 eval
+	output=$(_output_modules "${HOME}/.config/bash/func.d")
+	eval "$output" || true
 }
 
-(
-	set -euo pipefail
-	main
-)
+main
+unset -f main _output_modules

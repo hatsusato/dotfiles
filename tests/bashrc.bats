@@ -172,8 +172,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+source '$MAIN_SH'
 type my_func_first && type my_func_second
 "
 	assert_success
@@ -206,8 +205,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+source '$MAIN_SH'
 type valid_func
 "
 	assert_success
@@ -436,8 +434,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null || true
+source '$MAIN_SH' 2>/dev/null || true
 type func_ok 2>/dev/null && echo 'FOUND'
 "
 	assert_output --partial "FOUND"
@@ -566,13 +563,13 @@ source '$MAIN_SH' 2>&1
 # BASH-05b: Main .bashrc sources system bash_completion
 # Tests that ~/.bashrc includes bash_completion bootstrap logic
 @test "BASH-05b: .bashrc includes bash_completion bootstrap logic" {
-	BASHRC="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.bashrc"
+	MAIN_SH_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/bash/main.sh"
 
 	run bash -c "
-grep -q 'bash_completion\\|/etc/skel' '$BASHRC' && echo 'HAS_COMPLETION_LOGIC' || echo 'NO_COMPLETION_LOGIC'
+grep -q 'skel' '$MAIN_SH_FILE' && echo 'HAS_COMPLETION_LOGIC' || echo 'NO_COMPLETION_LOGIC'
 "
 	assert_success
-	# Fails in RED phase - .bashrc not yet updated with bootstrap logic
+	# GREEN phase - fallback logic is in main.sh
 	assert_output "HAS_COMPLETION_LOGIC"
 }
 
@@ -589,8 +586,8 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null || true
+export SKEL_SYSTEM='/nonexistent/skel/.bashrc'
+source '$MAIN_SH'
 [[ \"\$FALLBACK_LOADED\" == \"yes\" ]] && echo 'FALLBACK_WORKED' || echo 'FALLBACK_FAILED'
 "
 	assert_success
@@ -610,8 +607,8 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null || true
+export SKEL_SYSTEM='/nonexistent/skel/.bashrc'
+source '$MAIN_SH'
 [[ \"\$CORRECT_PATH_MARKER\" == \"yes\" ]] && echo 'CORRECT_PATH' || echo 'WRONG_PATH'
 "
 	assert_success
@@ -675,8 +672,7 @@ EOF
 	run bash -c "
 export HOME='$HOME'
 ORIGINAL_PATH=\"\$PATH\"
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+source '$MAIN_SH'
 [[ \"\$PATH\" == \"\$ORIGINAL_PATH\" ]] && echo 'PATH_NOT_MODIFIED' || echo 'PATH_MODIFIED'
 "
 	assert_success
@@ -701,8 +697,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+source '$MAIN_SH'
 echo \"\$PATH\" | cut -d: -f1 | grep -q 'local/bin' && echo 'LOCAL_BIN_FIRST' || echo 'LOCAL_BIN_NOT_FIRST'
 "
 	assert_success
