@@ -483,8 +483,7 @@ EOF
 	run bash -c "
 export HOME='$HOME'
 export LOG_LEVEL=error
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>&1
+source '$MAIN_SH' 2>&1
 "
 
 	assert_output --partial "10-bad"
@@ -541,8 +540,7 @@ EOF
 	run bash -c "
 export HOME='$HOME'
 export LOG_LEVEL=error LOG_NO_COLOR=1
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>&1
+source '$MAIN_SH' 2>&1
 "
 
 	refute_output --partial $'\033['
@@ -596,8 +594,8 @@ eval \"\$output\" 2>/dev/null || true
 [[ \"\$FALLBACK_LOADED\" == \"yes\" ]] && echo 'FALLBACK_WORKED' || echo 'FALLBACK_FAILED'
 "
 	assert_success
-	# Fails in RED phase - main.sh doesn't have fallback logic yet
-	assert_output "FALLBACK_FAILED"
+	# GREEN phase - main.sh now sources fallback directly
+	assert_output "FALLBACK_WORKED"
 }
 
 # BASH-05d: Fallback uses correct path ~/.config/bash/skel/.bashrc
@@ -617,8 +615,8 @@ eval \"\$output\" 2>/dev/null || true
 [[ \"\$CORRECT_PATH_MARKER\" == \"yes\" ]] && echo 'CORRECT_PATH' || echo 'WRONG_PATH'
 "
 	assert_success
-	# Fails in RED phase - fallback logic not implemented
-	assert_output "WRONG_PATH"
+	# GREEN phase - fallback logic now implemented
+	assert_output "CORRECT_PATH"
 }
 
 # BASH-05e: Fallback is non-blocking (uses || pattern)
