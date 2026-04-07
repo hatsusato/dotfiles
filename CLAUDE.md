@@ -184,6 +184,15 @@ Before reaching for `--external-sources`, try these structural fixes first:
 
 This repository is a personal dotfiles deployment system for Linux, WSL, and Git Bash on Windows, built with a strict TDD workflow.
 
+### Tech Stack
+
+**Deployment infrastructure (bootstrap.sh, deploy.sh, lib/*.sh):** Bash only (no external dependencies)
+- Rationale: Must run on minimal Linux/WSL/Git Bash without assuming external tools
+
+**Deployed artifacts (.local/bin/, .config/bash/):** Python 3.7+ or Bash allowed (no external dependencies)
+- Rationale: Tools that run *after* deployment can use Python standard library for better maintainability
+- Example: `trash` command implemented in Python instead of Bash for improved code clarity
+
 ### TDD Methodology
 
 Commits follow Red → Green cycles: tests are written first (failing), then implementation is added to make them pass. When adding features, write the BATS test first.
@@ -196,7 +205,7 @@ Commit message convention: `type(phase-step): description (TEST-ID)`
 
 **`lib/env-detect.sh`** — Environment detection utility. Detects `ENV_TYPE` (wsl/gitbash/linux), `PACKAGE_MANAGER` (apt/dnf/pacman/scoop), and `HAS_SUDO` (true/false). Outputs bash `declare` statements suitable for sourcing. WSL detection checks `uname -r` and `/proc/version` for "microsoft" and takes priority over Git Bash detection.
 
-**`dotfiles/`** — Seed config files organized by OS: `common/` (git config), `linux/`, `wsl/`, `gitbash/`. Deployment logic (symlinking/copying to `$HOME`) is not yet implemented — the `Makefile` with `make deploy` target is still pending.
+**`dotfiles/`** — Seed config files organized by OS: `common/` (git config), `linux/`, `wsl/`, `gitbash/`. Includes deployed tools in `.local/bin/` (e.g., `trash` command) and shell config modules in `.config/bash/`. Deployment logic (symlinking/copying to `$HOME`) is not yet implemented — the `Makefile` with `make deploy` target is still pending.
 
 **`tests/`** — BATS test suite. `bootstrap.bats` (8 tests, IDs BOOT-01–BOOT-08) and `env-detect.bats` (15 tests, IDs OSDT-01–OSDT-05). Tests use isolated `BATS_TEST_TMPDIR` with fake binaries to mock system tools without modifying the real system.
 
