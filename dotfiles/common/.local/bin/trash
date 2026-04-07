@@ -1,0 +1,322 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# trash — Safe file/directory deletion with recovery backup
+# Moves files to ~/.trash/ (configurable via $TRASH_DIR) and records metadata
+
+TRASH_DIR="${TRASH_DIR:-${HOME}/.trash}"
+
+# Source logging library from canonical location
+# Get the project root directory (4 levels up from dotfiles/common/.local/bin/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+# shellcheck source=dotfiles/common/.local/lib/logging.sh
+source "${SCRIPT_DIR}/dotfiles/common/.local/lib/logging.sh" || true
+set_log_prefix "trash"
+
+# Exit codes
+readonly EXIT_SUCCESS=0
+readonly EXIT_FAILURE=1
+
+# Flags (set by argument parsing)
+_flag_recursive=false
+_flag_verbose=false
+_flag_force=false
+_flag_help=false
+
+# Track if any errors occurred (for exit code decision)
+_had_error=false
+
+# Array to collect files to trash (after argument parsing)
+_files_to_trash=()
+
+# Function 1: _print_help()
+# Display usage line, examples, and recovery note to stderr
+_print_help() {
+	cat >&2 <<'EOF'
+Usage: trash [-r] [-v] [-f] [-h] FILE...
+
+Options:
+  -r, --recursive    Delete directories recursively (compress with tar)
+  -v, --verbose      Show each deleted file and its hash
+  -f, --force        Ignore nonexistent files and continue on error
+  -h, --help         Display this help message
+
+Examples:
+  trash file1.txt
+  trash file1 file2 directory/
+  trash -r important_dir/
+  trash -v -r backup.tar.gz
+  trash -f old_nonexistent_file
+
+Note: Files are moved to ~/.trash for recovery.
+EOF
+}
+
+# Function 2: _error(message)
+# Print error message to stderr using log_error
+_error() {
+	log_error "${1}"
+}
+
+# Function 3: _hash_file(file)
+# Compute sha256 hash of file
+# Output: hash string (no filename)
+# Return 0 on success, 1 on error
+_hash_file() {
+	local file="${1}"
+	sha256sum "${file}" | awk '{print $1}' || return 1
+}
+
+# Function 4: _tar_and_hash_dir(directory)
+# Create tar archive of directory in /tmp (via mktemp)
+# Compute hash of archive
+# Output: hash string
+# Clean up temp tar file
+# Return 0 on success, 1 on error
+_tar_and_hash_dir() {
+	local dir="${1}"
+	local tmp_tar
+	tmp_tar=$(mktemp --suffix=.tar)
+
+	# Create tar archive
+	if ! tar -cf "${tmp_tar}" -C "$(dirname "${dir}")" "$(basename "${dir}")" 2>/dev/null; then
+		rm -f "${tmp_tar}"
+		return 1
+	fi
+
+	# Compute hash and output
+	local hash
+	hash=$(_hash_file "${tmp_tar}") || { rm -f "${tmp_tar}"; return 1; }
+
+	echo "${hash}"
+
+	# Don't clean up yet; caller needs to move the tar
+	return 0
+}
+
+# Function 5: _trash_file(file, is_directory)
+# Check if file exists (unless _flag_force=true)
+# Check if directory without -r flag
+# Refuse to trash . or /
+# Compute hash
+# Create TRASH_DIR if absent
+# Move file to TRASH_DIR/{hash}
+# Record metadata in JSON Lines format
+# Output verbose message if _flag_verbose=true
+# Return 0 on success, 1 on error
+_trash_file() {
+	local file="${1}"
+	local is_directory="${2}"
+
+	# Check if file exists
+	if [[ ! -e "${file}" ]]; then
+		if [[ "${_flag_force}" == "false" ]]; then
+			_error "Cannot trash '${file}': No such file or directory"
+			return 1
+		else
+			# Force flag: silently ignore nonexistent
+			return 0
+		fi
+	fi
+
+	# Refuse to trash . or /
+	local abs_file
+	abs_file="$(cd "$(dirname "${file}")" && pwd)/$(basename "${file}")" 2>/dev/null || abs_file="${file}"
+	if [[ "${abs_file}" == "/" ]] || [[ "${abs_file}" == "${HOME}" ]] || [[ "${abs_file}" == "." ]]; then
+		_error "Refusing to trash '${file}' (system directory)"
+		return 1
+	fi
+
+	# Check directory without -r
+	if [[ "${is_directory}" == "true" ]] && [[ "${_flag_recursive}" == "false" ]]; then
+		_error "Cannot trash directory '${file}': use -r flag"
+		return 1
+	fi
+
+	# Compute hash (and create tar if directory)
+	local hash
+	local tmp_tar=""
+	local tmp_symlink_file=""
+
+	if [[ "${is_directory}" == "true" ]]; then
+		# Create and hash tar archive
+		tmp_tar=$(mktemp --suffix=.tar)
+		if ! tar -cf "${tmp_tar}" -C "$(dirname "${file}")" "$(basename "${file}")" 2>/dev/null; then
+			rm -f "${tmp_tar}"
+			_error "Failed to compress directory '${file}'"
+			_had_error=true
+			return 1
+		fi
+		if ! hash=$(_hash_file "${tmp_tar}"); then
+			rm -f "${tmp_tar}"
+			_error "Failed to hash directory archive"
+			_had_error=true
+			return 1
+		fi
+	elif [[ -L "${file}" ]]; then
+		# Symlink: convert to regular file with target path as content
+		tmp_symlink_file=$(mktemp)
+		if ! readlink "${file}" > "${tmp_symlink_file}"; then
+			rm -f "${tmp_symlink_file}"
+			_error "Failed to read symlink '${file}'"
+			_had_error=true
+			return 1
+		fi
+		if ! hash=$(_hash_file "${tmp_symlink_file}"); then
+			rm -f "${tmp_symlink_file}"
+			_error "Failed to hash symlink '${file}'"
+			_had_error=true
+			return 1
+		fi
+	else
+		# Regular file: compute hash
+		if ! hash=$(_hash_file "${file}"); then
+			_error "Failed to hash file '${file}'"
+			_had_error=true
+			return 1
+		fi
+	fi
+
+	# Create TRASH_DIR if absent
+	mkdir -p "${TRASH_DIR}" || {
+		_error "Failed to create trash directory"
+		_had_error=true
+		[[ -n "${tmp_tar}" ]] && rm -f "${tmp_tar}"
+		return 1
+	}
+
+	# Move to trash
+	local trash_path="${TRASH_DIR}/${hash}"
+	if [[ "${is_directory}" == "true" ]]; then
+		if ! mv "${tmp_tar}" "${trash_path}"; then
+			_error "Failed to move archive to trash"
+			_had_error=true
+			rm -f "${tmp_tar}"
+			return 1
+		fi
+		# Remove the original directory after successfully backing up its tar
+		if ! rm -rf "${file}"; then
+			_error "Failed to remove original directory '${file}' after backup"
+			_had_error=true
+			return 1
+		fi
+	elif [[ -n "${tmp_symlink_file}" ]]; then
+		# Symlink: move the converted file to trash
+		if ! mv "${tmp_symlink_file}" "${trash_path}"; then
+			_error "Failed to move symlink to trash"
+			_had_error=true
+			rm -f "${tmp_symlink_file}"
+			return 1
+		fi
+		# Remove the original symlink
+		if ! rm -f "${file}"; then
+			_error "Failed to remove original symlink '${file}' after backup"
+			_had_error=true
+			return 1
+		fi
+	else
+		if ! mv "${file}" "${trash_path}"; then
+			_error "Failed to move file '${file}' to trash"
+			_had_error=true
+			return 1
+		fi
+	fi
+
+	# Record metadata (JSON Lines)
+	local abs_path
+	abs_path="$(cd "$(dirname "${file}")" 2>/dev/null && pwd)/$(basename "${file}")" || abs_path="${file}"
+
+	local date_iso
+	date_iso=$(date -u '+%Y-%m-%dT%H:%M:%S')
+
+	local entry_type="file"
+	[[ "${is_directory}" == "true" ]] && entry_type="dir"
+
+	if ! printf '{"hash":"%s","path":"%s","type":"%s","date":"%s"}\n' \
+		"${hash}" "${abs_path}" "${entry_type}" "${date_iso}" >>"${TRASH_DIR}/metadata.jsonl"; then
+		_error "Failed to record metadata"
+		_had_error=true
+		return 1
+	fi
+
+	# Verbose output
+	if [[ "${_flag_verbose}" == "true" ]]; then
+		printf 'Trashed: %s [hash: %s]\n' "${abs_path}" "${hash}" >&2
+	fi
+
+	return 0
+}
+
+# Argument Parsing
+_parse_args() {
+	while [[ $# -gt 0 ]]; do
+		case "${1}" in
+		-r | --recursive)
+			_flag_recursive=true
+			shift
+			;;
+		-v | --verbose)
+			_flag_verbose=true
+			shift
+			;;
+		-f | --force)
+			_flag_force=true
+			shift
+			;;
+		-h | --help)
+			_flag_help=true
+			shift
+			;;
+		-*)
+			_error "Unknown option: ${1}"
+			_print_help
+			exit "${EXIT_FAILURE}"
+			;;
+		*)
+			_files_to_trash+=("${1}")
+			shift
+			;;
+		esac
+	done
+}
+
+# Main Function
+main() {
+	_parse_args "$@"
+
+	# Handle help flag
+	if [[ "${_flag_help}" == "true" ]]; then
+		_print_help
+		return "${EXIT_SUCCESS}"
+	fi
+
+	# Check if files provided
+	if [[ ${#_files_to_trash[@]} -eq 0 ]]; then
+		_error "Missing file arguments"
+		_print_help
+		return "${EXIT_FAILURE}"
+	fi
+
+	# Trash each file
+	for file in "${_files_to_trash[@]}"; do
+		local is_dir="false"
+		# Symlinks should not be treated as directories, even if they point to directories
+		if [[ -d "${file}" ]] && [[ ! -L "${file}" ]]; then
+			is_dir="true"
+		fi
+
+		if ! _trash_file "${file}" "${is_dir}"; then
+			_had_error=true
+		fi
+		# Continue on error (per D-08)
+	done
+
+	# Return exit code based on whether errors occurred
+	if [[ "${_had_error}" == "true" ]]; then
+		return "${EXIT_FAILURE}"
+	else
+		return "${EXIT_SUCCESS}"
+	fi
+}
+
+main "$@"
