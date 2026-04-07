@@ -123,9 +123,11 @@ def _record_metadata(
     Raises:
         RuntimeError: If metadata cannot be written
     """
+    # For metadata, store absolute path without following symlinks
+    abs_path = original_path if original_path.is_absolute() else Path.cwd() / original_path
     metadata_entry = {
         "hash": hash_value,
-        "path": str(original_path.resolve()),
+        "path": str(abs_path),
         "type": "dir" if is_directory else "file",
         "date": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S')
     }
@@ -133,7 +135,7 @@ def _record_metadata(
     metadata_path = trash_dir / "metadata.jsonl"
     try:
         with open(metadata_path, 'a') as f:
-            json.dump(metadata_entry, f, ensure_ascii=False)
+            json.dump(metadata_entry, f, ensure_ascii=False, separators=(',', ':'))
             f.write('\n')
     except (IOError, PermissionError) as e:
         raise RuntimeError(f"Failed to record metadata: {e}")
@@ -159,9 +161,12 @@ def _trash_file(
         True on success, False on error
     """
     try:
-        file_path = file_path.resolve()
+        # Make path absolute WITHOUT following symlinks
+        # (Path.resolve() follows symlinks, so we do it manually)
+        if not file_path.is_absolute():
+            file_path = Path.cwd() / file_path
 
-        # Check if file exists
+        # Check if file exists (before checking symlink, in case symlink points to nonexistent)
         if not file_path.exists() and not file_path.is_symlink():
             if not force:
                 print(f"Error trashing {file_path}: No such file or directory", file=sys.stderr)
@@ -170,8 +175,9 @@ def _trash_file(
                 # Force flag: silently ignore nonexistent
                 return True
 
-        # Refuse to trash dangerous paths
-        if file_path == Path('/') or file_path == Path.home() or file_path == Path('.'):
+        # Refuse to trash dangerous paths (use absolute path for comparison)
+        abs_path = file_path.resolve() if file_path.exists() or not file_path.is_symlink() else file_path
+        if abs_path == Path('/') or abs_path == Path.home() or abs_path == Path('.'):
             print(f"Error trashing {file_path}: Cannot trash system directory", file=sys.stderr)
             return False
 
@@ -181,8 +187,9 @@ def _trash_file(
         # Compute hash and prepare file for moving
         hash_value: str
         tar_path: Optional[Path] = None
+        is_symlink = file_path.is_symlink()
 
-        if file_path.is_symlink():
+        if is_symlink:
             # Symlink: read target and hash it as a regular file
             try:
                 symlink_target = file_path.readlink()
@@ -193,8 +200,8 @@ def _trash_file(
                 tmp_file.close()
 
                 hash_value = _hash_file(tmp_path)
-                # We'll move tmp_path to trash
-                tar_path = tmp_path  # Repurpose variable name for clarity
+                # We'll move tmp_path to trash (and delete the symlink separately)
+                tar_path = tmp_path
             except Exception as e:
                 print(f"Error trashing {file_path}: Failed to read symlink: {e}", file=sys.stderr)
                 return False
@@ -225,7 +232,7 @@ def _trash_file(
         # Move to trash
         trash_path = trash_dir / hash_value
         try:
-            if tar_path and tar_path != file_path:
+            if tar_path:
                 # Moving a temporary file (symlink or tar)
                 shutil.move(str(tar_path), str(trash_path))
             else:
@@ -233,21 +240,23 @@ def _trash_file(
                 shutil.move(str(file_path), str(trash_path))
         except (OSError, PermissionError) as e:
             print(f"Error trashing {file_path}: Failed to move to trash: {e}", file=sys.stderr)
-            if tar_path and tar_path != file_path:
+            if tar_path:
                 tar_path.unlink(missing_ok=True)
             return False
 
         # Remove original file if not already moved
-        if is_directory:
-            try:
-                shutil.rmtree(file_path)
-            except Exception:
-                pass  # Already removed by move or doesn't exist
-        elif file_path.is_symlink():
+        if is_symlink:
+            # For symlinks, we moved a temp file to trash, but the original symlink is still here
             try:
                 file_path.unlink()
             except Exception:
                 pass  # Already removed
+        elif is_directory:
+            # For directories, we moved a tar to trash, but the original dir is still here
+            try:
+                shutil.rmtree(file_path)
+            except Exception:
+                pass  # Already removed by move or doesn't exist
 
         # Record metadata
         try:
