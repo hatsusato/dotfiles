@@ -25,7 +25,7 @@ fi
 # Sets the LOG_PREFIX used by all log_* functions.
 # Callers use this instead of assigning LOG_PREFIX directly (avoids SC2034).
 set_log_prefix() {
-	LOG_PREFIX="$1"
+	LOG_PREFIX="${1}"
 }
 
 # _log_format LEVEL COLOR MESSAGE
