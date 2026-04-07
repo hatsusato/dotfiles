@@ -7,11 +7,15 @@ SHELL_FILES := $(shell git ls-files -- '*.sh' '*.bashrc' ':!tests/bats/*' ':!*/s
 # Discover deployable dotfiles from git
 DOTFILES_FILES := $(shell git ls-files 'dotfiles/*')
 
+# Discover deployable directories from git
+DOTFILES_DIRS := $(shell git ls-tree -d --name-only HEAD:dotfiles/)
+
 # Phony targets
 .PHONY: help lint lint-strict deploy
 .PHONY: $(SHELL_FILES:%=lint/%)
 .PHONY: $(SHELL_FILES:%=lint-strict/%)
 .PHONY: $(DOTFILES_FILES:dotfiles/%=deploy/%)
+.PHONY: $(DOTFILES_DIRS:%=deploy/%)
 
 # Help target
 help:
@@ -40,8 +44,12 @@ $(SHELL_FILES:%=lint-strict/%): lint-strict/%: %
 lint: $(SHELL_FILES:%=lint/%)
 lint-strict: $(SHELL_FILES:%=lint-strict/%)
 
-# Deployment targets
+# Deployment targets - file level
 $(DOTFILES_FILES:dotfiles/%=deploy/%): deploy/%:
+	./deploy.sh $*
+
+# Deployment targets - directory level
+$(DOTFILES_DIRS:%=deploy/%): deploy/%:
 	./deploy.sh $*
 
 # Default deployment
