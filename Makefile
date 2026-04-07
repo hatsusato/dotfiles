@@ -8,8 +8,8 @@
 #   make lint-strict/FILE.sh       → Strict lint specific file (with completion support)
 #   make help                      → Display available targets
 
-# Dynamically discover all shell files from git, excluding vendored tests/bats/ directory
-SHELL_FILES := $(shell git ls-files '*.sh' '*.bashrc' | grep -v 'tests/bats/')
+# Dynamically discover all shell files from git, excluding vendored tests/bats/ and skel/ (system fallback)
+SHELL_FILES := $(shell git ls-files '*.sh' '*.bashrc' | grep -v 'tests/bats/' | grep -v 'skel/')
 
 # Static phony targets for shell completion (lint/bootstrap.sh, lint/deploy.sh, ...)
 LINT_FILE_TARGETS := $(addprefix lint/,$(SHELL_FILES))
@@ -19,7 +19,7 @@ LINT_FILE_TARGETS := $(addprefix lint/,$(SHELL_FILES))
 LINT_STRICT_FILE_TARGETS := $(addprefix lint-strict/,$(SHELL_FILES))
 .PHONY: $(LINT_STRICT_FILE_TARGETS)
 
-.PHONY: deploy help
+.PHONY: deploy lint lint-strict help
 
 deploy:
 	./deploy.sh
@@ -34,9 +34,17 @@ $(LINT_FILE_TARGETS):
 $(LINT_STRICT_FILE_TARGETS):
 	shellcheck --enable=all --shell=bash --external-sources $(subst lint-strict/,,$@)
 
+# lint: Check all shell files with shellcheck (baseline; no --external-sources)
+lint: $(LINT_FILE_TARGETS)
+
+# lint-strict: Check all shell files with shellcheck and --external-sources
+lint-strict: $(LINT_STRICT_FILE_TARGETS)
+
 # help: Display available targets and usage patterns
 help:
 	@echo "Available targets:"
+	@echo "  make lint              — Lint all shell files (baseline)"
+	@echo "  make lint-strict       — Lint all shell files with --external-sources"
 	@echo "  make lint/FILE.sh      — Lint specific file (with completion support)"
 	@echo "  make lint-strict/FILE.sh — Strict lint specific file (with completion support)"
 	@echo ""
