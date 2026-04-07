@@ -21,56 +21,63 @@ else
 	COLOR_RESET=$'\033[0m'
 fi
 
+# set_log_prefix PREFIX
+# Sets the LOG_PREFIX used by all log_* functions.
+# Callers use this instead of assigning LOG_PREFIX directly (avoids SC2034).
+set_log_prefix() {
+	LOG_PREFIX="$1"
+}
+
 # _log_format LEVEL COLOR MESSAGE
 # Formats a log message with timestamp, level (with optional color), prefix, and message according to LOG_FORMAT
 _log_format() {
-	local level="$1" color="$2" message="$3"
+	local level="${1}" color="${2}" message="${3}"
 	local timestamp
 	timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
 	local output="${LOG_FORMAT}"
 
 	# Replace placeholders - brackets come from the format string itself
-	output="${output//%timestamp%/$timestamp}"
+	output="${output//%timestamp%/${timestamp}}"
 
 	# For level: if color is provided, wrap the entire [LEVEL] in color
-	local level_bracket="[$level]"
-	if [[ -n "$color" ]]; then
+	local level_bracket="[${level}]"
+	if [[ -n "${color}" ]]; then
 		level_bracket="${color}${level_bracket}${COLOR_RESET}"
 	fi
-	output="${output//%level%/$level_bracket}"
+	output="${output//%level%/${level_bracket}}"
 
 	# Replace prefix (brackets come from format)
-	output="${output//%prefix%/$LOG_PREFIX}"
+	output="${output//%prefix%/${LOG_PREFIX}}"
 
 	# Replace message
-	output="${output//%message%/$message}"
+	output="${output//%message%/${message}}"
 
 	# If prefix is empty, remove "[PREFIX]" and extra spaces from output
-	if [[ -z "$LOG_PREFIX" ]]; then
+	if [[ -z "${LOG_PREFIX}" ]]; then
 		output="${output// \[\] /}"
 	fi
 
-	echo "$output"
+	echo "${output}"
 }
 
 # _should_log LEVEL
 # Returns 0 if the message should be logged, 1 otherwise (based on LOG_LEVEL only)
 _should_log() {
-	local msg_level="$1"
+	local msg_level="${1}"
 	# Map levels to numeric priority: debug=0, info=1, warn=2, error=3
 	case "${LOG_LEVEL:-info}" in
 	debug) return 0 ;;
 	info)
-		[[ "$msg_level" =~ ^(INFO|WARN|ERROR)$ ]] && return 0
+		[[ "${msg_level}" =~ ^(INFO|WARN|ERROR)$ ]] && return 0
 		return 1
 		;;
 	warn)
-		[[ "$msg_level" =~ ^(WARN|ERROR)$ ]] && return 0
+		[[ "${msg_level}" =~ ^(WARN|ERROR)$ ]] && return 0
 		return 1
 		;;
 	error)
-		[[ "$msg_level" == "ERROR" ]] && return 0
+		[[ "${msg_level}" == "ERROR" ]] && return 0
 		return 1
 		;;
 	*) return 0 ;; # fallback: show everything
@@ -80,26 +87,38 @@ _should_log() {
 # log_debug MESSAGE
 # Outputs a debug message (lowest priority) to stderr when LOG_LEVEL=debug
 log_debug() {
-	_should_log "DEBUG" || return 0
-	_log_format "DEBUG" "$COLOR_GRAY" "$1" >&2
+	_should_log "DEBUG"
+	local _ret=$?
+	if [[ ${_ret} -ne 0 ]]; then
+		return 0
+	fi
+	_log_format "DEBUG" "${COLOR_GRAY}" "${1}" >&2
 }
 
 # log_info MESSAGE
 # Outputs an info message to stderr when LOG_LEVEL=debug or info
 log_info() {
-	_should_log "INFO" || return 0
-	_log_format "INFO" "$COLOR_CYAN" "$1" >&2
+	_should_log "INFO"
+	local _ret=$?
+	if [[ ${_ret} -ne 0 ]]; then
+		return 0
+	fi
+	_log_format "INFO" "${COLOR_CYAN}" "${1}" >&2
 }
 
 # log_warn MESSAGE
 # Outputs a warning message to stderr when LOG_LEVEL=debug, info, or warn
 log_warn() {
-	_should_log "WARN" || return 0
-	_log_format "WARN" "$COLOR_YELLOW" "$1" >&2
+	_should_log "WARN"
+	local _ret=$?
+	if [[ ${_ret} -ne 0 ]]; then
+		return 0
+	fi
+	_log_format "WARN" "${COLOR_YELLOW}" "${1}" >&2
 }
 
 # log_error MESSAGE
 # Outputs an error message (highest priority) to stderr always
 log_error() {
-	_log_format "ERROR" "$COLOR_RED" "$1" >&2
+	_log_format "ERROR" "${COLOR_RED}" "${1}" >&2
 }
