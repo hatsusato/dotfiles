@@ -1,38 +1,31 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env python3
+"""trash — Safe file and directory deletion via backup location.
 
-# trash — Safe file/directory deletion with recovery backup
-# Moves files to ~/.trash/ (configurable via $TRASH_DIR) and records metadata
+Moves files and directories to ~/.trash/ (configurable via TRASH_DIR environment
+variable) and records metadata about each operation in JSON Lines format for recovery.
+"""
 
-TRASH_DIR="${TRASH_DIR:-${HOME}/.trash}"
+import sys
+import argparse
+import json
+import os
+from pathlib import Path
+from datetime import datetime, timezone
+from typing import Optional
+import tempfile
+import subprocess
+import hashlib
+import shutil
 
-# Source logging library from canonical location
-# Get the project root directory (4 levels up from dotfiles/common/.local/bin/)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
-# shellcheck source=dotfiles/common/.local/lib/logging.sh
-source "${SCRIPT_DIR}/dotfiles/common/.local/lib/logging.sh" || true
-set_log_prefix "trash"
+# Constants
+DEFAULT_TRASH_DIR = Path.home() / ".trash"
+EXIT_SUCCESS = 0
+EXIT_FAILURE = 1
 
-# Exit codes
-readonly EXIT_SUCCESS=0
-readonly EXIT_FAILURE=1
 
-# Flags (set by argument parsing)
-_flag_recursive=false
-_flag_verbose=false
-_flag_force=false
-_flag_help=false
-
-# Track if any errors occurred (for exit code decision)
-_had_error=false
-
-# Array to collect files to trash (after argument parsing)
-_files_to_trash=()
-
-# Function 1: _print_help()
-# Display usage line, examples, and recovery note to stderr
-_print_help() {
-	cat >&2 <<'EOF'
+def _print_help() -> None:
+    """Display usage, options, examples, and recovery note to stderr."""
+    help_text = """\
 Usage: trash [-r] [-v] [-f] [-h] FILE...
 
 Options:
@@ -49,274 +42,312 @@ Examples:
   trash -f old_nonexistent_file
 
 Note: Files are moved to ~/.trash for recovery.
-EOF
-}
+"""
+    print(help_text, file=sys.stderr, end='')
 
-# Function 2: _error(message)
-# Print error message to stderr using log_error
-_error() {
-	log_error "${1}"
-}
 
-# Function 3: _hash_file(file)
-# Compute sha256 hash of file
-# Output: hash string (no filename)
-# Return 0 on success, 1 on error
-_hash_file() {
-	local file="${1}"
-	sha256sum "${file}" | awk '{print $1}' || return 1
-}
+def _hash_file(path: Path) -> str:
+    """Compute SHA256 hash of file in 8KB chunks.
 
-# Function 4: _tar_and_hash_dir(directory)
-# Create tar archive of directory in /tmp (via mktemp)
-# Compute hash of archive
-# Output: hash string
-# Clean up temp tar file
-# Return 0 on success, 1 on error
-_tar_and_hash_dir() {
-	local dir="${1}"
-	local tmp_tar
-	tmp_tar=$(mktemp --suffix=.tar)
+    Args:
+        path: Path to file to hash
 
-	# Create tar archive
-	if ! tar -cf "${tmp_tar}" -C "$(dirname "${dir}")" "$(basename "${dir}")" 2>/dev/null; then
-		rm -f "${tmp_tar}"
-		return 1
-	fi
+    Returns:
+        Hexadecimal hash string (no filename)
 
-	# Compute hash and output
-	local hash
-	hash=$(_hash_file "${tmp_tar}") || { rm -f "${tmp_tar}"; return 1; }
+    Raises:
+        RuntimeError: If file cannot be read
+    """
+    sha256 = hashlib.sha256()
+    try:
+        with open(path, 'rb') as f:
+            for chunk in iter(lambda: f.read(8192), b''):
+                sha256.update(chunk)
+        return sha256.hexdigest()
+    except (FileNotFoundError, PermissionError, IOError) as e:
+        raise RuntimeError(f"Failed to hash file: {e}")
 
-	echo "${hash}"
 
-	# Don't clean up yet; caller needs to move the tar
-	return 0
-}
+def _tar_and_hash_dir(dir_path: Path, temp_dir: Path) -> tuple[str, Path]:
+    """Create uncompressed tar archive of directory, then hash it.
 
-# Function 5: _trash_file(file, is_directory)
-# Check if file exists (unless _flag_force=true)
-# Check if directory without -r flag
-# Refuse to trash . or /
-# Compute hash
-# Create TRASH_DIR if absent
-# Move file to TRASH_DIR/{hash}
-# Record metadata in JSON Lines format
-# Output verbose message if _flag_verbose=true
-# Return 0 on success, 1 on error
-_trash_file() {
-	local file="${1}"
-	local is_directory="${2}"
+    Args:
+        dir_path: Path to directory to tar
+        temp_dir: Temporary directory for tar file
 
-	# Check if file exists
-	if [[ ! -e "${file}" ]]; then
-		if [[ "${_flag_force}" == "false" ]]; then
-			_error "Cannot trash '${file}': No such file or directory"
-			return 1
-		else
-			# Force flag: silently ignore nonexistent
-			return 0
-		fi
-	fi
+    Returns:
+        Tuple of (hash_value, tar_path)
 
-	# Refuse to trash . or /
-	local abs_file
-	abs_file="$(cd "$(dirname "${file}")" && pwd)/$(basename "${file}")" 2>/dev/null || abs_file="${file}"
-	if [[ "${abs_file}" == "/" ]] || [[ "${abs_file}" == "${HOME}" ]] || [[ "${abs_file}" == "." ]]; then
-		_error "Refusing to trash '${file}' (system directory)"
-		return 1
-	fi
+    Raises:
+        RuntimeError: If tar creation or hashing fails
+    """
+    # Create temporary tar file
+    tar_file = tempfile.NamedTemporaryFile(suffix='.tar', dir=temp_dir, delete=False)
+    tar_path = Path(tar_file.name)
+    tar_file.close()
 
-	# Check directory without -r
-	if [[ "${is_directory}" == "true" ]] && [[ "${_flag_recursive}" == "false" ]]; then
-		_error "Cannot trash directory '${file}': use -r flag"
-		return 1
-	fi
+    try:
+        # Create uncompressed tar (matches bash: tar -cf)
+        subprocess.run(
+            ['tar', '-cf', str(tar_path), '-C', str(dir_path.parent), dir_path.name],
+            check=True,
+            capture_output=True,
+            text=False
+        )
 
-	# Compute hash (and create tar if directory)
-	local hash
-	local tmp_tar=""
-	local tmp_symlink_file=""
+        # Hash the tar archive
+        hash_value = _hash_file(tar_path)
+        return hash_value, tar_path
+    except subprocess.CalledProcessError as e:
+        tar_path.unlink(missing_ok=True)
+        raise RuntimeError(f"Failed to compress directory: {e}")
+    except Exception as e:
+        tar_path.unlink(missing_ok=True)
+        raise
 
-	if [[ "${is_directory}" == "true" ]]; then
-		# Create and hash tar archive
-		tmp_tar=$(mktemp --suffix=.tar)
-		if ! tar -cf "${tmp_tar}" -C "$(dirname "${file}")" "$(basename "${file}")" 2>/dev/null; then
-			rm -f "${tmp_tar}"
-			_error "Failed to compress directory '${file}'"
-			_had_error=true
-			return 1
-		fi
-		if ! hash=$(_hash_file "${tmp_tar}"); then
-			rm -f "${tmp_tar}"
-			_error "Failed to hash directory archive"
-			_had_error=true
-			return 1
-		fi
-	elif [[ -L "${file}" ]]; then
-		# Symlink: convert to regular file with target path as content
-		tmp_symlink_file=$(mktemp)
-		if ! readlink "${file}" > "${tmp_symlink_file}"; then
-			rm -f "${tmp_symlink_file}"
-			_error "Failed to read symlink '${file}'"
-			_had_error=true
-			return 1
-		fi
-		if ! hash=$(_hash_file "${tmp_symlink_file}"); then
-			rm -f "${tmp_symlink_file}"
-			_error "Failed to hash symlink '${file}'"
-			_had_error=true
-			return 1
-		fi
-	else
-		# Regular file: compute hash
-		if ! hash=$(_hash_file "${file}"); then
-			_error "Failed to hash file '${file}'"
-			_had_error=true
-			return 1
-		fi
-	fi
 
-	# Create TRASH_DIR if absent
-	mkdir -p "${TRASH_DIR}" || {
-		_error "Failed to create trash directory"
-		_had_error=true
-		[[ -n "${tmp_tar}" ]] && rm -f "${tmp_tar}"
-		return 1
-	}
+def _record_metadata(
+    trash_dir: Path,
+    hash_value: str,
+    original_path: Path,
+    is_directory: bool
+) -> None:
+    """Append metadata entry to metadata.jsonl (JSON Lines format).
 
-	# Move to trash
-	local trash_path="${TRASH_DIR}/${hash}"
-	if [[ "${is_directory}" == "true" ]]; then
-		if ! mv "${tmp_tar}" "${trash_path}"; then
-			_error "Failed to move archive to trash"
-			_had_error=true
-			rm -f "${tmp_tar}"
-			return 1
-		fi
-		# Remove the original directory after successfully backing up its tar
-		if ! rm -rf "${file}"; then
-			_error "Failed to remove original directory '${file}' after backup"
-			_had_error=true
-			return 1
-		fi
-	elif [[ -n "${tmp_symlink_file}" ]]; then
-		# Symlink: move the converted file to trash
-		if ! mv "${tmp_symlink_file}" "${trash_path}"; then
-			_error "Failed to move symlink to trash"
-			_had_error=true
-			rm -f "${tmp_symlink_file}"
-			return 1
-		fi
-		# Remove the original symlink
-		if ! rm -f "${file}"; then
-			_error "Failed to remove original symlink '${file}' after backup"
-			_had_error=true
-			return 1
-		fi
-	else
-		if ! mv "${file}" "${trash_path}"; then
-			_error "Failed to move file '${file}' to trash"
-			_had_error=true
-			return 1
-		fi
-	fi
+    Args:
+        trash_dir: Path to trash directory
+        hash_value: SHA256 hash of file/archive
+        original_path: Original absolute path (should be resolved)
+        is_directory: True if this was a directory
 
-	# Record metadata (JSON Lines)
-	local abs_path
-	abs_path="$(cd "$(dirname "${file}")" 2>/dev/null && pwd)/$(basename "${file}")" || abs_path="${file}"
+    Raises:
+        RuntimeError: If metadata cannot be written
+    """
+    metadata_entry = {
+        "hash": hash_value,
+        "path": str(original_path.resolve()),
+        "type": "dir" if is_directory else "file",
+        "date": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S')
+    }
 
-	local date_iso
-	date_iso=$(date -u '+%Y-%m-%dT%H:%M:%S')
+    metadata_path = trash_dir / "metadata.jsonl"
+    try:
+        with open(metadata_path, 'a') as f:
+            json.dump(metadata_entry, f, ensure_ascii=False)
+            f.write('\n')
+    except (IOError, PermissionError) as e:
+        raise RuntimeError(f"Failed to record metadata: {e}")
 
-	local entry_type="file"
-	[[ "${is_directory}" == "true" ]] && entry_type="dir"
 
-	if ! printf '{"hash":"%s","path":"%s","type":"%s","date":"%s"}\n' \
-		"${hash}" "${abs_path}" "${entry_type}" "${date_iso}" >>"${TRASH_DIR}/metadata.jsonl"; then
-		_error "Failed to record metadata"
-		_had_error=true
-		return 1
-	fi
+def _trash_file(
+    file_path: Path,
+    trash_dir: Path,
+    is_directory: bool,
+    force: bool,
+    verbose: bool
+) -> bool:
+    """Move a single file or directory to trash with metadata recording.
 
-	# Verbose output
-	if [[ "${_flag_verbose}" == "true" ]]; then
-		printf 'Trashed: %s [hash: %s]\n' "${abs_path}" "${hash}" >&2
-	fi
+    Args:
+        file_path: Path to file or directory
+        trash_dir: Path to trash directory
+        is_directory: True if file_path is a directory
+        force: If True, silently ignore nonexistent files
+        verbose: If True, print verbose output to stderr
 
-	return 0
-}
+    Returns:
+        True on success, False on error
+    """
+    try:
+        file_path = file_path.resolve()
 
-# Argument Parsing
-_parse_args() {
-	while [[ $# -gt 0 ]]; do
-		case "${1}" in
-		-r | --recursive)
-			_flag_recursive=true
-			shift
-			;;
-		-v | --verbose)
-			_flag_verbose=true
-			shift
-			;;
-		-f | --force)
-			_flag_force=true
-			shift
-			;;
-		-h | --help)
-			_flag_help=true
-			shift
-			;;
-		-*)
-			_error "Unknown option: ${1}"
-			_print_help
-			exit "${EXIT_FAILURE}"
-			;;
-		*)
-			_files_to_trash+=("${1}")
-			shift
-			;;
-		esac
-	done
-}
+        # Check if file exists
+        if not file_path.exists() and not file_path.is_symlink():
+            if not force:
+                print(f"Error trashing {file_path}: No such file or directory", file=sys.stderr)
+                return False
+            else:
+                # Force flag: silently ignore nonexistent
+                return True
 
-# Main Function
-main() {
-	_parse_args "$@"
+        # Refuse to trash dangerous paths
+        if file_path == Path('/') or file_path == Path.home() or file_path == Path('.'):
+            print(f"Error trashing {file_path}: Cannot trash system directory", file=sys.stderr)
+            return False
 
-	# Handle help flag
-	if [[ "${_flag_help}" == "true" ]]; then
-		_print_help
-		return "${EXIT_SUCCESS}"
-	fi
+        # Check directory without -r flag (not needed here, handled in main)
+        # This check happens in main() before calling this function
 
-	# Check if files provided
-	if [[ ${#_files_to_trash[@]} -eq 0 ]]; then
-		_error "Missing file arguments"
-		_print_help
-		return "${EXIT_FAILURE}"
-	fi
+        # Compute hash and prepare file for moving
+        hash_value: str
+        tar_path: Optional[Path] = None
 
-	# Trash each file
-	for file in "${_files_to_trash[@]}"; do
-		local is_dir="false"
-		# Symlinks should not be treated as directories, even if they point to directories
-		if [[ -d "${file}" ]] && [[ ! -L "${file}" ]]; then
-			is_dir="true"
-		fi
+        if file_path.is_symlink():
+            # Symlink: read target and hash it as a regular file
+            try:
+                symlink_target = file_path.readlink()
+                # Create temp file with symlink target path as content
+                tmp_file = tempfile.NamedTemporaryFile(delete=False)
+                tmp_path = Path(tmp_file.name)
+                tmp_file.write(str(symlink_target).encode('utf-8'))
+                tmp_file.close()
 
-		if ! _trash_file "${file}" "${is_dir}"; then
-			_had_error=true
-		fi
-		# Continue on error (per D-08)
-	done
+                hash_value = _hash_file(tmp_path)
+                # We'll move tmp_path to trash
+                tar_path = tmp_path  # Repurpose variable name for clarity
+            except Exception as e:
+                print(f"Error trashing {file_path}: Failed to read symlink: {e}", file=sys.stderr)
+                return False
+        elif is_directory:
+            # Directory: tar it first
+            try:
+                hash_value, tar_path = _tar_and_hash_dir(file_path, Path(tempfile.gettempdir()))
+            except RuntimeError as e:
+                print(f"Error trashing {file_path}: {e}", file=sys.stderr)
+                return False
+        else:
+            # Regular file: hash directly
+            try:
+                hash_value = _hash_file(file_path)
+            except RuntimeError as e:
+                print(f"Error trashing {file_path}: {e}", file=sys.stderr)
+                return False
 
-	# Return exit code based on whether errors occurred
-	if [[ "${_had_error}" == "true" ]]; then
-		return "${EXIT_FAILURE}"
-	else
-		return "${EXIT_SUCCESS}"
-	fi
-}
+        # Create TRASH_DIR if absent
+        try:
+            trash_dir.mkdir(parents=True, exist_ok=True)
+        except (OSError, PermissionError) as e:
+            print(f"Error trashing {file_path}: Failed to create trash directory: {e}", file=sys.stderr)
+            if tar_path:
+                tar_path.unlink(missing_ok=True)
+            return False
 
-main "$@"
+        # Move to trash
+        trash_path = trash_dir / hash_value
+        try:
+            if tar_path and tar_path != file_path:
+                # Moving a temporary file (symlink or tar)
+                shutil.move(str(tar_path), str(trash_path))
+            else:
+                # Moving the original file (use shutil.move for cross-filesystem safety)
+                shutil.move(str(file_path), str(trash_path))
+        except (OSError, PermissionError) as e:
+            print(f"Error trashing {file_path}: Failed to move to trash: {e}", file=sys.stderr)
+            if tar_path and tar_path != file_path:
+                tar_path.unlink(missing_ok=True)
+            return False
+
+        # Remove original file if not already moved
+        if is_directory:
+            try:
+                shutil.rmtree(file_path)
+            except Exception:
+                pass  # Already removed by move or doesn't exist
+        elif file_path.is_symlink():
+            try:
+                file_path.unlink()
+            except Exception:
+                pass  # Already removed
+
+        # Record metadata
+        try:
+            _record_metadata(trash_dir, hash_value, file_path, is_directory)
+        except RuntimeError as e:
+            print(f"Error trashing {file_path}: {e}", file=sys.stderr)
+            return False
+
+        # Verbose output
+        if verbose:
+            print(f"Trashed: {file_path} [hash: {hash_value}]", file=sys.stderr)
+
+        return True
+
+    except Exception as e:
+        print(f"Error trashing {file_path}: {e}", file=sys.stderr)
+        return False
+
+
+def main() -> int:
+    """Main entry point."""
+    parser = argparse.ArgumentParser(
+        prog='trash',
+        description='Move files and directories to a backup location (~/.trash)',
+        epilog='Backed-up items are stored in ~/.trash/ with metadata in metadata.jsonl',
+        add_help=False  # Handle -h manually to match bash behavior
+    )
+
+    parser.add_argument(
+        '-r', '--recursive',
+        action='store_true',
+        help='Required for directories (compress with tar)'
+    )
+    parser.add_argument(
+        '-v', '--verbose',
+        action='store_true',
+        help='Show hashes for trashed items'
+    )
+    parser.add_argument(
+        '-f', '--force',
+        action='store_true',
+        help='Ignore nonexistent files'
+    )
+    parser.add_argument(
+        '-h', '--help',
+        action='store_true',
+        help='Display this help message'
+    )
+    parser.add_argument(
+        'files',
+        nargs='*',
+        help='Files or directories to trash'
+    )
+
+    try:
+        args = parser.parse_args()
+    except SystemExit:
+        # argparse calls sys.exit on error; we want to return a code instead
+        return EXIT_FAILURE
+
+    # Handle help flag
+    if args.help:
+        _print_help()
+        return EXIT_SUCCESS
+
+    # Check if files provided
+    if not args.files:
+        print("Error: Missing file arguments", file=sys.stderr)
+        _print_help()
+        return EXIT_FAILURE
+
+    # Get trash directory from environment or use default
+    trash_dir = Path(os.environ.get('TRASH_DIR', DEFAULT_TRASH_DIR))
+
+    # Process each file
+    had_error = False
+    for file_arg in args.files:
+        file_path = Path(file_arg)
+
+        # Determine if this is a directory (check symlink first!)
+        is_directory = False
+        if file_path.is_symlink():
+            # Symlinks are never treated as directories, even if they point to one
+            is_directory = False
+        elif file_path.is_dir():
+            is_directory = True
+
+        # Check directory without -r flag
+        if is_directory and not args.recursive:
+            print(f"Error trashing {file_path}: Cannot trash directory without -r flag", file=sys.stderr)
+            had_error = True
+            continue
+
+        # Trash the file
+        if not _trash_file(file_path, trash_dir, is_directory, args.force, args.verbose):
+            had_error = True
+        # Continue to next file regardless of error
+
+    return EXIT_FAILURE if had_error else EXIT_SUCCESS
+
+
+if __name__ == '__main__':
+    sys.exit(main())
