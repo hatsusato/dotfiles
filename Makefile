@@ -1,82 +1,52 @@
-# Shell files linting with flexible per-file support
-#
-# SHELL_FILES is dynamically discovered from git ls-files to automatically
-# include new files without manual Makefile updates.
-#
-# Usage:
-#   make lint/FILE.sh              → Lint specific file (with completion support)
-#   make lint-strict/FILE.sh       → Strict lint specific file (with completion support)
-#   make help                      → Display available targets
+# Makefile for dotfiles project
+# Provides linting, deployment, and build targets
 
-# Dynamically discover all shell files from git, excluding vendored tests/bats/ and skel/ (system fallback)
-SHELL_FILES := $(shell git ls-files '*.sh' '*.bashrc' | grep -v 'tests/bats/' | grep -v 'skel/')
+# Set default goal to help
+.DEFAULT_GOAL := help
 
-# Static phony targets for shell completion (lint/bootstrap.sh, lint/deploy.sh, ...)
-LINT_FILE_TARGETS := $(addprefix lint/,$(SHELL_FILES))
-.PHONY: $(LINT_FILE_TARGETS)
+# Discover shell files from git (excluding vendored and system-specific files)
+SHELL_FILES := $(shell git ls-files -- '*.sh' '*.bashrc' ':!tests/bats/*' ':!*/skel/*')
 
-# Static phony targets for strict linting with shell completion
-LINT_STRICT_FILE_TARGETS := $(addprefix lint-strict/,$(SHELL_FILES))
-.PHONY: $(LINT_STRICT_FILE_TARGETS)
-
-# Dotfiles deployment with flexible per-file support
-#
-# DOTFILES_FILES is dynamically discovered from git ls-files to automatically
-# include new dotfiles without manual Makefile updates.
-#
-# Usage:
-#   make deploy/FILE               → Deploy specific file (with completion support)
-#   make deploy                    → Deploy all files via deploy.sh
-#   make help                      → Display available targets
-
-# Dynamically discover all dotfiles from git (all files under dotfiles/)
+# Discover deployable dotfiles from git
 DOTFILES_FILES := $(shell git ls-files 'dotfiles/*')
 
-# Static phony targets for per-file deployment with shell completion (deploy/dotfiles/common/.bashrc, ...)
-DEPLOY_FILE_TARGETS := $(addprefix deploy/,$(DOTFILES_FILES))
-.PHONY: $(DEPLOY_FILE_TARGETS)
+# Phony targets
+.PHONY: help lint lint-strict deploy
+.PHONY: $(SHELL_FILES:%=lint/%)
+.PHONY: $(SHELL_FILES:%=lint-strict/%)
+.PHONY: $(DOTFILES_FILES:%=deploy/%)
 
-.PHONY: deploy lint lint-strict help
+# Help target
+help:
+	@echo "Linting targets:"
+	@echo "  make lint              — Lint all shell files"
+	@echo "  make lint-strict       — Lint with --external-sources (stricter)"
+	@echo "  make lint/FILE         — Lint specific file (with completion support)"
+	@echo ""
+	@echo "Deployment targets:"
+	@echo "  make deploy            — Deploy all dotfiles"
+	@echo "  make deploy/DIR        — Deploy specific directory"
+	@echo "  make deploy/FILE       — Deploy specific file (with completion support)"
+	@echo ""
+	@echo "Tracked files:"
+	@echo "  Shell files ($(words $(SHELL_FILES)) total): $(SHELL_FILES)"
+	@echo "  Dotfiles ($(words $(DOTFILES_FILES)) total): $(DOTFILES_FILES)"
 
+# Linting targets
+$(SHELL_FILES:%=lint/%): lint/%: %
+	shellcheck --enable=all --shell=bash $<
+
+$(SHELL_FILES:%=lint-strict/%): lint-strict/%: %
+	shellcheck --enable=all --shell=bash --external-sources $<
+
+# Aggregators for all files
+lint: $(SHELL_FILES:%=lint/%)
+lint-strict: $(SHELL_FILES:%=lint-strict/%)
+
+# Deployment targets
+$(DOTFILES_FILES:%=deploy/%): deploy/%: %
+	./deploy.sh $*
+
+# Default deployment
 deploy:
 	./deploy.sh
-
-# Static per-file lint targets (supports shell completion)
-# Usage: make lint/bootstrap.sh, make lint/lib/env-detect.sh
-$(LINT_FILE_TARGETS):
-	shellcheck --enable=all --shell=bash $(subst lint/,,$@)
-
-# Static per-file lint-strict targets (supports shell completion)
-# Usage: make lint-strict/bootstrap.sh, make lint-strict/lib/env-detect.sh
-$(LINT_STRICT_FILE_TARGETS):
-	shellcheck --enable=all --shell=bash --external-sources $(subst lint-strict/,,$@)
-
-# Static per-file deploy targets (supports shell completion)
-# Usage: make deploy/dotfiles/common/.bashrc, make deploy/dotfiles/common/.inputrc
-# Calls deploy.sh which handles symlinking and backups
-$(DEPLOY_FILE_TARGETS):
-	./deploy.sh
-
-# lint: Check all shell files with shellcheck (baseline; no --external-sources)
-lint: $(LINT_FILE_TARGETS)
-
-# lint-strict: Check all shell files with shellcheck and --external-sources
-lint-strict: $(LINT_STRICT_FILE_TARGETS)
-
-# help: Display available targets and usage patterns
-help:
-	@echo "Available targets:"
-	@echo "  make lint              — Lint all shell files (baseline)"
-	@echo "  make lint-strict       — Lint all shell files with --external-sources"
-	@echo "  make lint/FILE.sh      — Lint specific file (with completion support)"
-	@echo "  make lint-strict/FILE.sh — Strict lint specific file (with completion support)"
-	@echo "  make deploy            — Deploy all dotfiles via deploy.sh"
-	@echo "  make deploy/FILE       — Deploy specific dotfile (with completion support)"
-	@echo "                           Example: make deploy/dotfiles/common/.bashrc"
-	@echo "                           Tip: Use TAB to complete: make deploy/<TAB>"
-	@echo ""
-	@echo "Tracked shell files ($(words $(SHELL_FILES)) total):"
-	@echo "  $(SHELL_FILES)"
-	@echo ""
-	@echo "Tracked dotfiles ($(words $(DOTFILES_FILES)) total):"
-	@echo "  $(DOTFILES_FILES)"

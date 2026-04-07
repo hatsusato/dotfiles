@@ -33,20 +33,37 @@ copy_file() {
 	log_info "Copied ${src} -> ${target/${HOME}/\~}"
 }
 
-deploy_dir() {
-	local src_dir="${1}"
-	local file rel_path target
-	[[ -d "${src_dir}" ]] || return 0
-	while IFS= read -r -d '' file; do
-		rel_path="${file#"${src_dir}/"}"
-		target="${HOME}/${rel_path}"
-		copy_file "${file}" "${target}"
-	done < <(find "${src_dir}" -type f -print0 || true)
+deploy_by_path() {
+	local rel_path="${1}"
+	local src="${DOTFILES_ROOT}/${rel_path}"
+	local file target
+
+	# If path is a directory, deploy all files under it
+	if [[ -d "${src}" ]]; then
+		while IFS= read -r -d '' file; do
+			rel_path="${file#"${DOTFILES_ROOT}/"}"
+			target="${HOME}/${rel_path#*/}"
+			copy_file "${file}" "${target}"
+		done < <(find "${src}" -type f -print0 || true)
+	# If path is a file, deploy just that file
+	elif [[ -f "${src}" ]]; then
+		target="${HOME}/${rel_path#*/}"
+		copy_file "${src}" "${target}"
+	else
+		log_error "Path not found: ${rel_path}"
+		exit 1
+	fi
 }
 
 main() {
-	deploy_dir "${DOTFILES_ROOT}/common"
-	deploy_dir "${DOTFILES_ROOT}/${ENV_TYPE}"
+	# If argument provided, deploy specific path (relative to DOTFILES_ROOT)
+	if [[ $# -gt 0 ]]; then
+		deploy_by_path "${1}"
+	else
+		# Default: deploy common and environment-specific files
+		deploy_by_path "common"
+		deploy_by_path "${ENV_TYPE}"
+	fi
 }
 
 main "$@"

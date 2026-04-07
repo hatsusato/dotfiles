@@ -40,6 +40,17 @@ pre-commit run --all-files
 
 ## Important
 
+### Tool Usage Philosophy
+
+Use each tool's native features rather than combining tools with grep, awk, or subst:
+
+**Examples:**
+- **git**: Use `git ls-files -- ':!path'` for exclusion, not `git ls-files | grep -v`
+- **make**: Use pattern rules (`target/%: %`) and special variables (`$<`, `$*`), not subst
+- **shellcheck**: Use its built-in source hint (`# shellcheck source=`) instead of disable directives
+
+**Why:** Tool-native features are more reliable, maintainable, and discoverable.
+
 ### Do NOT commit .planning/ directory
 
 The `.planning/` directory is explicitly listed in `.gitignore` and must NEVER be committed to git.
