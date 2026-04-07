@@ -102,7 +102,7 @@ If you find yourself wanting to disable a check, that's a sign the code pattern 
 `--external-sources` is **required** for SC1091 (cannot follow dynamic `source` paths like
 `source "${SCRIPT_DIR}/..."`) when the source path uses a variable. In that case:
 
-- Keep the `# shellcheck source=<path>` hint with the correct path **relative to the project root** (not relative to the file being analyzed)
+- Keep the `# shellcheck source=<path>` hint with the correct path **relative to the file being analyzed** (not the project root)
 - Do NOT add `# shellcheck disable=SC1091` — let `--external-sources` handle it
 
 ```bash
@@ -110,10 +110,14 @@ If you find yourself wanting to disable a check, that's a sign the code pattern 
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/safe-delete.sh"
 
-# ✓ Correct: fix source= path relative to project root, rely on --external-sources
+# ✓ Correct: fix source= path relative to this file, rely on --external-sources
 # shellcheck source=lib/safe-delete.sh
 source "${SCRIPT_DIR}/lib/safe-delete.sh"
 ```
+
+**Relative path rule:** The path in `shellcheck source=` is relative to the directory of the file
+being analyzed, not the project root. Example: from `lib/safe-delete.sh`, the path to
+`dotfiles/common/.local/lib/logging.sh` is `../dotfiles/common/.local/lib/logging.sh`.
 
 #### Common fixes by warning
 
@@ -162,7 +166,7 @@ Before reaching for `--external-sources`, try these structural fixes first:
 `--external-sources` is **acceptable** only for SC1091 (cannot follow dynamic `source` paths like
 `source "${SCRIPT_DIR}/..."`) when there is no static alternative. In that case:
 
-- Keep the `# shellcheck source=<path>` hint with the correct path **relative to the project root** (not relative to the file being analyzed)
+- Keep the `# shellcheck source=<path>` hint with the correct path **relative to the file being analyzed** (not the project root)
 - Do NOT add `# shellcheck disable=SC1091` — let `--external-sources` handle it
 
 ## Architecture
