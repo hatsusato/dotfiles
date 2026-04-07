@@ -11,7 +11,7 @@ DOTFILES_FILES := $(shell git ls-files 'dotfiles/*')
 .PHONY: help lint lint-strict deploy
 .PHONY: $(SHELL_FILES:%=lint/%)
 .PHONY: $(SHELL_FILES:%=lint-strict/%)
-.PHONY: $(DOTFILES_FILES:%=deploy/%)
+.PHONY: $(DOTFILES_FILES:dotfiles/%=deploy/%)
 
 # Help target
 help:
@@ -41,7 +41,7 @@ lint: $(SHELL_FILES:%=lint/%)
 lint-strict: $(SHELL_FILES:%=lint-strict/%)
 
 # Deployment targets
-$(DOTFILES_FILES:%=deploy/%): deploy/%: %
+$(DOTFILES_FILES:dotfiles/%=deploy/%): deploy/%:
 	./deploy.sh $*
 
 # Default deployment
