@@ -16,6 +16,7 @@ DOTFILES_DIRS := $(shell git ls-tree -d --name-only HEAD:dotfiles/)
 .PHONY: $(SHELL_FILES:%=lint-strict/%)
 .PHONY: $(DOTFILES_FILES:dotfiles/%=deploy/%)
 .PHONY: $(DOTFILES_DIRS:%=deploy/%)
+.PHONY: $(DOTFILES_DIRS:%=deploy/%/)
 
 # Help target
 help:
@@ -50,6 +51,10 @@ $(DOTFILES_FILES:dotfiles/%=deploy/%): deploy/%:
 
 # Deployment targets - directory level
 $(DOTFILES_DIRS:%=deploy/%): deploy/%:
+	./deploy.sh $*
+
+# Deployment targets - directory level with trailing slash
+$(DOTFILES_DIRS:%=deploy/%/): deploy/%/:
 	./deploy.sh $*
 
 # Default deployment
