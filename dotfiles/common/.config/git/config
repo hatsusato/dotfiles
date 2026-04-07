@@ -7,13 +7,12 @@
 #
 # Verify active config source: git config --list --show-origin
 
-[user]
-	name = Your Name
-	email = you@example.com
-
 [core]
 	autocrlf = false
 	editor = vim
 
 [pull]
 	rebase = false
+
+[include]
+	path = ./user
