@@ -1,9 +1,6 @@
 # Makefile for dotfiles project
 # Provides linting, deployment, and build targets
 
-# Set default goal to help
-.DEFAULT_GOAL := help
-
 # Discover shell files from git (excluding vendored and system-specific files)
 SHELL_FILES := $(shell git ls-files -- '*.sh' '*.bashrc' ':!tests/bats/*' ':!*/skel/*')
 
