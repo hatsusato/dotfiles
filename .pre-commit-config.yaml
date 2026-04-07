@@ -13,7 +13,7 @@ repos:
     rev: v0.11.0.1
     hooks:
       - id: shellcheck
-        args: [--enable=all, --shell=bash]
+        args: [--enable=all, --shell=bash, --external-sources]
         files: (\.sh$|^\.local/bin/)
 
   # General
