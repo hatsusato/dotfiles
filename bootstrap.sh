@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.local/share/dotfiles}"
+DOTFILES_DIR="${DOTFILES_DIR:-${HOME}/.local/share/dotfiles}"
 REPO_URL="https://github.com/hatsusato/dotfiles.git"
 
 # ---------------------------------------------------------------------------
@@ -15,8 +15,8 @@ REPO_URL="https://github.com/hatsusato/dotfiles.git"
 detect_package_manager() {
 	local pm
 	for pm in apt dnf pacman; do
-		if command -v "$pm" >/dev/null 2>&1; then
-			echo "$pm"
+		if command -v "${pm}" >/dev/null 2>&1; then
+			echo "${pm}"
 			return 0
 		fi
 	done
@@ -29,23 +29,25 @@ has_sudo() {
 }
 
 install_pkg() {
-	local pkg="$1"
+	local pkg="${1}"
 	local pm
 	pm="$(detect_package_manager)"
 	local sudo_cmd=()
-	[[ "$(has_sudo)" == "true" ]] && sudo_cmd=(sudo)
-	case "$pm" in
+	local _has_sudo
+	_has_sudo=$(has_sudo)
+	[[ "${_has_sudo}" == "true" ]] && sudo_cmd=(sudo)
+	case "${pm}" in
 	apt)
-		DEBIAN_FRONTEND=noninteractive "${sudo_cmd[@]}" apt-get install -y "$pkg"
+		DEBIAN_FRONTEND=noninteractive "${sudo_cmd[@]}" apt-get install -y "${pkg}"
 		;;
 	dnf)
-		"${sudo_cmd[@]}" dnf install -y "$pkg"
+		"${sudo_cmd[@]}" dnf install -y "${pkg}"
 		;;
 	pacman)
-		"${sudo_cmd[@]}" pacman -S --noconfirm "$pkg"
+		"${sudo_cmd[@]}" pacman -S --noconfirm "${pkg}"
 		;;
 	*)
-		echo "[bootstrap] ERROR: unsupported package manager: $pm" >&2
+		echo "[bootstrap] ERROR: unsupported package manager: ${pm}" >&2
 		exit 1
 		;;
 	esac
@@ -77,12 +79,12 @@ fi
 # Step 3: Clone or update dotfiles
 # ---------------------------------------------------------------------------
 
-if [[ -d "$DOTFILES_DIR" ]]; then
+if [[ -d "${DOTFILES_DIR}" ]]; then
 	echo "[bootstrap] Dotfiles directory exists, pulling latest..."
-	git -C "$DOTFILES_DIR" pull
+	git -C "${DOTFILES_DIR}" pull
 else
-	echo "[bootstrap] Cloning dotfiles to $DOTFILES_DIR..."
-	git clone "$REPO_URL" "$DOTFILES_DIR"
+	echo "[bootstrap] Cloning dotfiles to ${DOTFILES_DIR}..."
+	git clone "${REPO_URL}" "${DOTFILES_DIR}"
 fi
 
 # ---------------------------------------------------------------------------
@@ -90,5 +92,5 @@ fi
 # ---------------------------------------------------------------------------
 
 echo "[bootstrap] Running make deploy..."
-cd "$DOTFILES_DIR"
+cd "${DOTFILES_DIR}"
 make deploy

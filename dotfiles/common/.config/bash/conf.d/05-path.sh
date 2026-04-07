@@ -3,8 +3,8 @@
 # Creates directories if missing, skips PATH addition if already present
 
 _prepend_path() {
-	local dir="$1"
-	mkdir -p "$dir"
+	local dir="${1}"
+	mkdir -p "${dir}"
 	case ":${PATH}:" in
 	*":${dir}:"*) ;; # already present, skip
 	*) PATH="${dir}:${PATH}" ;;

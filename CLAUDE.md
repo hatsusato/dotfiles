@@ -88,26 +88,82 @@ done
 Do **NOT** use `shellcheck disable=SC####` directives to suppress warnings. Instead:
 
 1. **Fix the code** if shellcheck is correct (most cases)
-2. **Justify inline** with a clear comment explaining why the pattern is necessary (rare cases)
+2. **Restructure** so shellcheck can verify correctness without flags (preferred over any annotation)
 3. **Use `shellcheck source=`** to help shellcheck understand included files
+4. **Justify inline** with a clear comment explaining why the pattern is necessary (rare, last resort)
 
 If you find yourself wanting to disable a check, that's a sign the code pattern may need rethinking.
 
-**Example:**
+#### shellcheck and --external-sources
+
+`--external-sources` (or `-x`) allows shellcheck to follow dynamic `source` paths. It is used in
+`make lint-strict` and in pre-commit as the CI gate.
+
+`--external-sources` is **required** for SC1091 (cannot follow dynamic `source` paths like
+`source "${SCRIPT_DIR}/..."`) when the source path uses a variable. In that case:
+
+- Keep the `# shellcheck source=<path>` hint with the correct path **relative to the project root** (not relative to the file being analyzed)
+- Do NOT add `# shellcheck disable=SC1091` — let `--external-sources` handle it
+
 ```bash
-# ✗ Avoid this:
-# shellcheck disable=SC1090
-source "$HOME/.bashrc"
+# ✗ Avoid:
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/safe-delete.sh"
 
-# ✓ Do this instead (if the warning is valid):
-# shellcheck source=~/.bashrc
-source "${HOME}/.bashrc"  # Properly quote the variable
-
-# ✓ Or justify if there's a good reason:
-# shellcheck disable=SC2086
-# Note: word splitting is intentional here for glob expansion
-eval "$modules"
+# ✓ Correct: fix source= path relative to project root, rely on --external-sources
+# shellcheck source=lib/safe-delete.sh
+source "${SCRIPT_DIR}/lib/safe-delete.sh"
 ```
+
+#### Common fixes by warning
+
+```bash
+# SC2034 — variable appears unused across files
+# ✗ Avoid:
+# shellcheck disable=SC2034
+LOG_PREFIX="deploy"
+# ✓ Fix: expose via setter function defined in the library
+set_log_prefix "deploy"   # set_log_prefix() defined in logging.sh
+
+# SC2250 — prefer braces around variable references
+# ✗ Avoid: $var
+# ✓ Fix: ${var}
+
+# SC2310 — function in if/&&/|| condition disables set -e
+# ✗ Avoid:
+if is_wsl; then ...
+# ✓ Fix: invoke separately, capture exit code
+is_wsl
+local _is_wsl=$?
+if [[ _is_wsl -eq 0 ]]; then ...
+
+# SC2312 — command substitution masks return value
+# ✗ Avoid:
+eval "$(bash script.sh)"
+# ✓ Fix: separate into two steps
+_out=$(bash script.sh)
+eval "${_out}"
+unset _out
+```
+
+#### shellcheck and --external-sources
+
+**Basic policy: fix code structure so shellcheck passes _without_ `--external-sources`.**
+
+Before reaching for `--external-sources`, try these structural fixes first:
+
+| Warning | Structural fix (no --external-sources needed) |
+|---------|-----------------------------------------------|
+| SC2034 (variable appears unused) | Move assignment into the library; expose via a setter function (e.g. `set_log_prefix`) |
+| SC2250 (prefer braces) | Use `${var}` everywhere |
+| SC2310 (set -e disabled in condition) | Invoke function separately; capture `$?` on the next line |
+| SC2312 (command substitution masks return value) | Assign to variable first, then eval/use |
+
+`--external-sources` is **acceptable** only for SC1091 (cannot follow dynamic `source` paths like
+`source "${SCRIPT_DIR}/..."`) when there is no static alternative. In that case:
+
+- Keep the `# shellcheck source=<path>` hint with the correct path **relative to the project root** (not relative to the file being analyzed)
+- Do NOT add `# shellcheck disable=SC1091` — let `--external-sources` handle it
 
 ## Architecture
 
