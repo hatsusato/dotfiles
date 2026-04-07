@@ -8,7 +8,7 @@ SHELL_FILES := $(shell git ls-files -- '*.sh' '*.bashrc' ':!tests/bats/*' ':!*/s
 DOTFILES_FILES := $(shell git ls-files 'dotfiles/*')
 
 # Discover deployable directories from git
-DOTFILES_DIRS := $(shell git ls-tree -d --name-only HEAD:dotfiles/)
+DOTFILES_DIRS := $(shell git ls-tree -rd --name-only HEAD:dotfiles/)
 
 # Phony targets
 .PHONY: help lint lint-strict deploy
