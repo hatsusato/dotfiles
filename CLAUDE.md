@@ -26,6 +26,37 @@ Run a single test by name/ID:
 tests/bats/bin/bats tests/bootstrap.bats -f "BOOT-01"
 ```
 
+### Python Tests
+
+Run all Python tests:
+```bash
+uv run pytest tests/ -v
+```
+
+Run single Python test:
+```bash
+uv run pytest tests/trash_test.py::test_name -v
+```
+
+### Type Checking
+
+Type-check Python code:
+```bash
+uv run pyright dotfiles/
+```
+
+### Code Formatting
+
+Format Python code (auto-fix):
+```bash
+uv run ruff format dotfiles/
+```
+
+Check Python lint issues:
+```bash
+uv run ruff check dotfiles/
+```
+
 ### Linting
 
 Pre-commit hooks run `shellcheck`, `shfmt`, and line-ending checks. Set them up with:
@@ -189,9 +220,17 @@ This repository is a personal dotfiles deployment system for Linux, WSL, and Git
 **Deployment infrastructure (bootstrap.sh, deploy.sh, lib/*.sh):** Bash only (no external dependencies)
 - Rationale: Must run on minimal Linux/WSL/Git Bash without assuming external tools
 
-**Deployed artifacts (.local/bin/, .config/bash/):** Python 3.7+ or Bash allowed (no external dependencies)
+**Deployed artifacts (.local/bin/, .config/bash/):** Python 3.12+ or Bash allowed (no external dependencies)
 - Rationale: Tools that run *after* deployment can use Python standard library for better maintainability
 - Example: `trash` command implemented in Python instead of Bash for improved code clarity
+
+**External Dependency Classification**
+
+- **Runtime dependencies (deployed artifacts):** Python standard library only. Examples: trash command uses only argparse, json, pathlib. No pip packages.
+  - Rationale: Deployment (make deploy) must work without external Python packages
+  
+- **Development dependencies (testing, linting, type-checking):** pytest, ruff, pyright managed via uv in pyproject.toml [project.optional-dependencies.dev]. Install via: `uv sync`. Run via: `uv run pytest`, `uv run ruff`, `uv run pyright`.
+  - Rationale: Testing and code quality tools are development-only; not part of deployed artifacts
 
 ### TDD Methodology
 
