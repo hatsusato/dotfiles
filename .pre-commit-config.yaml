@@ -1,6 +1,28 @@
 minimum_pre_commit_version: "3.0.0"
 
 repos:
+  # Python: format
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.9
+    hooks:
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  # Python: lint and auto-fix
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.9
+    hooks:
+      - id: ruff-check
+        types_or: [python, pyi]
+        args: [--fix]
+
+  # Python: type checking (strict mode)
+  - repo: https://github.com/necaris/pre-commit-pyright
+    rev: '1.1.408'
+    hooks:
+      - id: pyright
+        additional_dependencies: ['pyright>=1.1.408']
+
   # Shell: format (shfmt defaults — tab indent, binary ops at line end)
   - repo: https://github.com/scop/pre-commit-shfmt
     rev: v3.12.0-2
