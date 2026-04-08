@@ -11,12 +11,37 @@ DOTFILES_FILES := $(shell git ls-files 'dotfiles/*')
 DOTFILES_DIRS := $(shell git ls-tree -rd --name-only HEAD:dotfiles/)
 
 # Phony targets
-.PHONY: help lint lint-strict deploy
+.PHONY: help test test/bash test/python lint lint-strict lint/python type-check format deploy
 .PHONY: $(SHELL_FILES:%=lint/%)
 .PHONY: $(SHELL_FILES:%=lint-strict/%)
 .PHONY: $(DOTFILES_FILES:dotfiles/%=deploy/%)
 .PHONY: $(DOTFILES_DIRS:%=deploy/%)
 .PHONY: $(DOTFILES_DIRS:%=deploy/%/)
+
+# Test targets - combined BATS and pytest
+test: test/bash test/python
+
+test/bash:
+	tests/bats/bin/bats tests/*.bats
+
+test/python:
+	uv run pytest tests/ -v --tb=short
+
+# Lint targets - combined shell and Python linting
+lint: lint/bash lint/python
+
+lint/python:
+	uv run ruff check dotfiles/
+	uv run ruff format --check dotfiles/
+
+# Type checking (Python strict mode)
+type-check:
+	uv run pyright dotfiles/
+
+# Format target - apply ruff auto-fixes
+format:
+	uv run ruff format dotfiles/
+	uv run ruff check --fix dotfiles/
 
 # Help target
 help:
