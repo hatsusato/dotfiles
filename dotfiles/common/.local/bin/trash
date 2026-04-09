@@ -22,29 +22,6 @@ EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
 
 
-def _print_help() -> None:
-    """Display usage, options, examples, and recovery note to stderr."""
-    help_text = """\
-Usage: trash [-r] [-v] [-f] [-h] FILE...
-
-Options:
-  -r, --recursive    Delete directories recursively (compress with tar)
-  -v, --verbose      Show each deleted file and its hash
-  -f, --force        Ignore nonexistent files and continue on error
-  -h, --help         Display this help message
-
-Examples:
-  trash file1.txt
-  trash file1 file2 directory/
-  trash -r important_dir/
-  trash -v -r backup.tar.gz
-  trash -f old_nonexistent_file
-
-Note: Files are moved to ~/.trash for recovery.
-"""
-    print(help_text, file=sys.stderr, end="")
-
-
 def _hash_file(path: Path) -> str:
     """Compute SHA256 hash of file in 8KB chunks.
 
@@ -267,8 +244,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         prog="trash",
         description="Move files and directories to a backup location (~/.trash)",
-        epilog="Backed-up items are stored in ~/.trash/ with metadata in metadata.jsonl",
-        add_help=False,  # Handle -h manually to match bash behavior
+        epilog=(
+            "Examples:\n"
+            "  trash file1.txt\n"
+            "  trash file1 file2 directory/\n"
+            "  trash -r important_dir/\n"
+            "  trash -v -r backup.tar.gz\n"
+            "  trash -f old_nonexistent_file\n"
+            "\n"
+            "Note: Files are moved to ~/.trash for recovery."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        add_help=True,
     )
 
     parser.add_argument(
@@ -283,26 +270,14 @@ def main() -> int:
     parser.add_argument(
         "-f", "--force", action="store_true", help="Ignore nonexistent files"
     )
-    parser.add_argument(
-        "-h", "--help", action="store_true", help="Display this help message"
-    )
     parser.add_argument("files", nargs="*", help="Files or directories to trash")
 
-    try:
-        args = parser.parse_args()
-    except SystemExit:
-        # argparse calls sys.exit on error; we want to return a code instead
-        return EXIT_FAILURE
-
-    # Handle help flag
-    if args.help:
-        _print_help()
-        return EXIT_SUCCESS
+    args = parser.parse_args()
 
     # Check if files provided
     if not args.files:
         print("Error: Missing file arguments", file=sys.stderr)
-        _print_help()
+        parser.print_help(sys.stderr)
         return EXIT_FAILURE
 
     # Get trash directory from environment or use default
