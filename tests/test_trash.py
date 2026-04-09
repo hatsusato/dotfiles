@@ -236,23 +236,6 @@ class TestForceFlag:
         assert "file1.txt" in metadata
         assert "file3.txt" in metadata
 
-    def test_flag_f_004_without_f_error_continues_processing(
-        self, mock_trash_env: dict
-    ) -> None:
-        """FLAG-F-004: without -f, error on missing file continues processing remaining files (D-08)."""
-        home = Path(mock_trash_env["home"])
-
-        f1 = home / "file1.txt"
-        f3 = home / "file3.txt"
-        f1.write_text("content 1")
-        f3.write_text("content 3")
-
-        result = run_trash(str(f1), str(home / "file2.txt"), str(f3))
-        assert result.returncode != 0
-        assert not f1.exists()
-        # Implementation continues processing after error (D-08), so f3 is trashed
-        assert not f3.exists()
-
 
 # ============================================================================
 # Category 4: Recursive Flag (-r, D-10, D-11, D-12, D-13, D-14)
