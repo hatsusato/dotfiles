@@ -48,7 +48,8 @@ setup() {
 @test "DEPL-03: OS-specific files skipped on mismatched ENV_TYPE" {
 	run env HOME="$FAKE_HOME" ENV_TYPE="wsl" "$BASH_BIN" "$DEPLOY"
 	assert_success
-	# Common files are always deployed regardless of ENV_TYPE
+	# common/ files deploy regardless of ENV_TYPE; OS-specific dirs (wsl/, linux/) are
+	# empty so no OS-specific files appear — verifying no spurious linux/ files land here
 	assert [ -f "$FAKE_HOME/.bashrc" ]
 }
 
@@ -67,10 +68,10 @@ setup() {
 }
 
 # ---------------------------------------------------------------------------
-# DEPL-04: warning shown when existing files would be overwritten
+# DEPL-06: existing files backed up silently (no warning)
 # ---------------------------------------------------------------------------
 
-@test "DEPL-02-WARNING: existing files backed up silently (no warning)" {
+@test "DEPL-06: existing files backed up silently (no warning)" {
 	mkdir -p "$FAKE_HOME/.config/git"
 	echo "old content" >"$FAKE_HOME/.config/git/config"
 	run env HOME="$FAKE_HOME" ENV_TYPE="linux" "$BASH_BIN" "$DEPLOY"
@@ -92,10 +93,10 @@ setup() {
 }
 
 # ---------------------------------------------------------------------------
-# DEPL-04: no warning on clean deploy (DEPL-05)
+# DEPL-07: no warning on clean deploy
 # ---------------------------------------------------------------------------
 
-@test "DEPL-03-WARNING: no warning on clean deploy" {
+@test "DEPL-07: no warning on clean deploy" {
 	# FAKE_HOME is empty — no pre-existing files
 	run env HOME="$FAKE_HOME" ENV_TYPE="linux" "$BASH_BIN" "$DEPLOY"
 	assert_success

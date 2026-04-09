@@ -269,10 +269,10 @@ STUB
 }
 
 # ---------------------------------------------------------------------------
-# BOOT-05: set -euo pipefail aborts on failure
+# BOOT-08: set -euo pipefail aborts on failure
 # ---------------------------------------------------------------------------
 
-@test "BOOT-05: script aborts when command fails" {
+@test "BOOT-08: script aborts when command fails" {
 	printf '#!/bin/sh\nexit 0\n' >"$FAKE_BIN/apt"
 	chmod +x "$FAKE_BIN/apt"
 	# apt-get stub that always fails
