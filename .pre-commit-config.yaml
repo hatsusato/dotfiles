@@ -16,12 +16,7 @@ repos:
         types_or: [python, pyi]
         args: [--fix]
 
-  # Python: type checking (strict mode)
-  - repo: https://github.com/necaris/pre-commit-pyright
-    rev: '1.1.408'
-    hooks:
-      - id: pyright
-        additional_dependencies: ['pyright>=1.1.408']
+  # Python: type checking — run via `make type-check` (pyright is slow; CI-only)
 
   # Shell: format (shfmt defaults — tab indent, binary ops at line end)
   - repo: https://github.com/scop/pre-commit-shfmt
