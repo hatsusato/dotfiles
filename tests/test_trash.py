@@ -236,7 +236,7 @@ class TestForceFlag:
         assert "file1.txt" in metadata
         assert "file3.txt" in metadata
 
-    def test_flag_f_004_without_f_error_stops_processing(
+    def test_flag_f_004_without_f_error_continues_processing(
         self, mock_trash_env: dict
     ) -> None:
         """FLAG-F-004: without -f, error on missing file continues processing remaining files (D-08)."""
