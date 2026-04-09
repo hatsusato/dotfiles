@@ -12,7 +12,6 @@ import subprocess
 import tarfile
 from pathlib import Path
 
-import pytest
 
 # Absolute path to the trash script under test
 TRASH_SCRIPT = Path(__file__).parent.parent / "dotfiles/common/.local/bin/trash"
@@ -237,22 +236,10 @@ class TestForceFlag:
         assert "file1.txt" in metadata
         assert "file3.txt" in metadata
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Test contradicts D-08: implementation correctly continues on error "
-            "(same scenario as TOOL-02-003 which passes). "
-            "Test expects stop-on-error but spec requires continue-on-error."
-        ),
-    )
     def test_flag_f_004_without_f_error_stops_processing(
         self, mock_trash_env: dict
     ) -> None:
-        """FLAG-F-004: without -f, error on first missing file stops processing.
-
-        NOTE: This test is xfail because it contradicts D-08 and TOOL-02-003.
-        The implementation correctly continues processing remaining files on error.
-        """
+        """FLAG-F-004: without -f, error on missing file continues processing remaining files (D-08)."""
         home = Path(mock_trash_env["home"])
 
         f1 = home / "file1.txt"
@@ -263,8 +250,8 @@ class TestForceFlag:
         result = run_trash(str(f1), str(home / "file2.txt"), str(f3))
         assert result.returncode != 0
         assert not f1.exists()
-        # This assertion fails: implementation continues, so f3 gets trashed
-        assert f3.exists()
+        # Implementation continues processing after error (D-08), so f3 is trashed
+        assert not f3.exists()
 
 
 # ============================================================================
@@ -345,7 +332,7 @@ class TestRecursiveFlag:
         extract_dir = tmp_path / "extracted"
         extract_dir.mkdir()
         with tarfile.open(tar_files[0]) as tf:
-            tf.extractall(extract_dir)
+            tf.extractall(extract_dir, filter="data")
 
         assert (extract_dir / "testdir" / "file1.txt").exists()
         assert (extract_dir / "testdir" / "subdir" / "file2.txt").exists()
