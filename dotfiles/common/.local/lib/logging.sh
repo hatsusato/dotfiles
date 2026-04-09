@@ -64,21 +64,21 @@ _log_format() {
 # log_debug MESSAGE
 # Outputs a debug message (lowest priority) to stderr when LOG_LEVEL=debug
 log_debug() {
-	[[ "${LOG_LEVEL:-info}" == "debug" ]] || return 0
+	[[ "${LOG_LEVEL}" == "debug" ]] || return 0
 	_log_format "DEBUG" "${COLOR_GRAY}" "${1}" >&2
 }
 
 # log_info MESSAGE
 # Outputs an info message to stderr when LOG_LEVEL=debug or info
 log_info() {
-	[[ "${LOG_LEVEL:-info}" =~ ^(debug|info)$ ]] || return 0
+	[[ "${LOG_LEVEL}" =~ ^(debug|info)$ ]] || return 0
 	_log_format "INFO" "${COLOR_CYAN}" "${1}" >&2
 }
 
 # log_warn MESSAGE
 # Outputs a warning message to stderr when LOG_LEVEL=debug, info, or warn
 log_warn() {
-	[[ "${LOG_LEVEL:-info}" =~ ^(debug|info|warn)$ ]] || return 0
+	[[ "${LOG_LEVEL}" =~ ^(debug|info|warn)$ ]] || return 0
 	_log_format "WARN" "${COLOR_YELLOW}" "${1}" >&2
 }
 
