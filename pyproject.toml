@@ -28,3 +28,7 @@ indent-style = "space"
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
+include = ["dotfiles/"]
+exclude = [".venv/", "tests/bats/"]
+venvPath = "."
+venv = ".venv"

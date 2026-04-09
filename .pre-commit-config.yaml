@@ -16,7 +16,15 @@ repos:
         types_or: [python, pyi]
         args: [--fix]
 
-  # Python: type checking — run via `make type-check` (pyright is slow; CI-only)
+  # Python: type checking (strict mode via local uv environment)
+  - repo: local
+    hooks:
+      - id: pyright
+        name: pyright
+        entry: uv run pyright dotfiles/
+        language: system
+        types: [python]
+        pass_filenames: false
 
   # Shell: format (shfmt defaults — tab indent, binary ops at line end)
   - repo: https://github.com/scop/pre-commit-shfmt
