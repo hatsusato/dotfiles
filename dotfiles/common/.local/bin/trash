@@ -11,7 +11,6 @@ import json
 import os
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional
 import tempfile
 import subprocess
 import hashlib
@@ -101,7 +100,7 @@ def _tar_and_hash_dir(dir_path: Path, temp_dir: Path) -> tuple[str, Path]:
     except subprocess.CalledProcessError as e:
         tar_path.unlink(missing_ok=True)
         raise RuntimeError(f"Failed to compress directory: {e}")
-    except Exception:
+    except RuntimeError:
         tar_path.unlink(missing_ok=True)
         raise
 
@@ -140,28 +139,84 @@ def _record_metadata(
         raise RuntimeError(f"Failed to record metadata: {e}")
 
 
+def _trash_symlink(symlink_path: Path, trash_dir: Path, verbose: bool) -> bool:
+    """Trash a symlink by recording its target path as content."""
+    tmp_path: Path | None = None
+    try:
+        symlink_target = symlink_path.readlink()
+        tmp_file = tempfile.NamedTemporaryFile(delete=False)
+        tmp_path = Path(tmp_file.name)
+        tmp_file.write(str(symlink_target).encode("utf-8"))
+        tmp_file.close()
+
+        hash_value = _hash_file(tmp_path)
+        trash_path = trash_dir / hash_value
+
+        trash_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(tmp_path), str(trash_path))
+        symlink_path.unlink()
+        _record_metadata(trash_dir, hash_value, symlink_path, False)
+
+        if verbose:
+            print(f"Trashed: {symlink_path} [hash: {hash_value}]", file=sys.stderr)
+        return True
+    except (OSError, RuntimeError) as e:
+        print(f"Error trashing {symlink_path}: {e}", file=sys.stderr)
+        try:
+            if tmp_path is not None:
+                tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass  # Cleanup best-effort
+        return False
+
+
+def _trash_directory(dir_path: Path, trash_dir: Path, verbose: bool) -> bool:
+    """Trash a directory by creating a tar archive and recording metadata."""
+    try:
+        hash_value, tar_path = _tar_and_hash_dir(dir_path, Path(tempfile.gettempdir()))
+        trash_path = trash_dir / hash_value
+
+        trash_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(tar_path), str(trash_path))
+        shutil.rmtree(dir_path)
+        _record_metadata(trash_dir, hash_value, dir_path, True)
+
+        if verbose:
+            print(f"Trashed: {dir_path} [hash: {hash_value}]", file=sys.stderr)
+        return True
+    except (OSError, RuntimeError) as e:
+        print(f"Error trashing {dir_path}: {e}", file=sys.stderr)
+        return False
+
+
+def _trash_regular_file(file_path: Path, trash_dir: Path, verbose: bool) -> bool:
+    """Trash a regular file by hashing and moving to trash."""
+    try:
+        hash_value = _hash_file(file_path)
+        trash_path = trash_dir / hash_value
+
+        trash_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(file_path), str(trash_path))
+        _record_metadata(trash_dir, hash_value, file_path, False)
+
+        if verbose:
+            print(f"Trashed: {file_path} [hash: {hash_value}]", file=sys.stderr)
+        return True
+    except (OSError, RuntimeError) as e:
+        print(f"Error trashing {file_path}: {e}", file=sys.stderr)
+        return False
+
+
 def _trash_file(
     file_path: Path, trash_dir: Path, is_directory: bool, force: bool, verbose: bool
 ) -> bool:
-    """Move a single file or directory to trash with metadata recording.
-
-    Args:
-        file_path: Path to file or directory
-        trash_dir: Path to trash directory
-        is_directory: True if file_path is a directory
-        force: If True, silently ignore nonexistent files
-        verbose: If True, print verbose output to stderr
-
-    Returns:
-        True on success, False on error
-    """
+    """Dispatch file, symlink, or directory to the appropriate trash handler."""
     try:
-        # Make path absolute WITHOUT following symlinks
-        # (Path.resolve() follows symlinks, so we do it manually)
+        # Make path absolute without following symlinks
         if not file_path.is_absolute():
             file_path = Path.cwd() / file_path
 
-        # Check if file exists (before checking symlink, in case symlink points to nonexistent)
+        # Check existence before symlink check (symlink may point to nonexistent)
         if not file_path.exists() and not file_path.is_symlink():
             if not force:
                 print(
@@ -169,11 +224,9 @@ def _trash_file(
                     file=sys.stderr,
                 )
                 return False
-            else:
-                # Force flag: silently ignore nonexistent
-                return True
+            return True  # Force: silently ignore
 
-        # Refuse to trash dangerous paths (use absolute path for comparison)
+        # Refuse dangerous paths (resolved for real paths, raw for broken symlinks)
         abs_path = (
             file_path.resolve()
             if file_path.exists() or not file_path.is_symlink()
@@ -186,51 +239,7 @@ def _trash_file(
             )
             return False
 
-        # Check directory without -r flag (not needed here, handled in main)
-        # This check happens in main() before calling this function
-
-        # Compute hash and prepare file for moving
-        hash_value: str
-        tar_path: Optional[Path] = None
-        is_symlink = file_path.is_symlink()
-
-        if is_symlink:
-            # Symlink: read target and hash it as a regular file
-            try:
-                symlink_target = file_path.readlink()
-                # Create temp file with symlink target path as content
-                tmp_file = tempfile.NamedTemporaryFile(delete=False)
-                tmp_path = Path(tmp_file.name)
-                tmp_file.write(str(symlink_target).encode("utf-8"))
-                tmp_file.close()
-
-                hash_value = _hash_file(tmp_path)
-                # We'll move tmp_path to trash (and delete the symlink separately)
-                tar_path = tmp_path
-            except Exception as e:
-                print(
-                    f"Error trashing {file_path}: Failed to read symlink: {e}",
-                    file=sys.stderr,
-                )
-                return False
-        elif is_directory:
-            # Directory: tar it first
-            try:
-                hash_value, tar_path = _tar_and_hash_dir(
-                    file_path, Path(tempfile.gettempdir())
-                )
-            except RuntimeError as e:
-                print(f"Error trashing {file_path}: {e}", file=sys.stderr)
-                return False
-        else:
-            # Regular file: hash directly
-            try:
-                hash_value = _hash_file(file_path)
-            except RuntimeError as e:
-                print(f"Error trashing {file_path}: {e}", file=sys.stderr)
-                return False
-
-        # Create TRASH_DIR if absent
+        # Create trash directory
         try:
             trash_dir.mkdir(parents=True, exist_ok=True)
         except (OSError, PermissionError) as e:
@@ -238,54 +247,15 @@ def _trash_file(
                 f"Error trashing {file_path}: Failed to create trash directory: {e}",
                 file=sys.stderr,
             )
-            if tar_path:
-                tar_path.unlink(missing_ok=True)
             return False
 
-        # Move to trash
-        trash_path = trash_dir / hash_value
-        try:
-            if tar_path:
-                # Moving a temporary file (symlink or tar)
-                shutil.move(str(tar_path), str(trash_path))
-            else:
-                # Moving the original file (use shutil.move for cross-filesystem safety)
-                shutil.move(str(file_path), str(trash_path))
-        except (OSError, PermissionError) as e:
-            print(
-                f"Error trashing {file_path}: Failed to move to trash: {e}",
-                file=sys.stderr,
-            )
-            if tar_path:
-                tar_path.unlink(missing_ok=True)
-            return False
-
-        # Remove original file if not already moved
-        if is_symlink:
-            # For symlinks, we moved a temp file to trash, but the original symlink is still here
-            try:
-                file_path.unlink()
-            except Exception:
-                pass  # Already removed
+        # Dispatch to type-specific handler
+        if file_path.is_symlink():
+            return _trash_symlink(file_path, trash_dir, verbose)
         elif is_directory:
-            # For directories, we moved a tar to trash, but the original dir is still here
-            try:
-                shutil.rmtree(file_path)
-            except Exception:
-                pass  # Already removed by move or doesn't exist
-
-        # Record metadata
-        try:
-            _record_metadata(trash_dir, hash_value, file_path, is_directory)
-        except RuntimeError as e:
-            print(f"Error trashing {file_path}: {e}", file=sys.stderr)
-            return False
-
-        # Verbose output
-        if verbose:
-            print(f"Trashed: {file_path} [hash: {hash_value}]", file=sys.stderr)
-
-        return True
+            return _trash_directory(file_path, trash_dir, verbose)
+        else:
+            return _trash_regular_file(file_path, trash_dir, verbose)
 
     except Exception as e:
         print(f"Error trashing {file_path}: {e}", file=sys.stderr)
