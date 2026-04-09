@@ -61,59 +61,24 @@ _log_format() {
 	echo "${output}"
 }
 
-# _should_log LEVEL
-# Returns 0 if the message should be logged, 1 otherwise (based on LOG_LEVEL only)
-_should_log() {
-	local msg_level="${1}"
-	# Map levels to numeric priority: debug=0, info=1, warn=2, error=3
-	case "${LOG_LEVEL:-info}" in
-	debug) return 0 ;;
-	info)
-		[[ "${msg_level}" =~ ^(INFO|WARN|ERROR)$ ]] && return 0
-		return 1
-		;;
-	warn)
-		[[ "${msg_level}" =~ ^(WARN|ERROR)$ ]] && return 0
-		return 1
-		;;
-	error)
-		[[ "${msg_level}" == "ERROR" ]] && return 0
-		return 1
-		;;
-	*) return 0 ;; # fallback: show everything
-	esac
-}
-
 # log_debug MESSAGE
 # Outputs a debug message (lowest priority) to stderr when LOG_LEVEL=debug
 log_debug() {
-	_should_log "DEBUG"
-	local _ret=$?
-	if [[ ${_ret} -ne 0 ]]; then
-		return 0
-	fi
+	[[ "${LOG_LEVEL:-info}" == "debug" ]] || return 0
 	_log_format "DEBUG" "${COLOR_GRAY}" "${1}" >&2
 }
 
 # log_info MESSAGE
 # Outputs an info message to stderr when LOG_LEVEL=debug or info
 log_info() {
-	_should_log "INFO"
-	local _ret=$?
-	if [[ ${_ret} -ne 0 ]]; then
-		return 0
-	fi
+	[[ "${LOG_LEVEL:-info}" =~ ^(debug|info)$ ]] || return 0
 	_log_format "INFO" "${COLOR_CYAN}" "${1}" >&2
 }
 
 # log_warn MESSAGE
 # Outputs a warning message to stderr when LOG_LEVEL=debug, info, or warn
 log_warn() {
-	_should_log "WARN"
-	local _ret=$?
-	if [[ ${_ret} -ne 0 ]]; then
-		return 0
-	fi
+	[[ "${LOG_LEVEL:-info}" =~ ^(debug|info|warn)$ ]] || return 0
 	_log_format "WARN" "${COLOR_YELLOW}" "${1}" >&2
 }
 
