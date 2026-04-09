@@ -426,21 +426,21 @@ class TestHelpFlag:
         """FLAG-H-001: -h displays usage line."""
         result = run_trash("-h")
         assert result.returncode == 0
-        assert "Usage:" in result.stderr
-        assert "trash" in result.stderr
+        assert "usage:" in result.stdout
+        assert "trash" in result.stdout
 
     def test_flag_h_002_h_displays_examples(self, mock_trash_env: dict) -> None:
         """FLAG-H-002: -h displays examples including -r flag."""
         result = run_trash("-h")
         assert result.returncode == 0
-        assert "trash" in result.stderr
-        assert "-r" in result.stderr
+        assert "trash" in result.stdout
+        assert "-r" in result.stdout
 
     def test_flag_h_003_h_includes_recovery_note(self, mock_trash_env: dict) -> None:
         """FLAG-H-003: -h includes recovery note mentioning .trash."""
         result = run_trash("-h")
         assert result.returncode == 0
-        assert ".trash" in result.stderr
+        assert ".trash" in result.stdout
 
     def test_flag_h_004_help_exits_with_code_0(self, mock_trash_env: dict) -> None:
         """FLAG-H-004: help text exits with success code 0."""
