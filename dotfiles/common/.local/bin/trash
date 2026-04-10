@@ -22,6 +22,42 @@ EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
 
 
+class Metadata:
+    """Record of a trashed item: hash, original path, type, date."""
+
+    def __init__(self, hash: str, path: Path, item_type: str, date: str) -> None:
+        self.hash = hash
+        self.path = path
+        self.type = item_type
+        self.date = date
+
+    def to_dict(self) -> dict[str, str]:
+        """Convert to JSON-serializable dict."""
+        return {
+            "hash": self.hash,
+            "path": str(self.path),
+            "type": self.type,
+            "date": self.date,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, str]) -> "Metadata":
+        """Deserialize from JSON dict."""
+        return cls(
+            hash=d["hash"],
+            path=Path(d["path"]),
+            item_type=d["type"],
+            date=d["date"],
+        )
+
+    def write_to_jsonl(self, metadata_path: Path) -> None:
+        """Append this metadata entry to metadata.jsonl in JSON Lines format."""
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(metadata_path, "a") as f:
+            json.dump(self.to_dict(), f, ensure_ascii=False, separators=(",", ":"))
+            f.write("\n")
+
+
 def _hash_file(path: Path) -> str:
     """Compute SHA256 hash of file in 8KB chunks.
 
@@ -85,35 +121,20 @@ def _tar_and_hash_dir(dir_path: Path, temp_dir: Path) -> tuple[str, Path]:
 def _record_metadata(
     trash_dir: Path, hash_value: str, original_path: Path, is_directory: bool
 ) -> None:
-    """Append metadata entry to metadata.jsonl (JSON Lines format).
-
-    Args:
-        trash_dir: Path to trash directory
-        hash_value: SHA256 hash of file/archive
-        original_path: Original absolute path (should be resolved)
-        is_directory: True if this was a directory
-
-    Raises:
-        RuntimeError: If metadata cannot be written
-    """
-    # For metadata, store absolute path without following symlinks
+    """Append metadata entry to metadata.jsonl using Metadata class."""
     abs_path = (
         original_path if original_path.is_absolute() else Path.cwd() / original_path
     )
-    metadata_entry = {
-        "hash": hash_value,
-        "path": str(abs_path),
-        "type": "dir" if is_directory else "file",
-        "date": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
-    }
-
-    metadata_path = trash_dir / "metadata.jsonl"
+    metadata = Metadata(
+        hash=hash_value,
+        path=abs_path,
+        item_type="dir" if is_directory else "file",
+        date=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+    )
     try:
-        with open(metadata_path, "a") as f:
-            json.dump(metadata_entry, f, ensure_ascii=False, separators=(",", ":"))
-            f.write("\n")
+        metadata.write_to_jsonl(trash_dir / "metadata.jsonl")
     except (IOError, PermissionError) as e:
-        raise RuntimeError(f"Failed to record metadata: {e}")
+        raise RuntimeError(f"Failed to record metadata: {e}") from e
 
 
 def _trash_symlink(symlink_path: Path, trash_dir: Path, verbose: bool) -> bool:
