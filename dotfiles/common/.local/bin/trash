@@ -215,22 +215,16 @@ class Directory(TrashItem):
             raise RuntimeError(f"Failed to trash {self.path}: {e}") from e
 
     def _tar_and_hash_dir(self, trash_dir: Path) -> tuple[str, Path]:
-        """Create tar of directory in trash_dir, hash it, return (hash, temp_path).
+        """Create tar of directory contents in trash_dir, hash it, return (hash, temp_path).
 
         Uses trash_dir as temp location (D-08: same filesystem, atomic rename).
-        Tar structure: -C parent dir_name (preserves dir name in archive).
+        Tar structure: -C dir_path . so tar contains ./file1, ./subdir/file2 etc.
+        Original path is preserved in metadata — tar only needs contents (D-09).
         """
         temp_tar = trash_dir / f"tmp_{uuid.uuid4().hex[:8]}.tar"
         try:
             subprocess.run(
-                [
-                    "tar",
-                    "-cf",
-                    str(temp_tar),
-                    "-C",
-                    str(self.path.parent),
-                    self.path.name,
-                ],
+                ["tar", "-cf", str(temp_tar), "-C", str(self.path), "."],
                 check=True,
                 capture_output=True,
                 text=False,
@@ -286,9 +280,9 @@ def _tar_and_hash_dir(dir_path: Path, temp_dir: Path) -> tuple[str, Path]:
     tar_file.close()
 
     try:
-        # Create uncompressed tar (matches bash: tar -cf)
+        # Create uncompressed tar (D-09: contents only, no dir name prefix)
         subprocess.run(
-            ["tar", "-cf", str(tar_path), "-C", str(dir_path.parent), dir_path.name],
+            ["tar", "-cf", str(tar_path), "-C", str(dir_path), "."],
             check=True,
             capture_output=True,
             text=False,

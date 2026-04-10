@@ -296,7 +296,7 @@ class TestRecursiveFlag:
     def test_flag_r_004_directory_structure_preserved_in_tar(
         self, mock_trash_env: dict, tmp_path: Path
     ) -> None:
-        """FLAG-R-004: directory structure is preserved inside tar archive."""
+        """FLAG-R-004: directory structure is preserved inside tar archive (contents only, no dir prefix)."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -317,8 +317,8 @@ class TestRecursiveFlag:
         with tarfile.open(tar_files[0]) as tf:
             tf.extractall(extract_dir, filter="data")
 
-        assert (extract_dir / "testdir" / "file1.txt").exists()
-        assert (extract_dir / "testdir" / "subdir" / "file2.txt").exists()
+        assert (extract_dir / "file1.txt").exists()
+        assert (extract_dir / "subdir" / "file2.txt").exists()
 
     def test_flag_r_005_directory_type_in_metadata_is_dir(
         self, mock_trash_env: dict
