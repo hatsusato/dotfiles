@@ -9,6 +9,8 @@ import sys
 import argparse
 import json
 import os
+import uuid
+from abc import ABC, abstractmethod
 from pathlib import Path
 from datetime import datetime, timezone
 import tempfile
@@ -56,6 +58,191 @@ class Metadata:
         with open(metadata_path, "a") as f:
             json.dump(self.to_dict(), f, ensure_ascii=False, separators=(",", ":"))
             f.write("\n")
+
+
+class TrashItem(ABC):
+    """Abstract base for items to be trashed."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path if path.is_absolute() else Path.cwd() / path
+
+    @abstractmethod
+    def trash(self, trash_dir: Path, verbose: bool, force: bool) -> Metadata:
+        """Trash this item. Returns Metadata on success; raises RuntimeError on failure."""
+        pass
+
+    @classmethod
+    def factory(cls, path: Path) -> "TrashItem":
+        """Instantiate appropriate TrashItem subclass based on path type.
+
+        Checks is_symlink() FIRST (before is_dir()) to avoid treating symlinks
+        to directories as directories (D-06 pitfall: is_dir() follows symlinks).
+        """
+        if path.is_symlink():
+            return Symlink(path)
+        elif path.is_dir():
+            return Directory(path)
+        else:
+            return RegularFile(path)
+
+    def _hash_file(self, file_path: Path) -> str:
+        """Compute SHA256 hash of file in 8KB chunks.
+
+        Raises:
+            RuntimeError: If file cannot be read
+        """
+        sha256 = hashlib.sha256()
+        try:
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
+                    sha256.update(chunk)
+            return sha256.hexdigest()
+        except (FileNotFoundError, PermissionError, IOError) as e:
+            raise RuntimeError(f"Failed to hash file: {e}") from e
+
+    def _record_metadata(
+        self,
+        trash_dir: Path,
+        hash_value: str,
+        original_path: Path,
+        is_directory: bool,
+    ) -> Metadata:
+        """Create and persist Metadata record. Returns the Metadata object."""
+        abs_path = (
+            original_path if original_path.is_absolute() else Path.cwd() / original_path
+        )
+        metadata = Metadata(
+            hash=hash_value,
+            path=abs_path,
+            item_type="dir" if is_directory else "file",
+            date=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+        )
+        try:
+            metadata.write_to_jsonl(trash_dir / "metadata.jsonl")
+        except (IOError, PermissionError) as e:
+            raise RuntimeError(f"Failed to record metadata: {e}") from e
+        return metadata
+
+
+class Symlink(TrashItem):
+    """Trash a symbolic link by recording its target as a file."""
+
+    def trash(self, trash_dir: Path, verbose: bool, force: bool) -> Metadata:
+        """Move symlink target record to trash; delete the symlink itself.
+
+        Raises:
+            RuntimeError: If symlink cannot be trashed
+        """
+        tmp_path: Path | None = None
+        try:
+            symlink_target = self.path.readlink()
+            tmp_file = tempfile.NamedTemporaryFile(delete=False)
+            tmp_path = Path(tmp_file.name)
+            tmp_file.write(str(symlink_target).encode("utf-8"))
+            tmp_file.close()
+
+            hash_value = self._hash_file(tmp_path)
+            trash_path = trash_dir / hash_value
+            trash_dir.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(tmp_path), str(trash_path))
+            self.path.unlink()
+            metadata = self._record_metadata(trash_dir, hash_value, self.path, False)
+
+            if verbose:
+                print(
+                    f"Trashed: {self.path} [hash: {hash_value}]",
+                    file=sys.stderr,
+                )
+            return metadata
+        except (OSError, RuntimeError) as e:
+            try:
+                if tmp_path is not None:
+                    tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise RuntimeError(f"Failed to trash {self.path}: {e}") from e
+
+
+class RegularFile(TrashItem):
+    """Trash a regular file by hashing and moving to trash."""
+
+    def trash(self, trash_dir: Path, verbose: bool, force: bool) -> Metadata:
+        """Hash file and move to trash_dir/{hash}.
+
+        Raises:
+            RuntimeError: If file cannot be trashed
+        """
+        try:
+            hash_value = self._hash_file(self.path)
+            trash_path = trash_dir / hash_value
+            trash_dir.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(self.path), str(trash_path))
+            metadata = self._record_metadata(trash_dir, hash_value, self.path, False)
+
+            if verbose:
+                print(
+                    f"Trashed: {self.path} [hash: {hash_value}]",
+                    file=sys.stderr,
+                )
+            return metadata
+        except (OSError, RuntimeError) as e:
+            raise RuntimeError(f"Failed to trash {self.path}: {e}") from e
+
+
+class Directory(TrashItem):
+    """Trash a directory by creating a tar archive and recording metadata."""
+
+    def trash(self, trash_dir: Path, verbose: bool, force: bool) -> Metadata:
+        """Tar directory contents, hash archive, move to trash, record metadata.
+
+        Raises:
+            RuntimeError: If directory cannot be trashed
+        """
+        try:
+            hash_value, tar_path = self._tar_and_hash_dir(trash_dir)
+            final_path = trash_dir / hash_value
+            tar_path.rename(final_path)
+            shutil.rmtree(self.path)
+            metadata = self._record_metadata(trash_dir, hash_value, self.path, True)
+
+            if verbose:
+                print(
+                    f"Trashed: {self.path} [hash: {hash_value}]",
+                    file=sys.stderr,
+                )
+            return metadata
+        except (OSError, subprocess.CalledProcessError, RuntimeError) as e:
+            raise RuntimeError(f"Failed to trash {self.path}: {e}") from e
+
+    def _tar_and_hash_dir(self, trash_dir: Path) -> tuple[str, Path]:
+        """Create tar of directory in trash_dir, hash it, return (hash, temp_path).
+
+        Uses trash_dir as temp location (D-08: same filesystem, atomic rename).
+        Tar structure: -C parent dir_name (preserves dir name in archive).
+        """
+        temp_tar = trash_dir / f"tmp_{uuid.uuid4().hex[:8]}.tar"
+        try:
+            subprocess.run(
+                [
+                    "tar",
+                    "-cf",
+                    str(temp_tar),
+                    "-C",
+                    str(self.path.parent),
+                    self.path.name,
+                ],
+                check=True,
+                capture_output=True,
+                text=False,
+            )
+            hash_value = self._hash_file(temp_tar)
+            return hash_value, temp_tar
+        except subprocess.CalledProcessError as e:
+            temp_tar.unlink(missing_ok=True)
+            raise RuntimeError(f"Failed to tar directory: {e}") from e
+        except RuntimeError:
+            temp_tar.unlink(missing_ok=True)
+            raise
 
 
 def _hash_file(path: Path) -> str:
