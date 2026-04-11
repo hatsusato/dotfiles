@@ -24,51 +24,93 @@ EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
 
 
-@dataclass(frozen=True)
-class TrashPath:
-    """Immutable path validator and type detector.
+def _determine_type(path: Path) -> Literal["file", "dir", "symlink"]:
+    """Detect item type. Check is_symlink() BEFORE is_dir() (D-06 pitfall).
 
-    Encapsulates path normalization, existence checking, dangerous path
-    detection, and type detection. All validation logic is centralized here.
+    Pure function for type detection. Takes explicit path parameter, returns
+    type string. No state mutation. Shared utility for both TrashPath and
+    Metadata validation.
+
+    CRITICAL: is_symlink() must be checked before is_dir() because is_dir()
+    follows symlinks. A symlink-to-directory would be incorrectly detected as
+    a directory if we check is_dir() first (D-06 pitfall).
+
+    Args:
+        path: Path to check
+
+    Returns:
+        Literal["file", "dir", "symlink"]
+    """
+    if path.is_symlink():
+        return "symlink"
+    if path.is_dir():
+        return "dir"
+    return "file"
+
+
+class TrashDir(Path):
+    """Path subclass for trash directory, reads TRASH_DIR environment variable.
+
+    Inherits from Path for transparent access to path methods (exists, mkdir, etc.).
+    Reads TRASH_DIR environment variable at instantiation time; allows different
+    instances to potentially use different trash directories if env changes.
     """
 
-    path: Path
-    item_type: Literal["file", "dir", "symlink"]
+    def __new__(cls, trash_dir: str | Path | None = None) -> "TrashDir":
+        """Create TrashDir, reading TRASH_DIR env var if trash_dir is None.
 
-    @staticmethod
-    def _determine_type(path: Path) -> Literal["file", "dir", "symlink"]:
-        """Detect item type. Check is_symlink() BEFORE is_dir() (D-06 pitfall).
+        DECISION OVERRIDE (D-02): CONTEXT.md specifies __init__ for instance
+        initialization, but pathlib.Path requires __new__ for immutable subclassing.
+        Path sets the filesystem path in __new__ before __init__ is called, and __init__
+        is a no-op on Path instances. Using __new__ is the correct pattern per Python
+        3.12 stdlib. This override is technical necessity, not discretionary.
 
-        CRITICAL: is_symlink() must be checked before is_dir() because is_dir()
-        follows symlinks. A symlink-to-directory would be incorrectly detected as
-        a directory if we check is_dir() first (D-06 pitfall).
+        Args:
+            trash_dir: Explicit trash directory path. If None, reads TRASH_DIR env var.
+
+        Returns:
+            TrashDir instance (a Path subclass)
         """
-        if path.is_symlink():
-            return "symlink"
-        if path.is_dir():
-            return "dir"
-        return "file"
+        if trash_dir is None:
+            trash_dir = os.environ.get("TRASH_DIR", str(Path.home() / ".trash"))
+        # Convert to string for Path.__new__
+        trash_dir_str = str(trash_dir)
+        instance = super().__new__(cls, trash_dir_str)
+        return instance
 
-    @classmethod
-    def from_path(cls, path: Path) -> "TrashPath":
-        """Validate filesystem path for trasheability.
+    def __init__(self, trash_dir: str | Path | None = None) -> None:
+        """Initialize TrashDir (no-op, Path initialization happens in __new__)."""
+        pass
+
+
+class TrashPath(Path):
+    """Path subclass with type detection and validation.
+
+    Validates path at creation time: checks existence, detects type,
+    prevents dangerous paths (/, home, .). Stores immutable type as hidden
+    attribute. Inherits from Path for transparent API access.
+    """
+
+    def __new__(cls, path: Path | str) -> "TrashPath":
+        """Validate and create TrashPath.
 
         Encapsulates path normalization, existence checking, dangerous path
-        detection, and type detection. All validation logic copied from
-        Metadata.from_path() to ensure compatibility.
+        detection, and type detection. All validation logic is centralized here.
 
         Args:
             path: Relative or absolute file path
 
         Returns:
-            TrashPath instance with normalized path and detected type
+            TrashPath instance (a Path subclass) with pre-computed type
 
         Raises:
             FileNotFoundError: Path does not exist and is not a symlink
             ValueError: Path is a dangerous system directory (/, home, .)
         """
         # Normalize path to absolute
-        normalized = path if path.is_absolute() else Path.cwd() / path
+        normalized = path if isinstance(path, Path) else Path(path)
+        if not normalized.is_absolute():
+            normalized = Path.cwd() / normalized
 
         # Check existence (symlinks may point to nonexistent targets — check both)
         if not normalized.exists() and not normalized.is_symlink():
@@ -84,10 +126,45 @@ class TrashPath:
         if resolved in (Path("/"), Path.home(), Path(".")):
             raise ValueError(f"Cannot trash system directory: {path}")
 
-        # Determine type using static method
-        determined_type = cls._determine_type(normalized)
+        # Create Path instance
+        instance = super().__new__(cls, normalized)
 
-        return cls(path=normalized, item_type=determined_type)
+        # Store type as hidden attribute using object.__setattr__ (Path is immutable)
+        object.__setattr__(instance, "_item_type", _determine_type(normalized))
+
+        return instance
+
+    def __init__(self, path: Path | str) -> None:
+        """Initialize TrashPath (no-op, Path initialization happens in __new__)."""
+        pass
+
+    @property
+    def item_type(self) -> Literal["file", "dir", "symlink"]:
+        """Return pre-computed item type (immutable).
+
+        Type is determined at instance creation time in __new__ and stored as
+        a hidden attribute. This property provides read-only access.
+        """
+        return object.__getattribute__(self, "_item_type")
+
+    @classmethod
+    def from_path(cls, path: Path | str) -> "TrashPath":
+        """Factory method for backward compatibility.
+
+        Creates TrashPath via __new__ and returns instance. Kept for compatibility
+        with existing code that calls TrashPath.from_path().
+
+        Args:
+            path: Relative or absolute file path
+
+        Returns:
+            TrashPath instance
+
+        Raises:
+            FileNotFoundError: Path does not exist and is not a symlink
+            ValueError: Path is a dangerous system directory
+        """
+        return cls(path)
 
 
 def _hash_file(file_path: Path) -> str:
@@ -306,8 +383,10 @@ class Metadata:
 
         Encapsulates path normalization, existence checking, dangerous path
         detection, type detection, and date computation. Hash is deferred to
-        TrashItem subclasses during trash(). Returns Metadata with normalized
+        trash_*() functions during operation. Returns Metadata with normalized
         path, type, and date set; hash is empty string (to be computed by trash()).
+
+        Uses shared _determine_type() utility for consistency with TrashPath.
 
         Args:
             path: Relative or absolute file path
@@ -336,28 +415,14 @@ class Metadata:
         if resolved in (Path("/"), Path.home(), Path(".")):
             raise ValueError(f"Cannot trash system directory: {path}")
 
-        # Determine type using static method
-        type_str = cls._determine_type_static(normalized)
-        # Type guard: cast static result to Literal type
-        determined_type: Literal["file", "dir", "symlink"] = type_str  # type: ignore[assignment]
+        # Determine type using shared utility
+        determined_type = _determine_type(normalized)
 
         # Compute date
         computed_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
 
         # Return Metadata with normalized path, determined type, and computed date; hash is empty
         return cls(normalized, hash="", type=determined_type, date=computed_date)
-
-    @staticmethod
-    def _determine_type_static(path: Path) -> str:
-        """Detect item type. Check is_symlink() BEFORE is_dir() (D-06 pitfall).
-
-        This static version is used by from_path() during validation.
-        """
-        if path.is_symlink():
-            return "symlink"
-        if path.is_dir():
-            return "dir"
-        return "file"
 
     def write_to_jsonl(self, metadata_path: Path) -> None:
         """Append this metadata entry to metadata.jsonl in JSON Lines format."""
