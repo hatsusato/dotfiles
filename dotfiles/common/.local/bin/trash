@@ -112,43 +112,6 @@ class TrashItem(ABC):
         else:
             return RegularFile(path)
 
-    def _hash_file(self, file_path: Path) -> str:
-        """Compute SHA256 hash of file in 8KB chunks.
-
-        Raises:
-            RuntimeError: If file cannot be read
-        """
-        sha256 = hashlib.sha256()
-        try:
-            with open(file_path, "rb") as f:
-                for chunk in iter(lambda: f.read(8192), b""):
-                    sha256.update(chunk)
-            return sha256.hexdigest()
-        except (FileNotFoundError, PermissionError, IOError) as e:
-            raise RuntimeError(f"Failed to hash file: {e}") from e
-
-    def _record_metadata(
-        self,
-        trash_dir: Path,
-        hash_value: str,
-        original_path: Path,
-        is_directory: bool,
-    ) -> Metadata:
-        """Create and persist Metadata record. Returns the Metadata object."""
-        abs_path = (
-            original_path if original_path.is_absolute() else Path.cwd() / original_path
-        )
-        metadata = Metadata(
-            path=abs_path,
-            hash=hash_value,
-            item_type="dir" if is_directory else "file",
-        )
-        try:
-            metadata.write_to_jsonl(trash_dir / "metadata.jsonl")
-        except (IOError, PermissionError) as e:
-            raise RuntimeError(f"Failed to record metadata: {e}") from e
-        return metadata
-
 
 class Symlink(TrashItem):
     """Trash a symbolic link by recording its target as a file."""
@@ -167,12 +130,15 @@ class Symlink(TrashItem):
             tmp_file.write(str(symlink_target).encode("utf-8"))
             tmp_file.close()
 
-            hash_value = self._hash_file(tmp_path)
+            # Compute hash of temp file containing symlink target
+            hash_value = Metadata._hash_file(tmp_path)  # type: ignore[reportPrivateUsage]
             trash_path = trash_dir / hash_value
             trash_dir.mkdir(parents=True, exist_ok=True)
             shutil.move(str(tmp_path), str(trash_path))
+            tmp_path = None  # ownership transferred; don't delete in finally
             self.path.unlink()
-            metadata = self._record_metadata(trash_dir, hash_value, self.path, False)
+            metadata = Metadata(self.path, hash=hash_value)
+            metadata.write_to_jsonl(trash_dir / "metadata.jsonl")
 
             if verbose:
                 print(
@@ -199,15 +165,15 @@ class RegularFile(TrashItem):
             RuntimeError: If file cannot be trashed
         """
         try:
-            hash_value = self._hash_file(self.path)
-            trash_path = trash_dir / hash_value
+            metadata = Metadata(self.path)
+            trash_path = trash_dir / metadata.hash
             trash_dir.mkdir(parents=True, exist_ok=True)
             shutil.move(str(self.path), str(trash_path))
-            metadata = self._record_metadata(trash_dir, hash_value, self.path, False)
+            metadata.write_to_jsonl(trash_dir / "metadata.jsonl")
 
             if verbose:
                 print(
-                    f"Trashed: {self.path} [hash: {hash_value}]",
+                    f"Trashed: {self.path} [hash: {metadata.hash}]",
                     file=sys.stderr,
                 )
             return metadata
@@ -229,7 +195,8 @@ class Directory(TrashItem):
             final_path = trash_dir / hash_value
             tar_path.rename(final_path)
             shutil.rmtree(self.path)
-            metadata = self._record_metadata(trash_dir, hash_value, self.path, True)
+            metadata = Metadata(self.path, hash=hash_value, item_type="dir")
+            metadata.write_to_jsonl(trash_dir / "metadata.jsonl")
 
             if verbose:
                 print(
@@ -255,7 +222,7 @@ class Directory(TrashItem):
                 capture_output=True,
                 text=False,
             )
-            hash_value = self._hash_file(temp_tar)
+            hash_value = Metadata._hash_file(temp_tar)  # type: ignore[reportPrivateUsage]
             return hash_value, temp_tar
         except subprocess.CalledProcessError as e:
             temp_tar.unlink(missing_ok=True)
