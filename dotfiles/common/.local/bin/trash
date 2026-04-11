@@ -11,6 +11,7 @@ import json
 import os
 import uuid
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime, timezone
 import subprocess
@@ -23,8 +24,23 @@ EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
 
 
+@dataclass
+class TrashConfig:
+    """Immutable configuration for trash operations."""
+
+    trash_dir: Path
+    verbose: bool = False
+    force: bool = False
+    recursive: bool = False
+
+
 class Metadata:
-    """Record of a trashed item: hash, original path, type, date."""
+    """Record of a trashed item: hash, original path, type, date.
+
+    Metadata objects are created via from_path() factory for validation and
+    normalization. The __init__ method assumes preconditions are met and expects
+    a valid, normalized path.
+    """
 
     def __init__(
         self, path: Path, hash: str | None = None, item_type: str | None = None
@@ -32,7 +48,15 @@ class Metadata:
         self.path = path
         self.date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
         self.type = item_type if item_type is not None else self._determine_type()
-        self.hash = hash if hash is not None else self._hash_file(path)
+        # Hash is provided by caller for symlinks/files; for directories, hash is set after tar
+        if hash is not None:
+            self.hash = hash
+        elif self.type == "dir":
+            # Directory hash is computed after tar creation; leave as None for now
+            self.hash = None
+        else:
+            # Regular file: compute hash
+            self.hash = self._hash_file(path)
 
     def _determine_type(self) -> str:
         """Detect item type. Check is_symlink() BEFORE is_dir() (D-06 pitfall)."""
@@ -58,7 +82,7 @@ class Metadata:
         except (FileNotFoundError, PermissionError, IOError) as e:
             raise RuntimeError(f"Failed to hash file: {e}") from e
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, str | None]:
         """Convert to JSON-serializable dict."""
         return {
             "hash": self.hash,
@@ -78,6 +102,56 @@ class Metadata:
         m.date = d["date"]
         return m
 
+    @classmethod
+    def from_path(cls, path: Path) -> "Metadata":
+        """Validate filesystem path for trasheability (normalization and safety checks).
+
+        Encapsulates path normalization, existence checking, and dangerous path
+        detection. Does NOT compute hash/type — those are determined by TrashItem
+        subclasses during trash(). Returns Metadata with normalized path only.
+
+        Args:
+            path: Relative or absolute file path
+
+        Returns:
+            Metadata instance with normalized path only (hash and type set to None)
+
+        Raises:
+            FileNotFoundError: Path does not exist and is not a symlink
+            ValueError: Path is a dangerous system directory (/, home, .)
+        """
+        # Normalize path to absolute
+        normalized = path if path.is_absolute() else Path.cwd() / path
+
+        # Check existence (symlinks may point to nonexistent targets — check both)
+        if not normalized.exists() and not normalized.is_symlink():
+            raise FileNotFoundError(f"{path}: No such file or directory")
+
+        # Detect dangerous paths: resolve if possible, use normalized if broken symlink
+        try:
+            resolved = normalized.resolve() if normalized.exists() else normalized
+        except (OSError, RuntimeError):
+            # Broken symlink or permission error — use normalized
+            resolved = normalized
+
+        if resolved in (Path("/"), Path.home(), Path(".")):
+            raise ValueError(f"Cannot trash system directory: {path}")
+
+        # Return Metadata with normalized path only; hash and type determined by TrashItem.trash()
+        return cls(normalized)
+
+    @staticmethod
+    def _determine_type_static(path: Path) -> str:
+        """Detect item type. Check is_symlink() BEFORE is_dir() (D-06 pitfall).
+
+        This static version is used by from_path() during validation.
+        """
+        if path.is_symlink():
+            return "symlink"
+        if path.is_dir():
+            return "dir"
+        return "file"
+
     def write_to_jsonl(self, metadata_path: Path) -> None:
         """Append this metadata entry to metadata.jsonl in JSON Lines format."""
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
@@ -93,7 +167,7 @@ class TrashItem(ABC):
         self.path = path if path.is_absolute() else Path.cwd() / path
 
     @abstractmethod
-    def trash(self, trash_dir: Path, verbose: bool, force: bool) -> Metadata:
+    def trash(self, config: TrashConfig) -> Metadata:
         """Trash this item. Returns Metadata on success; raises RuntimeError on failure."""
         pass
 
@@ -115,7 +189,7 @@ class TrashItem(ABC):
 class Symlink(TrashItem):
     """Trash a symbolic link by moving it directly to trash."""
 
-    def trash(self, trash_dir: Path, verbose: bool, force: bool) -> Metadata:
+    def trash(self, config: TrashConfig) -> Metadata:
         """Move symlink directly to trash; preserve inode and target path.
 
         Raises:
@@ -126,8 +200,8 @@ class Symlink(TrashItem):
             symlink_target = self.path.readlink()
             hash_value = hashlib.sha256(str(symlink_target).encode()).hexdigest()
 
-            trash_path = trash_dir / hash_value
-            trash_dir.mkdir(parents=True, exist_ok=True)
+            trash_path = config.trash_dir / hash_value
+            config.trash_dir.mkdir(parents=True, exist_ok=True)
 
             # Note: shutil.move() requires trash_dir on same filesystem as self.path.
             # For cross-filesystem symlinks, this will raise OSError (acceptable per D-35).
@@ -136,9 +210,9 @@ class Symlink(TrashItem):
 
             # Record metadata with type="symlink"
             metadata = Metadata(self.path, hash=hash_value, item_type="symlink")
-            metadata.write_to_jsonl(trash_dir / "metadata.jsonl")
+            metadata.write_to_jsonl(config.trash_dir / "metadata.jsonl")
 
-            if verbose:
+            if config.verbose:
                 print(
                     f"Trashed: {self.path} [hash: {hash_value}]",
                     file=sys.stderr,
@@ -151,7 +225,7 @@ class Symlink(TrashItem):
 class RegularFile(TrashItem):
     """Trash a regular file by hashing and moving to trash."""
 
-    def trash(self, trash_dir: Path, verbose: bool, force: bool) -> Metadata:
+    def trash(self, config: TrashConfig) -> Metadata:
         """Hash file and move to trash_dir/{hash}.
 
         Raises:
@@ -159,39 +233,40 @@ class RegularFile(TrashItem):
         """
         try:
             metadata = Metadata(self.path)
-            trash_path = trash_dir / metadata.hash
-            trash_dir.mkdir(parents=True, exist_ok=True)
+            assert metadata.hash is not None, "Regular file hash should never be None"
+            trash_path = config.trash_dir / metadata.hash
+            config.trash_dir.mkdir(parents=True, exist_ok=True)
             shutil.move(str(self.path), str(trash_path))
-            metadata.write_to_jsonl(trash_dir / "metadata.jsonl")
+            metadata.write_to_jsonl(config.trash_dir / "metadata.jsonl")
 
-            if verbose:
+            if config.verbose:
                 print(
                     f"Trashed: {self.path} [hash: {metadata.hash}]",
                     file=sys.stderr,
                 )
             return metadata
-        except (OSError, RuntimeError) as e:
+        except (OSError, RuntimeError, AssertionError) as e:
             raise RuntimeError(f"Failed to trash {self.path}: {e}") from e
 
 
 class Directory(TrashItem):
     """Trash a directory by creating a tar archive and recording metadata."""
 
-    def trash(self, trash_dir: Path, verbose: bool, force: bool) -> Metadata:
+    def trash(self, config: TrashConfig) -> Metadata:
         """Tar directory contents, hash archive, move to trash, record metadata.
 
         Raises:
             RuntimeError: If directory cannot be trashed
         """
         try:
-            hash_value, tar_path = self._tar_and_hash_dir(trash_dir)
-            final_path = trash_dir / hash_value
+            hash_value, tar_path = self._tar_and_hash_dir(config)
+            final_path = config.trash_dir / hash_value
             tar_path.rename(final_path)
             shutil.rmtree(self.path)
             metadata = Metadata(self.path, hash=hash_value, item_type="dir")
-            metadata.write_to_jsonl(trash_dir / "metadata.jsonl")
+            metadata.write_to_jsonl(config.trash_dir / "metadata.jsonl")
 
-            if verbose:
+            if config.verbose:
                 print(
                     f"Trashed: {self.path} [hash: {hash_value}]",
                     file=sys.stderr,
@@ -200,14 +275,14 @@ class Directory(TrashItem):
         except (OSError, subprocess.CalledProcessError, RuntimeError) as e:
             raise RuntimeError(f"Failed to trash {self.path}: {e}") from e
 
-    def _tar_and_hash_dir(self, trash_dir: Path) -> tuple[str, Path]:
+    def _tar_and_hash_dir(self, config: TrashConfig) -> tuple[str, Path]:
         """Create tar of directory contents in trash_dir, hash it, return (hash, temp_path).
 
         Uses trash_dir as temp location (D-08: same filesystem, atomic rename).
         Tar structure: -C dir_path . so tar contains ./file1, ./subdir/file2 etc.
         Original path is preserved in metadata — tar only needs contents (D-09).
         """
-        temp_tar = trash_dir / f"tmp_{uuid.uuid4().hex[:8]}.tar"
+        temp_tar = config.trash_dir / f"tmp_{uuid.uuid4().hex[:8]}.tar"
         try:
             subprocess.run(
                 ["tar", "-cf", str(temp_tar), "-C", str(self.path), "."],
@@ -226,7 +301,13 @@ class Directory(TrashItem):
 
 
 def main() -> int:
-    """Main entry point."""
+    """Main entry point: orchestrate trash operations with configuration.
+
+    Validates file arguments, builds TrashConfig, and delegates to TrashItem.factory()
+    and trash() for each file. Exception handling is consolidated to three specific
+    exception types: FileNotFoundError (missing file), ValueError (dangerous path),
+    and RuntimeError (operation failure).
+    """
     parser = argparse.ArgumentParser(
         prog="trash",
         description="Move files and directories to a backup location (~/.trash)",
@@ -266,70 +347,49 @@ def main() -> int:
         parser.print_help(sys.stderr)
         return EXIT_FAILURE
 
-    # Get trash directory from environment or use default
+    # Build TrashConfig once after args parse
     trash_dir = Path(os.environ.get("TRASH_DIR", DEFAULT_TRASH_DIR))
+    config = TrashConfig(
+        trash_dir=trash_dir,
+        verbose=args.verbose,
+        force=args.force,
+        recursive=args.recursive,
+    )
 
     # Process each file
     had_error = False
     for file_arg in args.files:
-        file_path = Path(file_arg)
+        try:
+            file_path = Path(file_arg)
+            # Metadata.from_path() validates and normalizes; raises FileNotFoundError/ValueError
+            Metadata.from_path(file_path)
 
-        # Make path absolute without following symlinks (preserves symlink identity)
-        if not file_path.is_absolute():
-            file_path = Path.cwd() / file_path
-
-        # Check existence (symlinks may point to nonexistent targets — check both)
-        if not file_path.exists() and not file_path.is_symlink():
-            if not args.force:
+            # Check directory requires -r (permission-aware guard, not validation)
+            # Create TrashItem to determine type without full trash operation
+            item = TrashItem.factory(file_path)
+            if isinstance(item, Directory) and not config.recursive:
                 print(
-                    f"Error trashing {file_path}: No such file or directory",
+                    f"Error trashing {file_path}: Cannot trash directory without -r flag",
                     file=sys.stderr,
                 )
                 had_error = True
-            continue  # Force: silently skip; no-force: mark error and skip
+                continue
 
-        # Refuse dangerous paths
-        abs_path = (
-            file_path.resolve()
-            if file_path.exists() or not file_path.is_symlink()
-            else file_path
-        )
-        if abs_path in (Path("/"), Path.home(), Path(".")):
-            print(
-                f"Error trashing {file_path}: Cannot trash system directory",
-                file=sys.stderr,
-            )
+            # Trash the item with config
+            item.trash(config)
+        except FileNotFoundError:
+            if not config.force:
+                print(
+                    f"Error trashing {file_arg}: No such file or directory",
+                    file=sys.stderr,
+                )
+                had_error = True
+        except ValueError as e:
+            print(f"Error trashing {file_arg}: {e}", file=sys.stderr)
             had_error = True
-            continue
-
-        # Create trash directory
-        try:
-            trash_dir.mkdir(parents=True, exist_ok=True)
-        except (OSError, PermissionError) as e:
-            print(
-                f"Error trashing {file_path}: Failed to create trash directory: {e}",
-                file=sys.stderr,
-            )
-            had_error = True
-            continue
-
-        # Dispatch via factory — check symlink BEFORE directory (D-06 pitfall)
-        # For plain directories, require -r flag
-        if file_path.is_dir() and not file_path.is_symlink() and not args.recursive:
-            print(
-                f"Error trashing {file_path}: Cannot trash directory without -r flag",
-                file=sys.stderr,
-            )
-            had_error = True
-            continue
-
-        try:
-            item = TrashItem.factory(file_path)
-            item.trash(trash_dir, args.verbose, args.force)
         except RuntimeError as e:
-            print(f"Error trashing {file_path}: {e}", file=sys.stderr)
+            print(f"Error trashing {file_arg}: {e}", file=sys.stderr)
             had_error = True
-        # Continue to next file regardless of error (D-11: error tracking in main)
 
     return EXIT_FAILURE if had_error else EXIT_SUCCESS
 
