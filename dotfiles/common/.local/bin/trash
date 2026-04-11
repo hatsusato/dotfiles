@@ -27,11 +27,37 @@ EXIT_FAILURE = 1
 class Metadata:
     """Record of a trashed item: hash, original path, type, date."""
 
-    def __init__(self, hash: str, path: Path, item_type: str, date: str) -> None:
-        self.hash = hash
+    def __init__(
+        self, path: Path, hash: str | None = None, item_type: str | None = None
+    ) -> None:
         self.path = path
-        self.type = item_type
-        self.date = date
+        self.date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        self.type = item_type if item_type is not None else self._determine_type()
+        self.hash = hash if hash is not None else self._hash_file(path)
+
+    def _determine_type(self) -> str:
+        """Detect item type. Check is_symlink() BEFORE is_dir() (D-06 pitfall)."""
+        if self.path.is_symlink():
+            return "file"
+        if self.path.is_dir():
+            return "dir"
+        return "file"
+
+    @staticmethod
+    def _hash_file(file_path: Path) -> str:
+        """Compute SHA256 hash of file in 8KB chunks.
+
+        Raises:
+            RuntimeError: If file cannot be read
+        """
+        sha256 = hashlib.sha256()
+        try:
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
+                    sha256.update(chunk)
+            return sha256.hexdigest()
+        except (FileNotFoundError, PermissionError, IOError) as e:
+            raise RuntimeError(f"Failed to hash file: {e}") from e
 
     def to_dict(self) -> dict[str, str]:
         """Convert to JSON-serializable dict."""
@@ -45,12 +71,13 @@ class Metadata:
     @classmethod
     def from_dict(cls, d: dict[str, str]) -> "Metadata":
         """Deserialize from JSON dict."""
-        return cls(
-            hash=d["hash"],
+        m = cls(
             path=Path(d["path"]),
+            hash=d["hash"],
             item_type=d["type"],
-            date=d["date"],
         )
+        m.date = d["date"]
+        return m
 
     def write_to_jsonl(self, metadata_path: Path) -> None:
         """Append this metadata entry to metadata.jsonl in JSON Lines format."""
@@ -112,10 +139,9 @@ class TrashItem(ABC):
             original_path if original_path.is_absolute() else Path.cwd() / original_path
         )
         metadata = Metadata(
-            hash=hash_value,
             path=abs_path,
+            hash=hash_value,
             item_type="dir" if is_directory else "file",
-            date=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
         )
         try:
             metadata.write_to_jsonl(trash_dir / "metadata.jsonl")
