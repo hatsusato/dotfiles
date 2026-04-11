@@ -548,6 +548,8 @@ class TestEdgeCases:
         self, mock_trash_env: dict
     ) -> None:
         """EDGE-005: symlink is trashed as file (target is not followed)."""
+        import hashlib
+
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -563,6 +565,20 @@ class TestEdgeCases:
 
         trashed = [f for f in trash_dir.iterdir() if f.name != "metadata.jsonl"]
         assert len(trashed) == 1
+
+        # NEW: Verify type is "symlink" in metadata
+        metadata_entry = json.loads(
+            (trash_dir / "metadata.jsonl").read_text().strip().split("\n")[-1]
+        )
+        assert metadata_entry["type"] == "symlink", (
+            f"Expected type='symlink', got {metadata_entry['type']}"
+        )
+
+        # NEW: Verify hash computed from symlink target string
+        expected_hash = hashlib.sha256(str(target).encode()).hexdigest()
+        assert metadata_entry["hash"] == expected_hash, (
+            f"Hash mismatch: expected {expected_hash}, got {metadata_entry['hash']}"
+        )
 
 
 # ============================================================================

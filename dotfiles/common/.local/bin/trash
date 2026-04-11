@@ -13,7 +13,6 @@ import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
 from datetime import datetime, timezone
-import tempfile
 import subprocess
 import hashlib
 import shutil
@@ -38,7 +37,7 @@ class Metadata:
     def _determine_type(self) -> str:
         """Detect item type. Check is_symlink() BEFORE is_dir() (D-06 pitfall)."""
         if self.path.is_symlink():
-            return "file"
+            return "symlink"
         if self.path.is_dir():
             return "dir"
         return "file"
@@ -114,30 +113,29 @@ class TrashItem(ABC):
 
 
 class Symlink(TrashItem):
-    """Trash a symbolic link by recording its target as a file."""
+    """Trash a symbolic link by moving it directly to trash."""
 
     def trash(self, trash_dir: Path, verbose: bool, force: bool) -> Metadata:
-        """Move symlink target record to trash; delete the symlink itself.
+        """Move symlink directly to trash; preserve inode and target path.
 
         Raises:
             RuntimeError: If symlink cannot be trashed
         """
-        tmp_path: Path | None = None
         try:
+            # Hash based on symlink target string (readlink() returns Path)
             symlink_target = self.path.readlink()
-            tmp_file = tempfile.NamedTemporaryFile(delete=False)
-            tmp_path = Path(tmp_file.name)
-            tmp_file.write(str(symlink_target).encode("utf-8"))
-            tmp_file.close()
+            hash_value = hashlib.sha256(str(symlink_target).encode()).hexdigest()
 
-            # Compute hash of temp file containing symlink target
-            hash_value = Metadata._hash_file(tmp_path)  # type: ignore[reportPrivateUsage]
             trash_path = trash_dir / hash_value
             trash_dir.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(tmp_path), str(trash_path))
-            tmp_path = None  # ownership transferred; don't delete in finally
-            self.path.unlink()
-            metadata = Metadata(self.path, hash=hash_value)
+
+            # Note: shutil.move() requires trash_dir on same filesystem as self.path.
+            # For cross-filesystem symlinks, this will raise OSError (acceptable per D-35).
+            # Move symlink directly — shutil.move() preserves symlink, not target
+            shutil.move(str(self.path), str(trash_path))
+
+            # Record metadata with type="symlink"
+            metadata = Metadata(self.path, hash=hash_value, item_type="symlink")
             metadata.write_to_jsonl(trash_dir / "metadata.jsonl")
 
             if verbose:
@@ -147,11 +145,6 @@ class Symlink(TrashItem):
                 )
             return metadata
         except (OSError, RuntimeError) as e:
-            try:
-                if tmp_path is not None:
-                    tmp_path.unlink(missing_ok=True)
-            except OSError:
-                pass
             raise RuntimeError(f"Failed to trash {self.path}: {e}") from e
 
 
