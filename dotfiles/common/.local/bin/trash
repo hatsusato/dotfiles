@@ -14,6 +14,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime, timezone
+from typing import Literal, Self
 import subprocess
 import hashlib
 import shutil
@@ -37,38 +38,27 @@ class TrashConfig:
 class Metadata:
     """Record of a trashed item: hash, original path, type, date.
 
-    Metadata objects are created via from_path() factory for validation and
-    normalization. The __init__ method assumes preconditions are met and expects
-    a valid, normalized path.
+    Pure data container — stores validated path, hash, type, and date.
+    Metadata is created via from_path() classmethod for validation and
+    normalization. Hash computation is deferred to TrashItem.trash() methods,
+    which set metadata.hash after determining appropriate hash type per subclass.
     """
 
     def __init__(
-        self, path: Path, hash: str | None = None, item_type: str | None = None
+        self,
+        path: Path,
+        hash: str = "",
+        type: Literal["file", "dir", "symlink"] = "file",
+        date: str = "",
     ) -> None:
         self.path = path
-        self.date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-        self.type = item_type if item_type is not None else self._determine_type()
-        # Hash is provided by caller for symlinks/files; for directories, hash is set after tar
-        if hash is not None:
-            self.hash = hash
-        elif self.type == "dir":
-            # Directory hash is computed after tar creation; leave as None for now
-            self.hash = None
-        else:
-            # Regular file: compute hash
-            self.hash = self._hash_file(path)
-
-    def _determine_type(self) -> str:
-        """Detect item type. Check is_symlink() BEFORE is_dir() (D-06 pitfall)."""
-        if self.path.is_symlink():
-            return "symlink"
-        if self.path.is_dir():
-            return "dir"
-        return "file"
+        self.hash = hash
+        self.type = type
+        self.date = date
 
     @staticmethod
     def _hash_file(file_path: Path) -> str:
-        """Compute SHA256 hash of file in 8KB chunks.
+        """Compute SHA256 hash of file in 8KB chunks (internal use by TrashItem).
 
         Raises:
             RuntimeError: If file cannot be read
@@ -92,29 +82,30 @@ class Metadata:
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, str]) -> "Metadata":
+    def from_dict(cls, d: dict[str, str]) -> Self:
         """Deserialize from JSON dict."""
         m = cls(
             path=Path(d["path"]),
             hash=d["hash"],
-            item_type=d["type"],
+            type=d["type"],  # type: ignore[arg-type]
         )
         m.date = d["date"]
         return m
 
     @classmethod
-    def from_path(cls, path: Path) -> "Metadata":
-        """Validate filesystem path for trasheability (normalization and safety checks).
+    def from_path(cls, path: Path) -> Self:
+        """Validate filesystem path for trasheability (normalization, type detection, date computation).
 
-        Encapsulates path normalization, existence checking, and dangerous path
-        detection. Does NOT compute hash/type — those are determined by TrashItem
-        subclasses during trash(). Returns Metadata with normalized path only.
+        Encapsulates path normalization, existence checking, dangerous path
+        detection, type detection, and date computation. Hash is deferred to
+        TrashItem subclasses during trash(). Returns Metadata with normalized
+        path, type, and date set; hash is empty string (to be computed by trash()).
 
         Args:
             path: Relative or absolute file path
 
         Returns:
-            Metadata instance with normalized path only (hash and type set to None)
+            Metadata instance with normalized path, type, and date set; hash=""
 
         Raises:
             FileNotFoundError: Path does not exist and is not a symlink
@@ -137,8 +128,16 @@ class Metadata:
         if resolved in (Path("/"), Path.home(), Path(".")):
             raise ValueError(f"Cannot trash system directory: {path}")
 
-        # Return Metadata with normalized path only; hash and type determined by TrashItem.trash()
-        return cls(normalized)
+        # Determine type using static method
+        type_str = cls._determine_type_static(normalized)
+        # Type guard: cast static result to Literal type
+        determined_type: Literal["file", "dir", "symlink"] = type_str  # type: ignore[assignment]
+
+        # Compute date
+        computed_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+
+        # Return Metadata with normalized path, determined type, and computed date; hash is empty
+        return cls(normalized, hash="", type=determined_type, date=computed_date)
 
     @staticmethod
     def _determine_type_static(path: Path) -> str:
@@ -161,10 +160,15 @@ class Metadata:
 
 
 class TrashItem(ABC):
-    """Abstract base for items to be trashed."""
+    """Abstract base for items to be trashed.
 
-    def __init__(self, path: Path) -> None:
-        self.path = path if path.is_absolute() else Path.cwd() / path
+    Accepts validated Metadata via dependency injection. Subclasses compute
+    hash in trash() and mutate self.metadata.hash before disk operations.
+    """
+
+    def __init__(self, metadata: Metadata) -> None:
+        self.metadata = metadata
+        self.path = metadata.path
 
     @abstractmethod
     def trash(self, config: TrashConfig) -> Metadata:
@@ -173,17 +177,20 @@ class TrashItem(ABC):
 
     @classmethod
     def factory(cls, path: Path) -> "TrashItem":
-        """Instantiate appropriate TrashItem subclass based on path type.
+        """Instantiate appropriate TrashItem subclass with validated Metadata.
 
-        Checks is_symlink() FIRST (before is_dir()) to avoid treating symlinks
+        Validates path via Metadata.from_path() and creates appropriate subclass
+        instance based on determined type. Type detection happens in from_path(),
+        which checks is_symlink() FIRST (before is_dir()) to avoid treating symlinks
         to directories as directories (D-06 pitfall: is_dir() follows symlinks).
         """
-        if path.is_symlink():
-            return Symlink(path)
-        elif path.is_dir():
-            return Directory(path)
+        metadata = Metadata.from_path(path)
+        if metadata.type == "symlink":
+            return Symlink(metadata)
+        elif metadata.type == "dir":
+            return Directory(metadata)
         else:
-            return RegularFile(path)
+            return RegularFile(metadata)
 
 
 class Symlink(TrashItem):
@@ -191,6 +198,8 @@ class Symlink(TrashItem):
 
     def trash(self, config: TrashConfig) -> Metadata:
         """Move symlink directly to trash; preserve inode and target path.
+
+        Computes hash from symlink target and mutates self.metadata.hash.
 
         Raises:
             RuntimeError: If symlink cannot be trashed
@@ -200,6 +209,9 @@ class Symlink(TrashItem):
             symlink_target = self.path.readlink()
             hash_value = hashlib.sha256(str(symlink_target).encode()).hexdigest()
 
+            # Mutate metadata hash (post-instantiation)
+            self.metadata.hash = hash_value
+
             trash_path = config.trash_dir / hash_value
             config.trash_dir.mkdir(parents=True, exist_ok=True)
 
@@ -208,16 +220,15 @@ class Symlink(TrashItem):
             # Move symlink directly — shutil.move() preserves symlink, not target
             shutil.move(str(self.path), str(trash_path))
 
-            # Record metadata with type="symlink"
-            metadata = Metadata(self.path, hash=hash_value, item_type="symlink")
-            metadata.write_to_jsonl(config.trash_dir / "metadata.jsonl")
+            # Record metadata with computed hash
+            self.metadata.write_to_jsonl(config.trash_dir / "metadata.jsonl")
 
             if config.verbose:
                 print(
                     f"Trashed: {self.path} [hash: {hash_value}]",
                     file=sys.stderr,
                 )
-            return metadata
+            return self.metadata
         except (OSError, RuntimeError) as e:
             raise RuntimeError(f"Failed to trash {self.path}: {e}") from e
 
@@ -228,23 +239,30 @@ class RegularFile(TrashItem):
     def trash(self, config: TrashConfig) -> Metadata:
         """Hash file and move to trash_dir/{hash}.
 
+        Computes hash and mutates self.metadata.hash before disk operations.
+
         Raises:
             RuntimeError: If file cannot be trashed
         """
         try:
-            metadata = Metadata(self.path)
-            assert metadata.hash is not None, "Regular file hash should never be None"
-            trash_path = config.trash_dir / metadata.hash
+            # Compute hash for this file
+            hash_value = Metadata._hash_file(self.path)  # type: ignore[reportPrivateUsage]
+
+            # Mutate metadata hash (post-instantiation)
+            self.metadata.hash = hash_value
+
+            assert self.metadata.hash, "Regular file hash should be set by now"
+            trash_path = config.trash_dir / self.metadata.hash
             config.trash_dir.mkdir(parents=True, exist_ok=True)
             shutil.move(str(self.path), str(trash_path))
-            metadata.write_to_jsonl(config.trash_dir / "metadata.jsonl")
+            self.metadata.write_to_jsonl(config.trash_dir / "metadata.jsonl")
 
             if config.verbose:
                 print(
-                    f"Trashed: {self.path} [hash: {metadata.hash}]",
+                    f"Trashed: {self.path} [hash: {self.metadata.hash}]",
                     file=sys.stderr,
                 )
-            return metadata
+            return self.metadata
         except (OSError, RuntimeError, AssertionError) as e:
             raise RuntimeError(f"Failed to trash {self.path}: {e}") from e
 
@@ -255,23 +273,28 @@ class Directory(TrashItem):
     def trash(self, config: TrashConfig) -> Metadata:
         """Tar directory contents, hash archive, move to trash, record metadata.
 
+        Computes hash from tar archive and mutates self.metadata.hash.
+
         Raises:
             RuntimeError: If directory cannot be trashed
         """
         try:
             hash_value, tar_path = self._tar_and_hash_dir(config)
+
+            # Mutate metadata hash (post-instantiation)
+            self.metadata.hash = hash_value
+
             final_path = config.trash_dir / hash_value
             tar_path.rename(final_path)
             shutil.rmtree(self.path)
-            metadata = Metadata(self.path, hash=hash_value, item_type="dir")
-            metadata.write_to_jsonl(config.trash_dir / "metadata.jsonl")
+            self.metadata.write_to_jsonl(config.trash_dir / "metadata.jsonl")
 
             if config.verbose:
                 print(
                     f"Trashed: {self.path} [hash: {hash_value}]",
                     file=sys.stderr,
                 )
-            return metadata
+            return self.metadata
         except (OSError, subprocess.CalledProcessError, RuntimeError) as e:
             raise RuntimeError(f"Failed to trash {self.path}: {e}") from e
 
@@ -290,7 +313,8 @@ class Directory(TrashItem):
                 capture_output=True,
                 text=False,
             )
-            hash_value = Metadata._hash_file(temp_tar)  # type: ignore[reportPrivateUsage]
+            # Hash the tar file using the private method (allowed within class hierarchy)
+            hash_value = self._hash_tar_file(temp_tar)
             return hash_value, temp_tar
         except subprocess.CalledProcessError as e:
             temp_tar.unlink(missing_ok=True)
@@ -298,6 +322,13 @@ class Directory(TrashItem):
         except RuntimeError:
             temp_tar.unlink(missing_ok=True)
             raise
+
+    def _hash_tar_file(self, tar_path: Path) -> str:
+        """Compute SHA256 hash of tar archive.
+
+        This is a wrapper around Metadata._hash_file for use within TrashItem.
+        """
+        return Metadata._hash_file(tar_path)  # type: ignore[reportPrivateUsage]
 
 
 def main() -> int:
@@ -361,12 +392,10 @@ def main() -> int:
     for file_arg in args.files:
         try:
             file_path = Path(file_arg)
-            # Metadata.from_path() validates and normalizes; raises FileNotFoundError/ValueError
-            Metadata.from_path(file_path)
+            # TrashItem.factory() validates via Metadata.from_path() and creates appropriate subclass
+            item = TrashItem.factory(file_path)
 
             # Check directory requires -r (permission-aware guard, not validation)
-            # Create TrashItem to determine type without full trash operation
-            item = TrashItem.factory(file_path)
             if isinstance(item, Directory) and not config.recursive:
                 print(
                     f"Error trashing {file_path}: Cannot trash directory without -r flag",
