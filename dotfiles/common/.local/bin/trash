@@ -9,11 +9,12 @@ import sys
 import argparse
 import json
 import os
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Literal, Self
+from tempfile import NamedTemporaryFile
+from contextlib import contextmanager
 import subprocess
 import hashlib
 import shutil
@@ -45,6 +46,137 @@ class TrashDir(Path):
         super().__init__(trash_dir)
 
 
+@dataclass
+class TrashConfig:
+    """Immutable configuration for trash operations.
+
+    Dataclass enforces field ordering: verbose, force, recursive must be
+    provided by caller; trash_dir defaults to TrashDir() which reads TRASH_DIR
+    environment variable at instantiation time.
+    """
+
+    verbose: bool
+    force: bool
+    recursive: bool
+    trash_dir = Path(TrashDir())  # Default: read TRASH_DIR env var or ~/.trash
+
+    def get_trash_path(self, hash_value: str) -> Path:
+        """Get final trash path for given hash.
+
+        Ensures trash directory and its parents exist, then returns the
+        path to the trashed item (trash_dir/{hash_value}).
+
+        Args:
+            hash_value: SHA256 hash hexdigest of item content or symlink target
+
+        Returns:
+            Path to the trashed item in trash_dir
+        """
+        trash_path = self.trash_dir / hash_value
+        trash_path.parent.mkdir(parents=True, exist_ok=True)
+        return trash_path
+
+    def get_metadata_path(self) -> Path:
+        """Get path to metadata.jsonl in trash directory.
+
+        Ensures trash directory and its parents exist, then returns the
+        path to metadata.jsonl (trash_dir/metadata.jsonl).
+
+        Returns:
+            Path to metadata.jsonl in trash_dir
+        """
+        metadata_path = self.trash_dir / "metadata.jsonl"
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        return metadata_path
+
+    @contextmanager
+    def get_temp_file(self, prefix: str | None = None, suffix: str | None = None):
+        """Context manager for creating a temporary file in trash_dir.
+
+        Creates NamedTemporaryFile with delete=False, so caller must delete it
+        explicitly. If an exception occurs, file is deleted automatically.
+
+        Args:
+            prefix: Optional prefix for temp file name
+            suffix: Optional suffix for temp file name (e.g., ".tar")
+
+        Yields:
+            NamedTemporaryFile instance (already created and open)
+        """
+        tmp = NamedTemporaryFile(
+            delete=False, dir=self.trash_dir, prefix=prefix, suffix=suffix
+        )
+        success = False
+        try:
+            yield tmp
+            success = True
+        finally:
+            tmp.close()
+            if not success:
+                os.unlink(tmp.name)
+
+
+class Metadata:
+    """Record of a trashed item: hash, original path, type, date.
+
+    Pure data container — stores validated path, hash, type, and date.
+    """
+
+    def __init__(
+        self,
+        hash: str,
+        path: str,
+        type: Literal["file", "dir", "symlink"],
+        date: str = "",
+    ) -> None:
+        """Initialize Metadata with hash, path, type, and optional date.
+
+        Args:
+            hash: SHA256 hash hexdigest of item content or symlink target
+            path: Original path of the trashed item (as string)
+            type: Type of item ("file", "dir", or "symlink")
+            date: Optional ISO8601 timestamp; defaults to current time if omitted
+        """
+        self.hash = hash
+        self.path = path
+        self.type = type
+        self.date = date if date else self.now()
+
+    def to_dict(self) -> dict[str, str]:
+        """Convert to JSON-serializable dict."""
+        return dict(hash=self.hash, path=self.path, type=self.type, date=self.date)
+
+    @classmethod
+    def from_dict(cls, d: dict[str, str]) -> Self:
+        """Deserialize from JSON dict."""
+        if d["type"] not in ("file", "dir", "symlink"):
+            raise ValueError(f"Invalid type in metadata: {d['type']}")
+        return cls(hash=d["hash"], path=d["path"], type=d["type"], date=d["date"])
+
+    @staticmethod
+    def now() -> str:
+        """Return current timestamp in ISO8601 UTC format.
+
+        Returns:
+            ISO8601 formatted timestamp string (YYYY-MM-DDTHH:MM:SS)
+        """
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+
+    def write_to_jsonl(self, config: TrashConfig) -> None:
+        """Append this metadata entry to metadata.jsonl in JSON Lines format.
+
+        Each line is a complete JSON object representing one trashed item.
+        Uses ensure_ascii=False to preserve original characters; separators
+        to minimize output size.
+
+        Args:
+            config: Trash configuration (provides path to metadata.jsonl)
+        """
+        with open(config.get_metadata_path(), "a") as f:
+            json.dump(self.to_dict(), f, ensure_ascii=False, separators=(",", ":"))
+            f.write("\n")
+
+
 class TrashPath(Path):
     """Path subclass with type detection and validation.
 
@@ -69,21 +201,16 @@ class TrashPath(Path):
             ValueError: Path is a dangerous system directory under cwd
         """
         # Normalize path to absolute
-        normalized = Path(path).absolute()
+        absolute_path = Path(path).absolute()
+        resolved = absolute_path.parent.resolve() / absolute_path.name
         # Check existence (symlinks may point to nonexistent targets — check both)
-        if not normalized.exists() and not normalized.is_symlink():
+        if not resolved.exists() and not resolved.is_symlink():
             raise FileNotFoundError(f"{path}: No such file or directory")
-        # Detect dangerous paths: resolve if possible, use normalized if broken symlink
-        try:
-            resolved = normalized.resolve() if normalized.exists() else normalized
-        except (OSError, RuntimeError):
-            # Broken symlink or permission error — use normalized
-            resolved = normalized
         # Reject if resolved is ancestor of cwd (system directory)
         if Path.cwd().is_relative_to(resolved):
             raise ValueError(f"Cannot trash system directory: {path}")
         # Create Path instance
-        return super().__new__(cls, normalized)
+        return super().__new__(cls, resolved)
 
     def __init__(self, path: Path | str) -> None:
         """Initialize TrashPath (Path initialization happens in __new__).
@@ -109,6 +236,104 @@ class TrashPath(Path):
             return "dir"
         else:
             return "file"
+
+    def trash_symlink(self, config: TrashConfig) -> Metadata:
+        """Trash a symlink by hashing its target and moving it to trash.
+
+        Returns Metadata with hash set.
+
+        Args:
+            config: Trash configuration
+
+        Returns:
+            Metadata with hash and type set
+
+        Raises:
+            RuntimeError: If symlink cannot be trashed
+        """
+        hash_value = _hash_str(str(self.readlink()))
+        trash_path = config.get_trash_path(hash_value)
+        shutil.move(self, trash_path)
+        return Metadata(hash=hash_value, path=str(self), type="symlink")
+
+    def trash_dir(self, config: TrashConfig) -> Metadata:
+        """Trash a directory by creating a tar of its contents and moving it to trash.
+
+        Returns Metadata with hash set.
+
+        Args:
+            config: Trash configuration
+
+        Returns:
+            Metadata with hash and type set
+
+        Raises:
+            RuntimeError: If directory cannot be trashed
+        """
+        with config.get_temp_file(suffix=".tar") as tmp:
+            cmd = ["tar", "-cf", tmp.name, "-C", str(self), "."]
+            subprocess.run(cmd, check=True)
+            tar_path = Path(tmp.name)
+        hash_value = _hash_file(tar_path)
+        trash_path = config.get_trash_path(hash_value)
+        tar_path.rename(trash_path)
+        shutil.rmtree(self)
+        return Metadata(hash=hash_value, path=str(self), type="dir")
+
+    def trash_file(self, config: TrashConfig) -> Metadata:
+        """Trash a regular file by hashing it and moving it to trash.
+
+        Returns Metadata with hash set.
+
+        Args:
+            config: Trash configuration
+
+        Returns:
+            Metadata with hash and type set
+
+        Raises:
+            RuntimeError: If file cannot be trashed
+        """
+        hash_value = _hash_file(self)
+        trash_path = config.get_trash_path(hash_value)
+        shutil.move(self, trash_path)
+        return Metadata(hash=hash_value, path=str(self), type="file")
+
+    def trash(self, config: TrashConfig) -> Metadata:
+        """Trash this path by dispatching to the appropriate method based on type.
+
+        Returns Metadata with hash set.
+
+        Args:
+            config: Trash configuration
+
+        Returns:
+            Metadata with hash and type set
+
+        Raises:
+            RuntimeError: If item cannot be trashed
+        """
+        if self.item_type == "symlink":
+            return self.trash_symlink(config)
+        elif self.item_type == "dir":
+            return self.trash_dir(config)
+        else:
+            return self.trash_file(config)
+
+
+def _hash_str(s: str) -> str:
+    """Compute SHA256 hash of a string.
+
+    Pure function for hashing strings. Takes explicit string parameter,
+    returns computed hash string. No state mutation.
+
+    Args:
+        s: Input string to hash
+
+    Returns:
+        SHA256 hexdigest as string
+    """
+    return hashlib.sha256(s.encode()).hexdigest()
 
 
 def _hash_file(file_path: Path) -> str:
@@ -136,194 +361,13 @@ def _hash_file(file_path: Path) -> str:
         raise RuntimeError(f"Failed to hash file: {e}") from e
 
 
-def _tar_and_hash_dir(path: Path, trash_dir: Path) -> tuple[str, Path]:
-    """Create tar of directory contents, hash it, return (hash, temp_path).
-
-    Pure function for tarring and hashing directories. Uses trash_dir as temp
-    location (D-08: same filesystem, atomic rename). Tar structure: -C dir_path .
-    so tar contains ./file1, ./subdir/file2 etc. Original path is preserved in
-    metadata — tar only needs contents (D-09).
-
-    Args:
-        path: Directory path to tar
-        trash_dir: Trash directory (used as temp location)
-
-    Returns:
-        Tuple of (hash_value, temp_tar_path)
-
-    Raises:
-        RuntimeError: If tar or hashing fails
-    """
-    temp_tar = trash_dir / f"tmp_{uuid.uuid4().hex[:8]}.tar"
-    try:
-        subprocess.run(
-            ["tar", "-cf", str(temp_tar), "-C", str(path), "."],
-            check=True,
-            capture_output=True,
-            text=False,
-        )
-        # Hash the tar file
-        hash_value = _hash_file(temp_tar)
-        return hash_value, temp_tar
-    except subprocess.CalledProcessError as e:
-        temp_tar.unlink(missing_ok=True)
-        raise RuntimeError(f"Failed to tar directory: {e}") from e
-    except RuntimeError:
-        temp_tar.unlink(missing_ok=True)
-        raise
-
-
-@dataclass
-class TrashConfig:
-    """Immutable configuration for trash operations."""
-
-    verbose: bool
-    force: bool
-    recursive: bool
-    trash_dir: Path
-
-    def get_trash_path(self, hash_value: str) -> Path:
-        """Get final trash path for given hash.
-
-        Ensures trash directory and its parents exist, then returns the
-        path to the trashed item (trash_dir/{hash_value}).
-
-        Args:
-            hash_value: SHA256 hash hexdigest of item content or symlink target
-
-        Returns:
-            Path to the trashed item in trash_dir
-        """
-        trash_path = self.trash_dir / hash_value
-        trash_path.parent.mkdir(parents=True, exist_ok=True)
-        return trash_path
-
-
-class Metadata:
-    """Record of a trashed item: hash, original path, type, date.
-
-    Pure data container — stores validated path, hash, type, and date.
-    """
-
-    def __init__(
-        self,
-        path: str,
-        type: Literal["file", "dir", "symlink"],
-        date: str = "",
-        hash: str = "",
-    ) -> None:
-        """Initialize Metadata with path, type, and optional date and hash.
-
-        Args:
-            path: Original path of the trashed item (as string)
-            type: Type of item ("file", "dir", or "symlink")
-            date: Optional ISO8601 timestamp; defaults to current time if omitted
-            hash: Optional SHA256 hash hexdigest; set later if not provided
-        """
-        self.path = path
-        self.type = type
-        self.date = date if date else self.now()
-        self.hash = hash
-
-    def to_dict(self) -> dict[str, str]:
-        """Convert to JSON-serializable dict."""
-        return dict(hash=self.hash, path=self.path, type=self.type, date=self.date)
-
-    @classmethod
-    def from_dict(cls, d: dict[str, str]) -> Self:
-        """Deserialize from JSON dict."""
-        if d["type"] not in ("file", "dir", "symlink"):
-            raise ValueError(f"Invalid type in metadata: {d['type']}")
-        return cls(hash=d["hash"], path=d["path"], type=d["type"], date=d["date"])
-
-    @staticmethod
-    def now() -> str:
-        """Return current timestamp in ISO8601 UTC format.
-
-        Returns:
-            ISO8601 formatted timestamp string (YYYY-MM-DDTHH:MM:SS)
-        """
-        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-
-    def write_to_jsonl(self, metadata_path: Path) -> None:
-        """Append this metadata entry to metadata.jsonl in JSON Lines format."""
-        metadata_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(metadata_path, "a") as f:
-            json.dump(self.to_dict(), f, ensure_ascii=False, separators=(",", ":"))
-            f.write("\n")
-
-
-def trash_symlink(path: TrashPath, config: TrashConfig) -> Metadata:
-    """Move symlink directly to trash; preserve inode and target path.
-
-    Hash is computed from symlink target string. Returns Metadata with hash set.
-
-    Args:
-        path: Path to symlink
-        config: Trash configuration
-
-    Returns:
-        Metadata with hash and type set
-
-    Raises:
-        RuntimeError: If symlink cannot be trashed
-    """
-    symlink_target = path.readlink()
-    hash_value = hashlib.sha256(str(symlink_target).encode()).hexdigest()
-    trash_path = config.get_trash_path(hash_value)
-    shutil.move(path, trash_path)
-    return Metadata(path=str(path), hash=hash_value, type="symlink")
-
-
-def trash_file(path: TrashPath, config: TrashConfig) -> Metadata:
-    """Hash file and move to trash_dir/{hash}.
-
-    Returns Metadata with hash set.
-
-    Args:
-        path: Path to file
-        config: Trash configuration
-
-    Returns:
-        Metadata with hash and type set
-
-    Raises:
-        RuntimeError: If file cannot be trashed
-    """
-    hash_value = _hash_file(path)
-    trash_path = config.get_trash_path(hash_value)
-    shutil.move(path, trash_path)
-    return Metadata(path=str(path), hash=hash_value, type="file")
-
-
-def trash_dir(path: TrashPath, config: TrashConfig) -> Metadata:
-    """Tar directory contents, hash archive, move to trash, record metadata.
-
-    Returns Metadata with hash set.
-
-    Args:
-        path: Path to directory
-        config: Trash configuration
-
-    Returns:
-        Metadata with hash and type set
-
-    Raises:
-        RuntimeError: If directory cannot be trashed
-    """
-    hash_value, tar_path = _tar_and_hash_dir(path, config.trash_dir)
-    final_path = config.get_trash_path(hash_value)
-    tar_path.rename(final_path)
-    shutil.rmtree(path)
-    return Metadata(path=str(path), hash=hash_value, type="dir")
-
-
 def _process_file_path(file_path: Path, config: TrashConfig) -> bool:
-    """Process a single file by dispatching to the appropriate trash function.
+    """Process a single file by trashing it and recording metadata.
 
-    Validates path existence, checks type, enforces -r guard for directories,
-    dispatches to appropriate handler (trash_symlink, trash_dir, or trash_file),
-    and records metadata. Handles exceptions with optional force flag.
+    Creates a TrashPath (validates existence and safety), checks -r guard
+    for directories, calls trash_path.trash(config) to dispatch to appropriate
+    method based on type, records metadata, and prints verbose output if enabled.
+    Handles exceptions with optional force flag.
 
     Args:
         file_path: Path to file or directory
@@ -341,15 +385,8 @@ def _process_file_path(file_path: Path, config: TrashConfig) -> bool:
                 file=sys.stderr,
             )
             return False
-        # Dispatch to appropriate function
-        if trash_path.item_type == "symlink":
-            metadata = trash_symlink(trash_path, config)
-        elif trash_path.item_type == "dir":
-            metadata = trash_dir(trash_path, config)
-        else:
-            metadata = trash_file(trash_path, config)
-        # Record metadata
-        metadata.write_to_jsonl(config.trash_dir / "metadata.jsonl")
+        metadata = trash_path.trash(config)
+        metadata.write_to_jsonl(config)
         if config.verbose:
             print(
                 f"Trashed: {file_path} [hash: {metadata.hash}]",
@@ -424,12 +461,10 @@ def main() -> int:
         parser.print_help(sys.stderr)
         return EXIT_FAILURE
     # Build TrashConfig once after args parse
-    trash_dir_path = Path(os.environ.get("TRASH_DIR", DEFAULT_TRASH_DIR))
     config = TrashConfig(
         verbose=args.verbose,
         force=args.force,
         recursive=args.recursive,
-        trash_dir=trash_dir_path,
     )
     # Process each file
     success = True
