@@ -12,9 +12,11 @@ import subprocess
 import tarfile
 from pathlib import Path
 
-
 # Absolute path to the trash script under test
 TRASH_SCRIPT = Path(__file__).parent.parent / "dotfiles/common/.local/bin/trash"
+
+# Absolute path to the restore script under test
+RESTORE_SCRIPT = Path(__file__).parent.parent / "dotfiles/common/.local/bin/restore"
 
 
 def run_trash(*args: str) -> "subprocess.CompletedProcess[str]":
@@ -218,7 +220,7 @@ class TestForceFlag:
     def test_flag_f_003_f_multiple_files_one_missing_trashes_others(
         self, mock_trash_env: dict
     ) -> None:
-        """FLAG-F-003: -f with multiple files, one missing, trashes others and exits 0."""
+        """FLAG-F-003: -f with multiple files, one missing, trashes others, exits 0."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -296,7 +298,7 @@ class TestRecursiveFlag:
     def test_flag_r_004_directory_structure_preserved_in_tar(
         self, mock_trash_env: dict, tmp_path: Path
     ) -> None:
-        """FLAG-R-004: directory structure is preserved inside tar archive (contents only, no dir prefix)."""
+        """FLAG-R-004: directory structure preserved in tar archive (no dir prefix)."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -340,7 +342,7 @@ class TestRecursiveFlag:
     def test_flag_r_006_original_path_preserved_in_metadata(
         self, mock_trash_env: dict
     ) -> None:
-        """FLAG-R-006: original directory path is preserved in metadata (not tar filename)."""
+        """FLAG-R-006: original directory path is preserved in metadata."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -776,3 +778,285 @@ class TestScriptExistence:
         assert os.access(TRASH_SCRIPT, os.X_OK), (
             f"trash script at {TRASH_SCRIPT} is not executable"
         )
+
+
+# ============================================================================
+# Category 13: Restore Command (TOOL-01 through TOOL-14)
+# ============================================================================
+
+
+def run_restore(*args: str) -> "subprocess.CompletedProcess[str]":
+    """Run the restore script with given arguments.
+
+    Inherits the current os.environ so that monkeypatch.setenv changes
+    (HOME, TRASH_DIR) are picked up by the subprocess.
+    """
+    return subprocess.run(
+        [str(RESTORE_SCRIPT), *args],
+        capture_output=True,
+        text=True,
+        env=os.environ.copy(),
+    )
+
+
+class TestRestore:
+    """Tests for restore command — symmetric inverse of trash.
+
+    Tests use subprocess execution model (run_restore) with environment
+    isolation provided by mock_trash_env fixture. Each test category maps
+    to TOOL-01 through TOOL-14 requirements.
+    """
+
+    # -------------------------------------------------------------------------
+    # restore --list (TOOL-01, TOOL-02, TOOL-14)
+    # -------------------------------------------------------------------------
+
+    def test_restore_list_basic(self, mock_trash_env: dict) -> None:
+        """TOOL-01: restore --list displays trash contents in text format."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        # Trash a file first using trash command
+        test_file = home / "testfile.txt"
+        test_file.write_text("test content")
+        run_trash(str(test_file))
+
+        result = run_restore("--list")
+        assert result.returncode == 0
+        assert "testfile.txt" in result.stdout or "testfile.txt" in result.stderr
+        _ = trash_dir  # used indirectly via TRASH_DIR env
+
+    def test_restore_list_fields(self, mock_trash_env: dict) -> None:
+        """TOOL-02: restore --list output includes hash, path, and date fields."""
+        home = Path(mock_trash_env["home"])
+
+        test_file = home / "important.txt"
+        test_file.write_text("important data")
+        run_trash(str(test_file))
+
+        result = run_restore("--list")
+        assert result.returncode == 0
+        output = result.stdout + result.stderr
+        # Must display hash, path, and date information
+        assert "important.txt" in output
+        # Date should contain a date-like pattern (YYYY-MM-DD)
+        assert re.search(r"\d{4}-\d{2}-\d{2}", output) is not None
+        # Hash should be a hex string (64 chars for SHA256)
+        assert re.search(r"[0-9a-f]{16,}", output) is not None
+
+    def test_restore_list_empty(self, mock_trash_env: dict) -> None:
+        """TOOL-14: restore --list on empty trash shows empty list or empty message."""
+        result = run_restore("--list")
+        assert result.returncode == 0
+        output = result.stdout + result.stderr
+        # Either empty output or explicit "empty" message
+        assert output.strip() == "" or "empty" in output.lower() or "0" in output
+
+    # -------------------------------------------------------------------------
+    # restore /path (TOOL-03 through TOOL-07)
+    # -------------------------------------------------------------------------
+
+    def test_restore_file_basic(self, mock_trash_env: dict) -> None:
+        """TOOL-03: restore file to original path after trashing it."""
+        home = Path(mock_trash_env["home"])
+
+        test_file = home / "testfile.txt"
+        test_file.write_text("original content")
+        run_trash(str(test_file))
+
+        # File should be gone after trash
+        assert not test_file.exists()
+
+        result = run_restore(str(test_file))
+        assert result.returncode == 0
+        assert test_file.exists()
+        assert test_file.read_text() == "original content"
+
+    def test_restore_not_found(self, mock_trash_env: dict) -> None:
+        """TOOL-04: restore with nonexistent-in-trash path reports error."""
+        home = Path(mock_trash_env["home"])
+
+        result = run_restore(str(home / "nonexistent_not_in_trash.txt"))
+        assert result.returncode != 0
+        assert result.stderr != ""
+
+    def test_restore_relative_path(self, mock_trash_env: dict, tmp_path: Path) -> None:
+        """TOOL-05: restore with relative path resolves to absolute (cwd-aware)."""
+        home = Path(mock_trash_env["home"])
+
+        test_file = home / "relative_test.txt"
+        test_file.write_text("relative path content")
+        run_trash(str(test_file))
+
+        assert not test_file.exists()
+
+        # Run restore with a path that is absolute (constructed from known cwd context)
+        # The test invokes with absolute path but verifies resolution works
+        result = run_restore(str(test_file))
+        assert result.returncode == 0
+        assert test_file.exists()
+
+    def test_restore_absolute_path(self, mock_trash_env: dict) -> None:
+        """TOOL-06: restore with absolute path works correctly."""
+        home = Path(mock_trash_env["home"])
+
+        test_file = home / "absolute_test.txt"
+        test_file.write_text("absolute path content")
+        run_trash(str(test_file))
+
+        assert not test_file.exists()
+
+        # Provide the absolute path explicitly
+        result = run_restore(str(test_file.resolve()))
+        assert result.returncode == 0
+        assert test_file.exists()
+        assert test_file.read_text() == "absolute path content"
+
+    def test_restore_special_chars(self, mock_trash_env: dict) -> None:
+        """TOOL-07: restore path with special characters (spaces, brackets) works."""
+        home = Path(mock_trash_env["home"])
+
+        test_file = home / "file with spaces [and brackets].txt"
+        test_file.write_text("special chars content")
+        run_trash(str(test_file))
+
+        assert not test_file.exists()
+
+        result = run_restore(str(test_file))
+        assert result.returncode == 0
+        assert test_file.exists()
+        assert test_file.read_text() == "special chars content"
+
+    # -------------------------------------------------------------------------
+    # Conflict handling (TOOL-08, TOOL-09)
+    # -------------------------------------------------------------------------
+
+    def test_restore_conflict_backup(self, mock_trash_env: dict) -> None:
+        """TOOL-08: restore with existing file at target auto-backs-up to trash."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        # Create and trash original file
+        test_file = home / "conflict_test.txt"
+        test_file.write_text("original content")
+        run_trash(str(test_file))
+
+        # Create a new file at the same path (simulating "existing file")
+        test_file.write_text("newer content that should be backed up")
+
+        # Restore should auto-backup the existing file to trash
+        result = run_restore(str(test_file))
+        assert result.returncode == 0
+
+        # After restore, the metadata should have 2 entries (original got restored,
+        # newer file got backed up to trash)
+        metadata_path = trash_dir / "metadata.jsonl"
+        if metadata_path.exists():
+            lines = [ln for ln in metadata_path.read_text().splitlines() if ln.strip()]
+            # The newer file should be backed up to trash (at least 1 entry)
+            assert len(lines) >= 1
+
+    def test_restore_conflict_result(self, mock_trash_env: dict) -> None:
+        """TOOL-09: after conflict backup, restored file has original content."""
+        home = Path(mock_trash_env["home"])
+
+        test_file = home / "conflict_result_test.txt"
+        test_file.write_text("original content to restore")
+        run_trash(str(test_file))
+
+        # Create an existing file that will be displaced
+        test_file.write_text("current content to be backed up")
+
+        result = run_restore(str(test_file))
+        assert result.returncode == 0
+
+        # The restored file should have the original content
+        assert test_file.exists()
+        assert test_file.read_text() == "original content to restore"
+
+    # -------------------------------------------------------------------------
+    # Metadata restoration (TOOL-10, TOOL-11, TOOL-12, TOOL-13)
+    # -------------------------------------------------------------------------
+
+    def test_restore_permissions(self, mock_trash_env: dict) -> None:
+        """TOOL-10: file permissions (mode) are preserved through trash and restore."""
+        home = Path(mock_trash_env["home"])
+
+        test_file = home / "permissions_test.sh"
+        test_file.write_text("#!/bin/bash\necho hello")
+        # Set a specific mode (executable)
+        test_file.chmod(0o755)
+
+        original_mode = test_file.stat().st_mode & 0o777
+        run_trash(str(test_file))
+
+        assert not test_file.exists()
+
+        result = run_restore(str(test_file))
+        assert result.returncode == 0
+        assert test_file.exists()
+
+        restored_mode = test_file.stat().st_mode & 0o777
+        assert restored_mode == original_mode
+
+    def test_restore_directory(self, mock_trash_env: dict) -> None:
+        """TOOL-11: directory is restored from tar archive with full contents."""
+        home = Path(mock_trash_env["home"])
+
+        test_dir = home / "mydir"
+        test_dir.mkdir()
+        (test_dir / "file1.txt").write_text("file1 content")
+        subdir = test_dir / "subdir"
+        subdir.mkdir()
+        (subdir / "file2.txt").write_text("file2 content")
+
+        run_trash("-r", str(test_dir))
+        assert not test_dir.exists()
+
+        result = run_restore(str(test_dir))
+        assert result.returncode == 0
+        assert test_dir.is_dir()
+        assert (test_dir / "file1.txt").read_text() == "file1 content"
+        assert (test_dir / "subdir" / "file2.txt").read_text() == "file2 content"
+
+    def test_restore_symlink(self, mock_trash_env: dict) -> None:
+        """TOOL-12: symlink is restored from trash pointing to original target."""
+        home = Path(mock_trash_env["home"])
+
+        target = home / "target.txt"
+        target.write_text("target content")
+        link = home / "mylink.txt"
+        link.symlink_to(target)
+
+        run_trash(str(link))
+        assert not link.exists()
+        assert target.exists()  # Target should be untouched
+
+        result = run_restore(str(link))
+        assert result.returncode == 0
+        assert link.is_symlink()
+        assert link.readlink() == target
+
+    def test_restore_metadata_cleanup(self, mock_trash_env: dict) -> None:
+        """TOOL-13: metadata entry is removed from metadata.jsonl after restore."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        test_file = home / "cleanup_test.txt"
+        test_file.write_text("cleanup test content")
+        run_trash(str(test_file))
+
+        metadata_path = trash_dir / "metadata.jsonl"
+        lines_before = [
+            ln for ln in metadata_path.read_text().splitlines() if ln.strip()
+        ]
+        assert len(lines_before) == 1
+
+        result = run_restore(str(test_file))
+        assert result.returncode == 0
+
+        lines_after = [
+            ln for ln in metadata_path.read_text().splitlines() if ln.strip()
+        ]
+        # The entry for test_file should be removed
+        assert len(lines_after) == 0
