@@ -15,9 +15,6 @@ from pathlib import Path
 # Absolute path to the trash script under test
 TRASH_SCRIPT = Path(__file__).parent.parent / "dotfiles/common/.local/bin/trash"
 
-# Absolute path to the restore script under test
-RESTORE_SCRIPT = Path(__file__).parent.parent / "dotfiles/common/.local/bin/restore"
-
 
 def run_trash(*args: str) -> "subprocess.CompletedProcess[str]":
     """Run the trash script with given arguments.
@@ -786,13 +783,13 @@ class TestScriptExistence:
 
 
 def run_restore(*args: str) -> "subprocess.CompletedProcess[str]":
-    """Run the restore script with given arguments.
+    """Run trash with --restore flag with given arguments.
 
     Inherits the current os.environ so that monkeypatch.setenv changes
     (HOME, TRASH_DIR) are picked up by the subprocess.
     """
     return subprocess.run(
-        [str(RESTORE_SCRIPT), *args],
+        [str(TRASH_SCRIPT), "--restore", *args],
         capture_output=True,
         text=True,
         env=os.environ.copy(),

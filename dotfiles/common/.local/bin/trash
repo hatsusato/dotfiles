@@ -11,6 +11,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tarfile
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -243,6 +244,346 @@ class TrashConfig:
         return Metadata(hash=hash_value, path=str(path), type="file")
 
 
+@dataclass
+class RestoreConfig:
+    """Configuration for restore operations.
+
+    Reads TRASH_DIR environment variable at instantiation time;
+    falls back to ~/.trash if not set.
+    """
+
+    verbose: bool = False
+    trash_dir_path: Path = None
+
+    def __post_init__(self):
+        if self.trash_dir_path is None:
+            self.trash_dir_path = Path(
+                os.getenv("TRASH_DIR", str(Path.home() / ".trash"))
+            )
+
+    @property
+    def metadata_path(self) -> Path:
+        """Return path to metadata.jsonl inside trash_dir."""
+        return self.trash_dir_path / "metadata.jsonl"
+
+    def get_trash_path(self, hash_value: str) -> Path:
+        """Return path to trashed item by hash.
+
+        Args:
+            hash_value: SHA256 hash hexdigest of the item
+
+        Returns:
+            Path to the item in trash_dir
+        """
+        return self.trash_dir_path / hash_value
+
+    def write_metadata(self, metadata: Metadata) -> None:
+        """Append a metadata entry to metadata.jsonl.
+
+        Args:
+            metadata: Metadata entry to append
+        """
+        self.metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.metadata_path, "a") as f:
+            json.dump(metadata.to_dict(), f, ensure_ascii=False, separators=(",", ":"))
+            f.write("\n")
+
+    def list_trash(self) -> None:
+        """Print metadata.jsonl contents in human-readable format to stdout.
+
+        Displays numbered list with path, hash, type, and date for each entry.
+        Prints nothing (empty output) if trash is empty or metadata.jsonl missing.
+        """
+        if not self.metadata_path.exists():
+            return
+        entries: list[Metadata] = []
+        with open(self.metadata_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = Metadata.from_dict(json.loads(line))
+                    entries.append(entry)
+                except (ValueError, KeyError) as e:
+                    print(
+                        f"trash: warning: skipping malformed entry: {e}",
+                        file=sys.stderr,
+                    )
+        if not entries:
+            return
+        print(f"Files in trash ({len(entries)}):")
+        for i, entry in enumerate(entries, 1):
+            print(f"  {i}. {entry.path}")
+            print(f"     hash: {entry.hash}")
+            print(f"     type: {entry.type}")
+            print(f"     date: {entry.date}")
+
+
+def _read_metadata_entries(metadata_path: Path) -> list[Metadata]:
+    """Read and parse all metadata entries from metadata.jsonl.
+
+    Args:
+        metadata_path: Path to metadata.jsonl
+
+    Returns:
+        List of Metadata objects (empty if file missing or empty)
+
+    Raises:
+        ValueError: If a line contains malformed JSON or invalid type
+    """
+    entries: list[Metadata] = []
+    if not metadata_path.exists():
+        return entries
+    with open(metadata_path) as f:
+        for lineno, line in enumerate(f, 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = Metadata.from_dict(json.loads(line))
+                entries.append(entry)
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                raise ValueError(
+                    f"Malformed metadata entry at line {lineno}: {e}"
+                ) from e
+    return entries
+
+
+def _remove_metadata_entry(
+    metadata_path: Path, target_path: str, target_hash: str
+) -> None:
+    """Remove the specific metadata entry matching path AND hash from metadata.jsonl.
+
+    Removes only the first entry whose path and hash both match, leaving any
+    other entries for the same path (e.g. a backup written during conflict
+    handling) intact.
+
+    Args:
+        metadata_path: Path to metadata.jsonl
+        target_path: Absolute canonical path string to match
+        target_hash: SHA256 hash hexdigest to match (prevents removing backup entries)
+    """
+    if not metadata_path.exists():
+        return
+    remaining: list[dict[str, str]] = []
+    removed = False
+    with open(metadata_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry_dict = json.loads(line)
+                # Remove only the first entry matching both path and hash
+                if (
+                    not removed
+                    and entry_dict.get("path") == target_path
+                    and entry_dict.get("hash") == target_hash
+                ):
+                    removed = True
+                else:
+                    remaining.append(entry_dict)
+            except json.JSONDecodeError:
+                # Preserve malformed lines rather than silently dropping them
+                pass
+    with open(metadata_path, "w") as f:
+        for entry_dict in remaining:
+            json.dump(entry_dict, f, ensure_ascii=False, separators=(",", ":"))
+            f.write("\n")
+
+
+def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
+    """Move an existing file/dir/symlink to trash before restoring over it.
+
+    Called when restore target already exists. The existing item is backed up
+    to trash with its own metadata entry to prevent data loss.
+
+    Args:
+        path: Path to the existing item to back up
+        config: RestoreConfig with trash_dir_path
+    """
+    print(
+        f"trash: {path} exists; backing up to trash...",
+        file=sys.stderr,
+    )
+    if path.is_symlink():
+        # Hash from symlink target string (mirrors trash_symlink)
+        hash_value = _hash_str(str(path.readlink()))
+        item_type: Literal["file", "dir", "symlink"] = "symlink"
+    elif path.is_dir():
+        # Hash directory via tar (mirrors trash_dir)
+        with NamedTemporaryFile(
+            delete=False, dir=config.trash_dir_path, suffix=".tar"
+        ) as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            subprocess.run(
+                ["tar", "-cf", str(tmp_path), "-C", str(path), "."],
+                check=True,
+            )
+            hash_value = _hash_file(tmp_path)
+            item_type = "dir"
+            backup_path = config.get_trash_path(hash_value)
+            tmp_path.rename(backup_path)
+            shutil.rmtree(path)
+        except Exception:
+            if tmp_path.exists():
+                os.unlink(tmp_path)
+            raise
+        metadata = Metadata(hash=hash_value, path=str(path), type=item_type)
+        config.write_metadata(metadata)
+        return
+    else:
+        # Regular file
+        hash_value = _hash_file(path)
+        item_type = "file"
+
+    backup_path = config.get_trash_path(hash_value)
+    shutil.move(str(path), backup_path)
+    metadata = Metadata(hash=hash_value, path=str(path), type=item_type)
+    config.write_metadata(metadata)
+
+
+def _restore_file(target_path: Path, metadata: Metadata, config: RestoreConfig) -> None:
+    """Move a regular file from trash back to target_path.
+
+    Backs up any existing file at target_path before restoring.
+
+    Args:
+        target_path: Destination path for the restored file
+        metadata: Metadata entry with hash
+        config: RestoreConfig with trash_dir_path
+
+    Raises:
+        FileNotFoundError: If the trash file is missing
+    """
+    trash_path = config.get_trash_path(metadata.hash)
+    if not trash_path.exists():
+        raise FileNotFoundError(
+            f"Trash file missing: {trash_path} (hash: {metadata.hash})"
+        )
+    # Back up any existing file at target before restoring
+    if target_path.exists() or target_path.is_symlink():
+        _backup_existing_to_trash(target_path, config)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(trash_path), target_path)
+
+
+def _restore_dir(target_path: Path, metadata: Metadata, config: RestoreConfig) -> None:
+    """Extract a tar archive from trash back to target_path as a directory.
+
+    Uses tarfile.extractall(filter="data") to prevent Zip Slip attacks.
+    Backs up any existing directory at target_path before restoring.
+
+    Args:
+        target_path: Destination directory path for the restored directory
+        metadata: Metadata entry with hash
+        config: RestoreConfig with trash_dir_path
+
+    Raises:
+        FileNotFoundError: If the tar archive is missing
+    """
+    tar_path = config.get_trash_path(metadata.hash)
+    if not tar_path.exists():
+        raise FileNotFoundError(
+            f"Tar archive missing: {tar_path} (hash: {metadata.hash})"
+        )
+    # Back up any existing directory at target before restoring
+    if target_path.exists() or target_path.is_symlink():
+        _backup_existing_to_trash(target_path, config)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.mkdir(exist_ok=True)
+    with tarfile.open(tar_path) as tf:
+        # filter="data" prevents Zip Slip: rejects symlinks outside extraction dir
+        tf.extractall(target_path, filter="data")
+    # Remove tar from trash after successful extraction
+    tar_path.unlink()
+
+
+def _restore_symlink(
+    target_path: Path, metadata: Metadata, config: RestoreConfig
+) -> None:
+    """Move a symlink from trash back to target_path.
+
+    Backs up any existing file/symlink at target_path before restoring.
+
+    Args:
+        target_path: Destination path for the restored symlink
+        metadata: Metadata entry with hash
+        config: RestoreConfig with trash_dir_path
+
+    Raises:
+        FileNotFoundError: If the trash symlink is missing
+    """
+    trash_path = config.get_trash_path(metadata.hash)
+    if not trash_path.exists() and not trash_path.is_symlink():
+        raise FileNotFoundError(
+            f"Trash symlink missing: {trash_path} (hash: {metadata.hash})"
+        )
+    # Back up any existing item at target before restoring
+    if target_path.exists() or target_path.is_symlink():
+        _backup_existing_to_trash(target_path, config)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(trash_path), target_path)
+
+
+def _restore_by_path(path: str, config: RestoreConfig) -> bool:
+    """Restore a single file/dir/symlink from trash by its original path.
+
+    Searches metadata.jsonl for an entry matching the resolved absolute path,
+    dispatches to the appropriate type-specific restore function, then removes
+    the metadata entry on success.
+
+    Security: Always resolves user-provided path to absolute canonical form
+    via Path.resolve() before comparing against metadata (prevents path traversal).
+
+    Args:
+        path: User-provided path (relative or absolute) to restore
+        config: RestoreConfig with trash_dir_path
+
+    Returns:
+        True on success
+
+    Raises:
+        ValueError: If no metadata entry matches the resolved path
+        FileNotFoundError: If trash file/archive is missing
+    """
+    # Resolve to absolute canonical path (handles .., symlinks, relative paths)
+    target_path = Path(path).resolve()
+
+    entries = _read_metadata_entries(config.metadata_path)
+    metadata_entry: Metadata | None = None
+    for entry in entries:
+        if entry.path == str(target_path):
+            metadata_entry = entry
+            break
+
+    if metadata_entry is None:
+        raise ValueError(f"No trash entry found for {path} (resolved: {target_path})")
+
+    if config.verbose:
+        print(
+            f"trash: restoring {target_path} [hash: {metadata_entry.hash}]",
+            file=sys.stderr,
+        )
+
+    if metadata_entry.type == "file":
+        _restore_file(target_path, metadata_entry, config)
+    elif metadata_entry.type == "dir":
+        _restore_dir(target_path, metadata_entry, config)
+    elif metadata_entry.type == "symlink":
+        _restore_symlink(target_path, metadata_entry, config)
+
+    # Remove the metadata entry after successful restore (match by path + hash)
+    _remove_metadata_entry(config.metadata_path, str(target_path), metadata_entry.hash)
+
+    if config.verbose:
+        print(f"trash: restored {target_path}", file=sys.stderr)
+
+    return True
+
+
 def _hash_str(s: str) -> str:
     """Compute SHA256 hash of a string.
 
@@ -296,15 +637,28 @@ def _setup_parser() -> ArgumentParser:
         "  trash -r important_dir/",
         "  trash -v -r backup.tar.gz",
         "  trash -f old_nonexistent_file",
+        "  trash --restore /path/to/file",
+        "  trash --list",
         "",
         "Note: Files are moved to ~/.trash for recovery.",
     ]
     parser = ArgumentParser(
         prog="trash",
-        description="Move files and directories to a backup location (~/.trash)",
+        description="Safe deletion and recovery via backup location (~/.trash)",
         epilog=("\n".join(epilog)),
         formatter_class=RawDescriptionHelpFormatter,
         add_help=True,
+    )
+    parser.add_argument(
+        "--restore",
+        action="store_true",
+        help="Restore file(s) from trash by their original path",
+    )
+    parser.add_argument(
+        "--list",
+        "-l",
+        action="store_true",
+        help="List all items in trash",
     )
     parser.add_argument(
         "-r",
@@ -319,7 +673,10 @@ def _setup_parser() -> ArgumentParser:
         "-f", "--force", action="store_true", help="Ignore nonexistent files"
     )
     parser.add_argument(
-        "files", nargs="*", type=Path, help="Files or directories to trash"
+        "files",
+        nargs="*",
+        type=Path,
+        help="Files or directories to trash (or paths to restore with --restore)",
     )
     return parser
 
@@ -374,18 +731,45 @@ EXIT_FAILURE = 1
 
 
 def main() -> int:
-    """Main entry point: orchestrate trash operations with configuration.
+    """Main entry point: orchestrate trash, restore, or list operations.
 
-    Parses command-line arguments, validates file arguments, builds TrashConfig,
-    and processes each file. Exception handling is delegated to _process_files().
+    Parses command-line arguments and dispatches to trash, restore, or list
+    operations based on flags.
     """
     parser = _setup_parser()
     args = parser.parse_args()
-    # Check if files provided
+
+    # Handle --list (shows all items in trash)
+    if args.list:
+        restore_config = RestoreConfig(verbose=args.verbose)
+        restore_config.list_trash()
+        return EXIT_SUCCESS
+
+    # Handle --restore (restore files from trash)
+    if args.restore:
+        if not args.files:
+            print("Error: provide a path to restore or use --list", file=sys.stderr)
+            parser.print_help(sys.stderr)
+            return EXIT_FAILURE
+        restore_config = RestoreConfig(verbose=args.verbose)
+        success = True
+        for path in args.files:
+            try:
+                _restore_by_path(str(path), restore_config)
+            except (ValueError, FileNotFoundError) as e:
+                print(f"trash: error: {e}", file=sys.stderr)
+                success = False
+            except Exception as e:
+                print(f"trash: unexpected error: {e}", file=sys.stderr)
+                success = False
+        return EXIT_SUCCESS if success else EXIT_FAILURE
+
+    # Handle normal trash operation
     if not args.files:
         print("Error: Missing file arguments", file=sys.stderr)
         parser.print_help(sys.stderr)
         return EXIT_FAILURE
+
     # Build TrashConfig once after args parse
     config = TrashConfig(
         verbose=args.verbose,
