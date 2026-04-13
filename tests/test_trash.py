@@ -1217,16 +1217,14 @@ class TestTarNormalization:
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
-        # Create directory with files in non-alphabetical order
+        # Create flat directory with files in non-alphabetical order
         test_dir = home / "test_sort_dir"
         test_dir.mkdir()
         (test_dir / "zebra.txt").write_text("z")
         (test_dir / "apple.txt").write_text("a")
         (test_dir / "middle.txt").write_text("m")
-        subdir = test_dir / "subdir"
-        subdir.mkdir()
-        (subdir / "xyz.txt").write_text("x")
-        (subdir / "abc.txt").write_text("a")
+        (test_dir / "xyz.txt").write_text("x")
+        (test_dir / "abc.txt").write_text("a")
 
         # Trash the directory
         result = run_trash("-r", str(test_dir))
@@ -1251,15 +1249,15 @@ class TestTarNormalization:
         )
         files = result.stdout.strip().split("\n")
         # Filter out directory entries and normalize
-        files = sorted([f.strip() for f in files if f.strip() and not f.endswith("/")])
+        files = [f.strip() for f in files if f.strip() and not f.endswith("/")]
 
-        # Extract file names (strip directory prefixes)
+        # Extract file names (strip leading ./ directory prefix)
         file_names = [Path(f).name for f in files]
 
         # Verify files appear in alphabetical order
         expected_order = ["abc.txt", "apple.txt", "middle.txt", "xyz.txt", "zebra.txt"]
         assert file_names == expected_order, (
-            "Tar should list files in alphabetical order due to --sort=name"
+            f"Tar --sort=name should produce alphabetical order. Got: {file_names}"
         )
 
     def test_tar_16_normalization_flags_applied(self, mock_trash_env: dict) -> None:
