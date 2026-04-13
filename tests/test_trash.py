@@ -50,7 +50,11 @@ class TestSingleFileDeletion:
         assert result.returncode == 0
         assert not test_file.exists()
 
-        trashed = [f for f in trash_dir.iterdir() if f.name != "metadata.jsonl"]
+        trashed = [
+            f
+            for f in trash_dir.iterdir()
+            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+        ]
         assert len(trashed) == 1
 
     def test_tool_01_002_trashed_file_hash_matches_sha256_of_original(
@@ -70,7 +74,11 @@ class TestSingleFileDeletion:
         result = run_trash(str(test_file))
         assert result.returncode == 0
 
-        trashed = [f for f in trash_dir.iterdir() if f.name != "metadata.jsonl"]
+        trashed = [
+            f
+            for f in trash_dir.iterdir()
+            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+        ]
         assert len(trashed) == 1
         assert trashed[0].name == expected_hash
 
@@ -136,7 +144,11 @@ class TestMultipleFileArguments:
         assert not f1.exists()
         assert not f2.exists()
 
-        trashed = [f for f in trash_dir.iterdir() if f.name != "metadata.jsonl"]
+        trashed = [
+            f
+            for f in trash_dir.iterdir()
+            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+        ]
         assert len(trashed) == 2
 
     def test_tool_02_002_trash_multiple_files_and_directory_with_r(
@@ -160,7 +172,11 @@ class TestMultipleFileArguments:
         assert not f2.exists()
         assert not d.exists()
 
-        trashed = [f for f in trash_dir.iterdir() if f.name != "metadata.jsonl"]
+        trashed = [
+            f
+            for f in trash_dir.iterdir()
+            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+        ]
         assert len(trashed) == 3
 
     def test_tool_02_003_mix_existent_nonexistent_without_f_continues(
@@ -270,7 +286,11 @@ class TestRecursiveFlag:
         assert result.returncode == 0
         assert not d.exists()
 
-        trashed = [f for f in trash_dir.iterdir() if f.name != "metadata.jsonl"]
+        trashed = [
+            f
+            for f in trash_dir.iterdir()
+            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+        ]
         assert len(trashed) == 1
 
     def test_flag_r_003_tar_archive_has_single_hash(self, mock_trash_env: dict) -> None:
@@ -286,7 +306,11 @@ class TestRecursiveFlag:
         result = run_trash("-r", str(d))
         assert result.returncode == 0
 
-        trashed = [f for f in trash_dir.iterdir() if f.name != "metadata.jsonl"]
+        trashed = [
+            f
+            for f in trash_dir.iterdir()
+            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+        ]
         assert len(trashed) == 1
 
         metadata_lines = (trash_dir / "metadata.jsonl").read_text().strip().splitlines()
@@ -308,7 +332,11 @@ class TestRecursiveFlag:
         result = run_trash("-r", str(d))
         assert result.returncode == 0
 
-        tar_files = [f for f in trash_dir.iterdir() if f.name != "metadata.jsonl"]
+        tar_files = [
+            f
+            for f in trash_dir.iterdir()
+            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+        ]
         assert len(tar_files) == 1
 
         extract_dir = tmp_path / "extracted"
@@ -510,7 +538,11 @@ class TestEdgeCases:
         assert result.returncode == 0
         assert not test_file.exists()
 
-        trashed = [f for f in trash_dir.iterdir() if f.name != "metadata.jsonl"]
+        trashed = [
+            f
+            for f in trash_dir.iterdir()
+            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+        ]
         assert len(trashed) == 1
 
     def test_edge_002_filename_with_quotes(self, mock_trash_env: dict) -> None:
@@ -525,7 +557,11 @@ class TestEdgeCases:
         assert result.returncode == 0
         assert not test_file.exists()
 
-        trashed = [f for f in trash_dir.iterdir() if f.name != "metadata.jsonl"]
+        trashed = [
+            f
+            for f in trash_dir.iterdir()
+            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+        ]
         assert len(trashed) == 1
 
     def test_edge_003_refuse_to_trash_dot(self, mock_trash_env: dict) -> None:
@@ -562,7 +598,11 @@ class TestEdgeCases:
         assert not link.exists()
         assert target.exists()  # target must still be intact
 
-        trashed = [f for f in trash_dir.iterdir() if f.name != "metadata.jsonl"]
+        trashed = [
+            f
+            for f in trash_dir.iterdir()
+            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+        ]
         assert len(trashed) == 1
 
         # NEW: Verify type is "symlink" in metadata
@@ -1303,7 +1343,9 @@ class TestDeduplication:
         tar_files = [
             f
             for f in trash_dir.iterdir()
-            if f.name != "metadata.jsonl" and not f.name.endswith(".json")
+            if f.name != "metadata.jsonl"
+            and not f.name.endswith(".metadata.json")
+            and not f.name.endswith(".json")
         ]
         assert len(tar_files) == 1, (
             f"Should have 1 tar file after deduplication, got {len(tar_files)}"
