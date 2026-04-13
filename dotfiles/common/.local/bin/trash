@@ -508,6 +508,64 @@ def _remove_metadata_hash_entry(
         pass
 
 
+def _apply_metadata_on_restore(
+    target_path: Path, metadata_entry: dict[str, int | str]
+) -> None:
+    """Restore original mode, ownership, and timestamp to a restored item.
+
+    Called after item is moved or extracted to target_path. Applies metadata
+    saved during trash operation: original_mode, original_uid, original_gid,
+    original_mtime. Ownership restoration requires root privileges.
+
+    Args:
+        target_path: Path to the restored item (file, dir, or symlink)
+        metadata_entry: Dict with original_mode, original_uid, original_gid,
+            original_mtime
+
+    Raises:
+        OSError: If chmod, chown, or utime fails (caught and logged)
+    """
+    # Restore mode (always possible, no privilege required)
+    try:
+        mode_str = metadata_entry.get("original_mode", "0o755")
+        if isinstance(mode_str, str):
+            mode = int(mode_str, 0)  # Parse octal string like "0755" or "0o755"
+            os.chmod(target_path, mode)
+    except (KeyError, ValueError, OSError) as e:
+        # Log warning but continue; mode restoration is best-effort
+        print(
+            f"trash: warning: could not restore mode for {target_path}: {e}",
+            file=sys.stderr,
+        )
+
+    # Restore ownership (only if running as root)
+    try:
+        if os.getuid() == 0:
+            uid_val = metadata_entry.get("original_uid")
+            gid_val = metadata_entry.get("original_gid")
+            if isinstance(uid_val, int) and isinstance(gid_val, int):
+                os.chown(target_path, uid_val, gid_val)
+        # Non-root: silently skip (expected behavior)
+    except (KeyError, OSError) as e:
+        # Log warning but continue; ownership restoration may not be possible
+        print(
+            f"trash: warning: could not restore ownership for {target_path}: {e}",
+            file=sys.stderr,
+        )
+
+    # Restore mtime (always possible, no privilege required)
+    try:
+        mtime_val = metadata_entry.get("original_mtime")
+        if mtime_val is not None and isinstance(mtime_val, int):
+            os.utime(target_path, (mtime_val, mtime_val))  # (atime, mtime)
+    except (KeyError, ValueError, OSError) as e:
+        # Log warning but continue; mtime restoration is best-effort
+        print(
+            f"trash: warning: could not restore mtime for {target_path}: {e}",
+            file=sys.stderr,
+        )
+
+
 def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
     """Move an existing file/dir/symlink to trash before restoring over it.
 
@@ -524,10 +582,24 @@ def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
     )
     if path.is_symlink():
         # Hash from symlink target string (mirrors trash_symlink)
+        # Capture metadata from symlink itself (use lstat, not stat)
+        stat = path.lstat()
+        original_mode = oct(stat.st_mode & 0o777)
+        original_uid = stat.st_uid
+        original_gid = stat.st_gid
+        original_mtime = int(stat.st_mtime)
+
         hash_value = _hash_str(str(path.readlink()))
         item_type: Literal["file", "dir", "symlink"] = "symlink"
     elif path.is_dir():
         # Hash directory via tar (mirrors trash_dir)
+        # Capture metadata before trashing
+        stat = path.stat()
+        original_mode = oct(stat.st_mode & 0o777)
+        original_uid = stat.st_uid
+        original_gid = stat.st_gid
+        original_mtime = int(stat.st_mtime)
+
         with NamedTemporaryFile(
             delete=False, dir=config.trash_dir_path, suffix=".tar"
         ) as tmp:
@@ -548,9 +620,31 @@ def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
             raise
         metadata = Metadata(hash=hash_value, path=str(path), type=item_type)
         config.write_metadata(metadata)
+
+        # Also save {hash}.metadata.json for metadata application on restore
+        from datetime import datetime, timezone
+
+        metadata_entry = {
+            "path": str(path),
+            "date": datetime.now(timezone.utc).isoformat(),
+            "original_mode": original_mode,
+            "original_uid": original_uid,
+            "original_gid": original_gid,
+            "original_mtime": original_mtime,
+        }
+        metadata_json_path = config.trash_dir_path / f"{hash_value}.metadata.json"
+        entries: list[dict[str, int | str]] = [metadata_entry]
+        metadata_json_path.write_text(json.dumps(entries, indent=2, ensure_ascii=False))
         return
     else:
         # Regular file
+        # Capture metadata before trashing
+        stat = path.stat()
+        original_mode = oct(stat.st_mode & 0o777)
+        original_uid = stat.st_uid
+        original_gid = stat.st_gid
+        original_mtime = int(stat.st_mtime)
+
         hash_value = _hash_file(path)
         item_type = "file"
 
@@ -559,11 +653,28 @@ def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
     metadata = Metadata(hash=hash_value, path=str(path), type=item_type)
     config.write_metadata(metadata)
 
+    # Also save {hash}.metadata.json for metadata application on restore
+    from datetime import datetime, timezone
+
+    metadata_entry = {
+        "path": str(path),
+        "date": datetime.now(timezone.utc).isoformat(),
+        "original_mode": original_mode,
+        "original_uid": original_uid,
+        "original_gid": original_gid,
+        "original_mtime": original_mtime,
+    }
+    metadata_json_path = config.trash_dir_path / f"{hash_value}.metadata.json"
+    entries: list[dict[str, int | str]] = [metadata_entry]
+    metadata_json_path.write_text(json.dumps(entries, indent=2, ensure_ascii=False))
+
 
 def _restore_file(target_path: Path, metadata: Metadata, config: RestoreConfig) -> None:
     """Move a regular file from trash back to target_path.
 
     Backs up any existing file at target_path before restoring.
+    Applies original metadata (mode, mtime, uid/gid) from {hash}.metadata.json
+    if available.
 
     Args:
         target_path: Destination path for the restored file
@@ -583,6 +694,33 @@ def _restore_file(target_path: Path, metadata: Metadata, config: RestoreConfig) 
         _backup_existing_to_trash(target_path, config)
     target_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(trash_path), target_path)
+
+    # Apply original metadata from {hash}.metadata.json if available
+    metadata_json_path = config.trash_dir_path / f"{metadata.hash}.metadata.json"
+    if metadata_json_path.exists():
+        try:
+            entries_data = json.loads(metadata_json_path.read_text())
+            if isinstance(entries_data, list) and entries_data:
+                # Use the first entry that matches the target path
+                matching_entry: dict[str, int | str] | None = None
+                for entry in entries_data:
+                    if isinstance(entry, dict) and entry.get("path") == str(
+                        target_path
+                    ):
+                        matching_entry = entry
+                        break
+
+                if matching_entry is None and entries_data:
+                    # Use the first entry if no exact match found
+                    entry = entries_data[0]
+                    if isinstance(entry, dict):
+                        matching_entry = entry
+
+                if matching_entry:
+                    _apply_metadata_on_restore(target_path, matching_entry)
+        except (json.JSONDecodeError, OSError):
+            # If metadata.json is corrupt or missing, continue without applying metadata
+            pass
 
 
 def _restore_dir(target_path: Path, metadata: Metadata, config: RestoreConfig) -> None:
@@ -636,32 +774,7 @@ def _restore_dir(target_path: Path, metadata: Metadata, config: RestoreConfig) -
                         matching_entry = entry
 
                 if matching_entry:
-                    # Restore mode
-                    try:
-                        mode_str = matching_entry.get("original_mode", "0o755")
-                        if isinstance(mode_str, str):
-                            mode = int(mode_str, 0)
-                            os.chmod(target_path, mode)
-                    except (ValueError, OSError):
-                        pass
-
-                    # Restore mtime
-                    try:
-                        mtime_val = matching_entry.get("original_mtime")
-                        if mtime_val is not None and isinstance(mtime_val, int):
-                            os.utime(target_path, (mtime_val, mtime_val))
-                    except (ValueError, OSError):
-                        pass
-
-                    # Restore ownership (only if root)
-                    if os.getuid() == 0:
-                        try:
-                            uid_val = matching_entry.get("original_uid", os.getuid())
-                            gid_val = matching_entry.get("original_gid", os.getgid())
-                            if isinstance(uid_val, int) and isinstance(gid_val, int):
-                                os.chown(target_path, uid_val, gid_val)
-                        except (ValueError, OSError):
-                            pass
+                    _apply_metadata_on_restore(target_path, matching_entry)
         except (json.JSONDecodeError, OSError):
             # If metadata.json is corrupt or missing, continue without applying metadata
             pass
@@ -676,6 +789,7 @@ def _restore_symlink(
     """Move a symlink from trash back to target_path.
 
     Backs up any existing file/symlink at target_path before restoring.
+    Applies original metadata (mode, mtime) from {hash}.metadata.json if available.
 
     Args:
         target_path: Destination path for the restored symlink
@@ -695,6 +809,33 @@ def _restore_symlink(
         _backup_existing_to_trash(target_path, config)
     target_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(trash_path), target_path)
+
+    # Apply original metadata from {hash}.metadata.json if available
+    metadata_json_path = config.trash_dir_path / f"{metadata.hash}.metadata.json"
+    if metadata_json_path.exists():
+        try:
+            entries_data = json.loads(metadata_json_path.read_text())
+            if isinstance(entries_data, list) and entries_data:
+                # Use the first entry that matches the target path
+                matching_entry: dict[str, int | str] | None = None
+                for entry in entries_data:
+                    if isinstance(entry, dict) and entry.get("path") == str(
+                        target_path
+                    ):
+                        matching_entry = entry
+                        break
+
+                if matching_entry is None and entries_data:
+                    # Use the first entry if no exact match found
+                    entry = entries_data[0]
+                    if isinstance(entry, dict):
+                        matching_entry = entry
+
+                if matching_entry:
+                    _apply_metadata_on_restore(target_path, matching_entry)
+        except (json.JSONDecodeError, OSError):
+            # If metadata.json is corrupt or missing, continue without applying metadata
+            pass
 
 
 def _restore_by_path(path: str, config: RestoreConfig) -> bool:
