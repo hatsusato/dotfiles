@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -59,9 +60,10 @@ class TrashPath(Path):
 
 
 class Metadata:
-    """Record of a trashed item: hash, original path, type, date.
+    """Record of a trashed item: hash, path, type, timestamp, restore.
 
-    Pure data container — stores validated path, hash, type, and date.
+    Pure data container with path, hash, type, epoch timestamp, and restore
+    flag. Phase 10: Added timestamp (epoch int) and restore fields.
     """
 
     def __init__(
@@ -69,31 +71,60 @@ class Metadata:
         hash: str,
         path: str,
         type: Literal["file", "dir", "symlink"],
+        timestamp: int = 0,
+        restore: bool = False,
         date: str = "",
     ) -> None:
-        """Initialize Metadata with hash, path, type, and optional date.
+        """Initialize Metadata with hash, path, type, timestamp, restore.
 
         Args:
             hash: SHA256 hash hexdigest of item content or symlink target
             path: Original path of the trashed item (as string)
             type: Type of item ("file", "dir", or "symlink")
-            date: Optional ISO8601 timestamp; defaults to current time if omitted
+            timestamp: Unix epoch timestamp (seconds); defaults to current if 0
+            restore: Boolean flag for audit trail (True if restored)
+            date: Optional ISO8601 timestamp for backward compat
         """
         self.hash = hash
         self.path = path
         self.type = type
+        self.timestamp = timestamp if timestamp else self.now_epoch()
+        self.restore = restore
         self.date = date if date else self.now()
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, str | int | bool]:
         """Convert to JSON-serializable dict."""
-        return dict(hash=self.hash, path=self.path, type=self.type, date=self.date)
+        return dict(
+            hash=self.hash,
+            path=self.path,
+            type=self.type,
+            date=self.date,
+            timestamp=self.timestamp,
+            restore=self.restore,
+        )
 
     @classmethod
-    def from_dict(cls, d: dict[str, str]) -> Self:
-        """Deserialize from JSON dict."""
+    def from_dict(cls, d: dict[str, str | int | bool]) -> Self:
+        """Deserialize from JSON dict. Handle both old and new formats."""
         if d["type"] not in ("file", "dir", "symlink"):
             raise ValueError(f"Invalid type in metadata: {d['type']}")
-        return cls(hash=d["hash"], path=d["path"], type=d["type"], date=d["date"])
+        return cls(
+            hash=d["hash"],
+            path=d["path"],
+            type=d["type"],
+            timestamp=d.get("timestamp", 0),
+            restore=d.get("restore", False),
+            date=d.get("date", ""),
+        )
+
+    @staticmethod
+    def now_epoch() -> int:
+        """Return current Unix epoch timestamp (integer seconds).
+
+        Returns:
+            Epoch timestamp as integer
+        """
+        return int(time.time())
 
     @staticmethod
     def now() -> str:
@@ -109,35 +140,31 @@ def _save_metadata_for_hash(
     hash_value: str,
     path: str,
     original_mode: str,
-    original_uid: int,
-    original_gid: int,
     original_mtime: int,
     trash_dir_path: Path,
 ) -> None:
-    """Save/append metadata for a hashed item in {hash}.metadata.json.
+    """Save/append metadata for a hashed item in {hash}.json.
 
-    Creates or appends to {trash_dir}/{hash}.metadata.json with per-path metadata
-    including original mode, uid/gid, and mtime. Metadata is stored in JSON array
+    Creates or appends to {trash_dir}/{hash}.json with per-path metadata
+    including original mode and mtime (epoch). Metadata is stored in JSON array
     format to support deduplication (same hash, multiple paths).
+
+    Phase 10: Simplified version without uid/gid fields. Uses epoch timestamps.
 
     Args:
         hash_value: SHA256 hash of the item
         path: Original absolute path of the item
         original_mode: Original file mode as octal string (e.g., "0o755")
-        original_uid: Original user ID
-        original_gid: Original group ID
-        original_mtime: Original modification time (Unix timestamp)
+        original_mtime: Original modification time (Unix timestamp, epoch seconds)
         trash_dir_path: Path to trash directory
     """
     metadata_path = trash_dir_path / f"{hash_value}.metadata.json"
 
     entry = {
         "path": path,
-        "date": Metadata.now(),
+        "timestamp": int(time.time()),
         "original_mode": original_mode,
-        "original_uid": original_uid,
-        "original_gid": original_gid,
-        "original_mtime": original_mtime,
+        "restore": False,
     }
 
     if metadata_path.exists():
@@ -475,9 +502,9 @@ def _remove_metadata_entry(
 def _remove_metadata_hash_entry(
     trash_dir_path: Path, target_hash: str, target_path: str
 ) -> None:
-    """Remove the specific entry matching path from {hash}.metadata.json.
+    """Remove the specific entry matching path from {hash}.json.
 
-    Removes the entry from the JSON array in {hash}.metadata.json. If the array
+    Removes the entry from the JSON array in {hash}.json. If the array
     becomes empty, the file is left as an empty array.
 
     Args:
@@ -508,22 +535,71 @@ def _remove_metadata_hash_entry(
         pass
 
 
-def _apply_metadata_on_restore(
-    target_path: Path, metadata_entry: dict[str, int | str]
+def _append_restore_entry(
+    trash_dir_path: Path, target_hash: str, target_path: str
 ) -> None:
-    """Restore original mode, ownership, and timestamp to a restored item.
+    """Append a restore: true entry to both metadata.jsonl and {hash}.json (Phase 10).
+
+    After successful restore, appends new entries with "restore": true to both
+    metadata files to mark this as a restoration event. Original entries are
+    preserved for audit trail.
+
+    Args:
+        trash_dir_path: Path to trash directory
+        target_hash: SHA256 hash of the archived item
+        target_path: Original path to mark as restored
+    """
+    # Append to {hash}.json
+    metadata_path = trash_dir_path / f"{target_hash}.metadata.json"
+    if metadata_path.exists():
+        try:
+            entries_data = json.loads(metadata_path.read_text())
+            if not isinstance(entries_data, list):
+                entries_data = []
+        except (json.JSONDecodeError, OSError):
+            entries_data = []
+
+        # Append new entry with restore: true flag
+        restore_entry: dict[str, int | str | bool] = {
+            "path": target_path,
+            "timestamp": int(time.time()),
+            "restore": True,
+        }
+        entries_data.append(restore_entry)
+        metadata_path.write_text(json.dumps(entries_data, indent=2, ensure_ascii=False))
+
+    # Also append to metadata.jsonl (JSON Lines format)
+    jsonl_path = trash_dir_path / "metadata.jsonl"
+    try:
+        restore_entry_jsonl: dict[str, int | str | bool] = {
+            "hash": target_hash,
+            "path": target_path,
+            "type": "file",  # We don't have type info here, use generic "file"
+            "timestamp": int(time.time()),
+            "restore": True,
+        }
+        with open(jsonl_path, "a") as f:
+            json.dump(restore_entry_jsonl, f, ensure_ascii=False, separators=(",", ":"))
+            f.write("\n")
+    except OSError:
+        pass  # Ignore errors appending to metadata.jsonl
+
+
+def _apply_metadata_on_restore(
+    target_path: Path, metadata_entry: dict[str, int | str | bool]
+) -> None:
+    """Restore original mode and timestamp to a restored item.
 
     Called after item is moved or extracted to target_path. Applies metadata
-    saved during trash operation: original_mode, original_uid, original_gid,
-    original_mtime. Ownership restoration requires root privileges.
+    saved during trash operation: original_mode, timestamp. Ownership (uid/gid)
+    is NOT restored (Phase 10 simplification).
 
     Args:
         target_path: Path to the restored item (file, dir, or symlink)
-        metadata_entry: Dict with original_mode, original_uid, original_gid,
-            original_mtime
+        metadata_entry: Dict with original_mode and timestamp (or original_mtime)
 
     Raises:
-        OSError: If chmod, chown, or utime fails (caught and logged)
+        OSError: If chmod or utime fails (caught and logged)
     """
     # Restore mode (always possible, no privilege required)
     try:
@@ -538,24 +614,12 @@ def _apply_metadata_on_restore(
             file=sys.stderr,
         )
 
-    # Restore ownership (only if running as root)
-    try:
-        if os.getuid() == 0:
-            uid_val = metadata_entry.get("original_uid")
-            gid_val = metadata_entry.get("original_gid")
-            if isinstance(uid_val, int) and isinstance(gid_val, int):
-                os.chown(target_path, uid_val, gid_val)
-        # Non-root: silently skip (expected behavior)
-    except (KeyError, OSError) as e:
-        # Log warning but continue; ownership restoration may not be possible
-        print(
-            f"trash: warning: could not restore ownership for {target_path}: {e}",
-            file=sys.stderr,
-        )
-
     # Restore mtime (always possible, no privilege required)
+    # Phase 10: Use "timestamp" field if available, fall back to "original_mtime"
     try:
-        mtime_val = metadata_entry.get("original_mtime")
+        mtime_val = metadata_entry.get("timestamp") or metadata_entry.get(
+            "original_mtime"
+        )
         if mtime_val is not None and isinstance(mtime_val, int):
             os.utime(target_path, (mtime_val, mtime_val))  # (atime, mtime)
     except (KeyError, ValueError, OSError) as e:
@@ -621,7 +685,7 @@ def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
         metadata = Metadata(hash=hash_value, path=str(path), type=item_type)
         config.write_metadata(metadata)
 
-        # Also save {hash}.metadata.json for metadata application on restore
+        # Also save {hash}.json for metadata application on restore
         from datetime import datetime, timezone
 
         metadata_entry = {
@@ -653,7 +717,7 @@ def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
     metadata = Metadata(hash=hash_value, path=str(path), type=item_type)
     config.write_metadata(metadata)
 
-    # Also save {hash}.metadata.json for metadata application on restore
+    # Also save {hash}.json for metadata application on restore
     from datetime import datetime, timezone
 
     metadata_entry = {
@@ -673,7 +737,7 @@ def _restore_file(target_path: Path, metadata: Metadata, config: RestoreConfig) 
     """Move a regular file from trash back to target_path.
 
     Backs up any existing file at target_path before restoring.
-    Applies original metadata (mode, mtime, uid/gid) from {hash}.metadata.json
+    Applies original metadata (mode, mtime, uid/gid) from {hash}.json
     if available.
 
     Args:
@@ -695,7 +759,7 @@ def _restore_file(target_path: Path, metadata: Metadata, config: RestoreConfig) 
     target_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(trash_path), target_path)
 
-    # Apply original metadata from {hash}.metadata.json if available
+    # Apply original metadata from {hash}.json if available
     metadata_json_path = config.trash_dir_path / f"{metadata.hash}.metadata.json"
     if metadata_json_path.exists():
         try:
@@ -728,7 +792,7 @@ def _restore_dir(target_path: Path, metadata: Metadata, config: RestoreConfig) -
 
     Uses tarfile.extractall(filter="data") to prevent Zip Slip attacks.
     Backs up any existing directory at target_path before restoring.
-    Applies original metadata (mode, mtime) from {hash}.metadata.json if available.
+    Applies original metadata (mode, mtime) from {hash}.json if available.
 
     Args:
         target_path: Destination directory path for the restored directory
@@ -752,7 +816,7 @@ def _restore_dir(target_path: Path, metadata: Metadata, config: RestoreConfig) -
         # filter="data" prevents Zip Slip: rejects symlinks outside extraction dir
         tf.extractall(target_path, filter="data")
 
-    # Apply original metadata from {hash}.metadata.json if available
+    # Apply original metadata from {hash}.json if available
     metadata_json_path = config.trash_dir_path / f"{metadata.hash}.metadata.json"
     if metadata_json_path.exists():
         try:
@@ -779,8 +843,8 @@ def _restore_dir(target_path: Path, metadata: Metadata, config: RestoreConfig) -
             # If metadata.json is corrupt or missing, continue without applying metadata
             pass
 
-    # Remove tar from trash after successful extraction
-    tar_path.unlink()
+    # Phase 10: Keep tar in trash (only deleted by --gc after entries are cleaned)
+    # tar_path.unlink()  # Removed: tar is kept for deduplication and audit trail
 
 
 def _restore_symlink(
@@ -789,7 +853,7 @@ def _restore_symlink(
     """Move a symlink from trash back to target_path.
 
     Backs up any existing file/symlink at target_path before restoring.
-    Applies original metadata (mode, mtime) from {hash}.metadata.json if available.
+    Applies original metadata (mode, mtime) from {hash}.json if available.
 
     Args:
         target_path: Destination path for the restored symlink
@@ -810,7 +874,7 @@ def _restore_symlink(
     target_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(trash_path), target_path)
 
-    # Apply original metadata from {hash}.metadata.json if available
+    # Apply original metadata from {hash}.json if available
     metadata_json_path = config.trash_dir_path / f"{metadata.hash}.metadata.json"
     if metadata_json_path.exists():
         try:
@@ -864,10 +928,17 @@ def _restore_by_path(path: str, config: RestoreConfig) -> bool:
 
     entries = _read_metadata_entries(config.metadata_path)
     metadata_entry: Metadata | None = None
+    # Phase 10: Prefer entries with restore: false (actual trash items)
+    # Use the most recent restore: false entry (last one found in the list)
     for entry in entries:
-        if entry.path == str(target_path):
-            metadata_entry = entry
-            break
+        if entry.path == str(target_path) and not entry.restore:
+            metadata_entry = entry  # Keep overwriting to get most recent
+
+    # Fallback: if no restore: false entry found, use most recent matching
+    if metadata_entry is None:
+        for entry in entries:
+            if entry.path == str(target_path):
+                metadata_entry = entry  # Keep overwriting to get most recent
 
     if metadata_entry is None:
         raise ValueError(f"No trash entry found for {path} (resolved: {target_path})")
@@ -885,13 +956,31 @@ def _restore_by_path(path: str, config: RestoreConfig) -> bool:
     elif metadata_entry.type == "symlink":
         _restore_symlink(target_path, metadata_entry, config)
 
-    # Remove the metadata entry after successful restore (match by path + hash)
-    _remove_metadata_entry(config.metadata_path, str(target_path), metadata_entry.hash)
+    # Phase 10: Append-only restore (append restore: true entry to all metadata files)
+    # Append to the specific {hash}.json for this restore
+    _append_restore_entry(config.trash_dir_path, metadata_entry.hash, str(target_path))
 
-    # Also remove the entry from {hash}.metadata.json if it exists
-    _remove_metadata_hash_entry(
-        config.trash_dir_path, metadata_entry.hash, str(target_path)
-    )
+    # Also append restore: true to all OTHER metadata.json files
+    for metadata_path in config.trash_dir_path.glob("*.metadata.json"):
+        # Extract hash: "{hash}.metadata.json" → "{hash}"
+        hash_val = metadata_path.name.replace(".metadata.json", "")
+        if hash_val == metadata_entry.hash:
+            continue  # Already handled above
+        try:
+            entries = json.loads(metadata_path.read_text())
+            if isinstance(entries, list):
+                # Check if any entry references this path
+                if any(e.get("path") == str(target_path) for e in entries):
+                    # Append restore: true to this file too
+                    restore_entry: dict[str, int | str | bool] = {
+                        "path": str(target_path),
+                        "timestamp": int(time.time()),
+                        "restore": True,
+                    }
+                    entries.append(restore_entry)
+                    metadata_path.write_text(json.dumps(entries, indent=2))
+        except (json.JSONDecodeError, OSError):
+            pass  # Ignore errors
 
     if config.verbose:
         print(f"trash: restored {target_path}", file=sys.stderr)
@@ -988,12 +1077,83 @@ def _setup_parser() -> ArgumentParser:
         "-f", "--force", action="store_true", help="Ignore nonexistent files"
     )
     parser.add_argument(
+        "--gc",
+        action="store_true",
+        help="Garbage collect: remove restore-marked entries and orphans",
+    )
+    parser.add_argument(
         "files",
         nargs="*",
         type=Path,
         help="Files or directories to trash (or paths to restore with --restore)",
     )
     return parser
+
+
+def garbage_collect(config: TrashConfig) -> tuple[int, int]:
+    """Delete restore: true entries and orphan tar files (Phase 10 --gc implementation).
+
+    Scans all {hash}.json files in trash_dir. For each file:
+    1. Filters out entries with "restore": true
+    2. If remaining entries exist: updates metadata.json, keeps tar
+    3. If no remaining entries: deletes metadata.json AND orphan tar
+
+    Args:
+        config: TrashConfig with trash_dir_path
+
+    Returns:
+        tuple: (deleted_entry_count, deleted_tar_count)
+    """
+    if not config.trash_dir_path.exists():
+        return 0, 0
+
+    deleted_entries = 0
+    deleted_tars = 0
+    orphan_hashes: set[str] = set()
+
+    # Step 1: Scan all {hash}.json files
+    for metadata_path in config.trash_dir_path.glob("*.metadata.json"):
+        try:
+            entries = json.loads(metadata_path.read_text())
+            if not isinstance(entries, list):
+                continue
+        except (json.JSONDecodeError, OSError):
+            continue
+
+        # Filter out restore: true entries
+        remaining: list[dict[str, int | str | bool]] = [
+            e for e in entries if not e.get("restore", False)
+        ]
+        deleted_entries += len(entries) - len(remaining)
+
+        # Update or delete metadata file
+        if not remaining:
+            # No more entries → tar is orphan
+            # Extract hash from filename: "{hash}.metadata.json" → "{hash}"
+            hash_val = metadata_path.name.replace(".metadata.json", "")
+            orphan_hashes.add(hash_val)
+            try:
+                metadata_path.unlink()
+            except OSError:
+                pass  # Ignore deletion errors
+        elif remaining != entries:
+            # Some entries removed → update file
+            try:
+                metadata_path.write_text(json.dumps(remaining, indent=2))
+            except OSError:
+                pass  # Ignore write errors
+
+    # Step 2: Delete orphan tar files
+    for hash_val in orphan_hashes:
+        tar_path = config.trash_dir_path / hash_val
+        if tar_path.exists():
+            try:
+                tar_path.unlink()
+                deleted_tars += 1
+            except OSError:
+                pass  # Ignore deletion errors (tar may be in use)
+
+    return deleted_entries, deleted_tars
 
 
 def _process_files(file_paths: list[Path], config: TrashConfig) -> bool:
@@ -1017,45 +1177,35 @@ def _process_files(file_paths: list[Path], config: TrashConfig) -> bool:
 
             # Capture original attributes before trashing
             original_mode = "0o755"
-            original_uid = os.getuid()
-            original_gid = os.getgid()
             original_mtime = int(datetime.now(timezone.utc).timestamp())
 
             if trash_path.is_symlink():
                 # Symlinks: capture target and lstat (not stat)
                 stat = trash_path.lstat()
                 original_mode = oct(stat.st_mode & 0o777)
-                original_uid = stat.st_uid
-                original_gid = stat.st_gid
                 original_mtime = int(stat.st_mtime)
                 metadata = config.trash_symlink(trash_path)
             elif trash_path.is_dir():
                 # Directories: capture stat
                 stat = trash_path.stat()
                 original_mode = oct(stat.st_mode & 0o777)
-                original_uid = stat.st_uid
-                original_gid = stat.st_gid
                 original_mtime = int(stat.st_mtime)
                 metadata = config.trash_dir(trash_path)
             else:
                 # Regular files: capture stat
                 stat = trash_path.stat()
                 original_mode = oct(stat.st_mode & 0o777)
-                original_uid = stat.st_uid
-                original_gid = stat.st_gid
                 original_mtime = int(stat.st_mtime)
                 metadata = config.trash_file(trash_path)
 
             # Write metadata.jsonl (existing behavior)
             config.write_metadata(metadata)
 
-            # Write {hash}.metadata.json (new behavior)
+            # Write {hash}.json (new behavior)
             _save_metadata_for_hash(
                 metadata.hash,
                 metadata.path,
                 original_mode,
-                original_uid,
-                original_gid,
                 original_mtime,
                 config.trash_dir_path,
             )
@@ -1092,6 +1242,21 @@ def main() -> int:
     """
     parser = _setup_parser()
     args = parser.parse_args()
+
+    # Handle --gc (garbage collect restore: true entries and orphan tars)
+    if args.gc:
+        config = TrashConfig(
+            verbose=args.verbose,
+            force=args.force,
+            recursive=args.recursive,
+        )
+        deleted_entries, deleted_tars = garbage_collect(config)
+        if args.verbose or deleted_entries > 0 or deleted_tars > 0:
+            print(
+                f"trash --gc: {deleted_entries} entries, {deleted_tars} tars deleted",
+                file=sys.stderr,
+            )
+        return EXIT_SUCCESS
 
     # Handle --list (shows all items in trash)
     if args.list:
