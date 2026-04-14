@@ -2079,7 +2079,7 @@ class TestGarbageCollection:
         # Get tar hash (should be same for both)
         metadata_files = list(trash_dir.glob("*.metadata.json"))
         assert len(metadata_files) == 1, "identical files should deduplicate to one tar"
-        tar_hash = metadata_files[0].stem
+        tar_hash = metadata_files[0].name.replace(".metadata.json", "")
         tar_path = trash_dir / tar_hash
         assert tar_path.exists(), "tar should exist"
 

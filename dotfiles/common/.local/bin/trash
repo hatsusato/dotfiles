@@ -164,6 +164,7 @@ def _save_metadata_for_hash(
         "path": path,
         "timestamp": int(time.time()),
         "original_mode": original_mode,
+        "original_mtime": original_mtime,
         "restore": False,
     }
 
@@ -615,10 +616,10 @@ def _apply_metadata_on_restore(
         )
 
     # Restore mtime (always possible, no privilege required)
-    # Phase 10: Use "timestamp" field if available, fall back to "original_mtime"
+    # Phase 10: Use "original_mtime" field if available, fall back to "timestamp"
     try:
-        mtime_val = metadata_entry.get("timestamp") or metadata_entry.get(
-            "original_mtime"
+        mtime_val = metadata_entry.get("original_mtime") or metadata_entry.get(
+            "timestamp"
         )
         if mtime_val is not None and isinstance(mtime_val, int):
             os.utime(target_path, (mtime_val, mtime_val))  # (atime, mtime)
