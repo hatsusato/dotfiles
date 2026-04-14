@@ -1774,3 +1774,493 @@ class TestRestoreMetadata:
             assert stat.st_uid == entry["original_uid"]
             assert stat.st_gid == entry["original_gid"]
         # If not root, chown is skipped (expected behavior)
+
+
+# ============================================================================
+# Phase 10: Metadata Simplification Tests (RED Phase)
+# ============================================================================
+# These tests define Phase 10 behavior:
+# - D-01: Remove uid/gid fields from metadata
+# - D-02: Append-only restore with "restore: true" flag
+# - D-03: Unify timestamps to Unix epoch integers
+# - D-04: Add trash --gc manual garbage collection option
+
+
+class TestPhase10MetadataFormat:
+    """TEST-01, TEST-02, TEST-03: Validate Phase 10 metadata structure."""
+
+    def test_01_metadata_has_no_uid_gid_fields(self, mock_trash_env: dict) -> None:
+        """TEST-01: Metadata entry has no original_uid or original_gid fields."""
+        home = Path(mock_trash_env["home"])
+        test_file = home / "test_no_uid_gid.txt"
+        test_file.write_text("test content")
+
+        # Trash the file
+        result = run_trash(str(test_file))
+        assert result.returncode == 0, f"trash failed: {result.stderr}"
+        assert not test_file.exists()
+
+        # Read {hash}.metadata.json and verify no uid/gid fields
+        trash_dir = Path(mock_trash_env["trash_dir"])
+        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        assert len(metadata_files) == 1, (
+            f"Expected 1 metadata file, found {len(metadata_files)}"
+        )
+
+        entries = json.loads(metadata_files[0].read_text())
+        assert isinstance(entries, list) and len(entries) > 0
+
+        for entry in entries:
+            assert "original_uid" not in entry, (
+                "original_uid should not be in metadata (D-01)"
+            )
+            assert "original_gid" not in entry, (
+                "original_gid should not be in metadata (D-01)"
+            )
+
+    def test_02_all_timestamps_are_epoch_integers(self, mock_trash_env: dict) -> None:
+        """TEST-02: All timestamp fields are epoch integers, not ISO 8601 strings."""
+        home = Path(mock_trash_env["home"])
+        test_file = home / "test_epoch.txt"
+        test_file.write_text("epoch test")
+
+        result = run_trash(str(test_file))
+        assert result.returncode == 0
+
+        trash_dir = Path(mock_trash_env["trash_dir"])
+        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        assert len(metadata_files) >= 1
+
+        for metadata_file in metadata_files:
+            entries = json.loads(metadata_file.read_text())
+            for entry in entries:
+                timestamp = entry.get("timestamp")
+                assert timestamp is not None, "timestamp field required (D-03)"
+                assert isinstance(timestamp, int), (
+                    f"timestamp must be int, got {type(timestamp)} (D-03)"
+                )
+                assert not isinstance(timestamp, bool), (
+                    "timestamp must be numeric int, not bool"
+                )
+                # Epoch should be reasonable (after 2000, before 2100)
+                assert 946684800 <= timestamp <= 4102444800, (
+                    f"timestamp {timestamp} out of valid range"
+                )
+
+    def test_03_fresh_entry_has_restore_false_flag(self, mock_trash_env: dict) -> None:
+        """TEST-03: Fresh trash entry has 'restore: false' flag."""
+        home = Path(mock_trash_env["home"])
+        test_file = home / "test_restore_flag.txt"
+        test_file.write_text("flag test")
+
+        result = run_trash(str(test_file))
+        assert result.returncode == 0
+
+        trash_dir = Path(mock_trash_env["trash_dir"])
+        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        assert len(metadata_files) >= 1
+
+        for metadata_file in metadata_files:
+            entries = json.loads(metadata_file.read_text())
+            for entry in entries:
+                assert "restore" in entry, "restore field required (D-02)"
+                assert entry["restore"] is False, (
+                    "restore should be False for fresh entries"
+                )
+
+
+class TestRestoreAppendOnly:
+    """TEST-04, TEST-05, TEST-06: Validate append-only restore semantics."""
+
+    def test_04_restore_appends_restore_true_entry(self, mock_trash_env: dict) -> None:
+        """TEST-04: trash --restore FILE appends entry with restore: true."""
+        home = Path(mock_trash_env["home"])
+        test_file = home / "test_append.txt"
+        original_content = "original content"
+        test_file.write_text(original_content)
+
+        # Trash the file
+        result = run_trash(str(test_file))
+        assert result.returncode == 0
+        assert not test_file.exists()
+
+        # Count entries before restore
+        trash_dir = Path(mock_trash_env["trash_dir"])
+        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        assert len(metadata_files) == 1
+        entries_before = json.loads(metadata_files[0].read_text())
+        count_before = len(entries_before)
+
+        # Restore the file
+        result = run_trash("--restore", str(test_file))
+        assert result.returncode == 0, f"restore failed: {result.stderr}"
+        assert test_file.exists(), "restore should recreate the file"
+        assert test_file.read_text() == original_content
+
+        # Verify new entry appended with restore: true
+        entries_after = json.loads(metadata_files[0].read_text())
+        assert len(entries_after) > count_before, "restore should append new entry"
+
+        # Find the new restore: true entry
+        restore_entries = [e for e in entries_after if e.get("restore") is True]
+        assert len(restore_entries) > 0, (
+            "restore should create restore: true entry (D-02)"
+        )
+
+        # Latest entry should be restore: true
+        latest = entries_after[-1]
+        assert latest.get("restore") is True, "latest entry should be restore: true"
+
+    def test_05_restore_preserves_original_entry(self, mock_trash_env: dict) -> None:
+        """TEST-05: Original entry is NOT deleted after restore (audit trail)."""
+        home = Path(mock_trash_env["home"])
+        test_file = home / "test_audit_trail.txt"
+        test_file.write_text("audit content")
+
+        # Trash
+        run_trash(str(test_file))
+        assert not test_file.exists()
+
+        trash_dir = Path(mock_trash_env["trash_dir"])
+        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        entries_before_restore = json.loads(metadata_files[0].read_text())
+        original_entry = entries_before_restore[
+            0
+        ]  # First entry should be restore: false
+
+        # Restore
+        run_trash("--restore", str(test_file))
+
+        # Verify original entry still exists
+        entries_after = json.loads(metadata_files[0].read_text())
+
+        # Filter entries matching original path
+        original_path_entries = [
+            e for e in entries_after if e.get("path") == original_entry["path"]
+        ]
+
+        # Original entry (restore: false) should still be present
+        restore_false_entries = [
+            e for e in original_path_entries if e.get("restore") is False
+        ]
+        assert len(restore_false_entries) > 0, (
+            "Original entry (restore: false) should be preserved (D-02)"
+        )
+
+    def test_06_multiple_restores_append_multiple_entries(
+        self, mock_trash_env: dict
+    ) -> None:
+        """TEST-06: Multiple restores append multiple restore: true entries."""
+        home = Path(mock_trash_env["home"])
+        test_file = home / "test_multi_restore.txt"
+        test_file.write_text("multi restore")
+
+        # Trash once
+        run_trash(str(test_file))
+        assert not test_file.exists()
+
+        trash_dir = Path(mock_trash_env["trash_dir"])
+        metadata_files = list(trash_dir.glob("*.metadata.json"))
+
+        # Restore, modify, trash again, restore again
+        run_trash("--restore", str(test_file))
+        assert test_file.exists()
+        test_file.write_text("modified content")
+
+        # Trash the restored file again
+        run_trash(str(test_file))
+        assert not test_file.exists()
+
+        # Restore again
+        run_trash("--restore", str(test_file))
+        assert test_file.exists()
+
+        # Verify multiple restore: true entries
+        entries_final = json.loads(metadata_files[0].read_text())
+        restore_true_entries = [e for e in entries_final if e.get("restore") is True]
+
+        assert len(restore_true_entries) >= 2, (
+            "Multiple restores should create multiple restore: true entries (D-02)"
+        )
+
+
+class TestGarbageCollection:
+    """TEST-07 through TEST-10: Validate trash --gc cleanup logic."""
+
+    def test_07_gc_removes_restore_true_entries(self, mock_trash_env: dict) -> None:
+        """TEST-07: trash --gc deletes entries with restore: true."""
+        home = Path(mock_trash_env["home"])
+        test_file = home / "test_gc_remove.txt"
+        test_file.write_text("gc test")
+
+        # Trash and restore to create restore: true entry
+        run_trash(str(test_file))
+        run_trash("--restore", str(test_file))
+
+        trash_dir = Path(mock_trash_env["trash_dir"])
+        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        entries_before_gc = json.loads(metadata_files[0].read_text())
+
+        # Verify restore: true entry exists
+        restore_true_before = [e for e in entries_before_gc if e.get("restore") is True]
+        assert len(restore_true_before) > 0, "setup: should have restore: true entry"
+
+        # Run --gc
+        result = run_trash("--gc")
+        assert result.returncode == 0, f"--gc failed: {result.stderr}"
+
+        # Verify restore: true entries removed
+        if metadata_files[0].exists():
+            entries_after_gc = json.loads(metadata_files[0].read_text())
+            restore_true_after = [
+                e for e in entries_after_gc if e.get("restore") is True
+            ]
+            assert len(restore_true_after) == 0, (
+                "trash --gc should delete restore: true entries (D-04)"
+            )
+
+    def test_08_gc_deletes_orphan_tar(self, mock_trash_env: dict) -> None:
+        """TEST-08: trash --gc deletes orphan tar (all entries are restore: true)."""
+        home = Path(mock_trash_env["home"])
+        test_file = home / "test_gc_orphan.txt"
+        test_file.write_text("orphan tar test")
+
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        # Trash and restore (creates one restore: true, one restore: false)
+        run_trash(str(test_file))
+        tar_files_before = list(
+            trash_dir.glob("[a-f0-9]*")
+        )  # Non-*.metadata.json files
+        tar_files_before = [
+            f
+            for f in tar_files_before
+            if f.is_file() and not f.name.endswith(".metadata.json")
+        ]
+        assert len(tar_files_before) > 0, "setup: should have tar file"
+        tar_hash = tar_files_before[0].name
+
+        run_trash("--restore", str(test_file))
+
+        # Now manually delete the restore: false entry to simulate only orphan entry
+        metadata_file = trash_dir / f"{tar_hash}.metadata.json"
+        entries = json.loads(metadata_file.read_text())
+        # Keep only restore: true entries
+        orphan_entries = [e for e in entries if e.get("restore") is True]
+        metadata_file.write_text(json.dumps(orphan_entries, indent=2))
+
+        # Run --gc
+        result = run_trash("--gc")
+        assert result.returncode == 0
+
+        # Verify tar was deleted (orphan detection)
+        tar_path = trash_dir / tar_hash
+        assert not tar_path.exists(), "orphan tar should be deleted by --gc (D-04)"
+
+    def test_09_gc_preserves_shared_tar_with_remaining_entries(
+        self, mock_trash_env: dict
+    ) -> None:
+        """TEST-09: Shared tar preserved when entries remain; only metadata deleted."""
+        home = Path(mock_trash_env["home"])
+
+        # Create two identical files (will share hash/tar)
+        file1 = home / "test_shared_1.txt"
+        file2 = home / "test_shared_2.txt"
+        content = "identical content for deduplication"
+        file1.write_text(content)
+        file2.write_text(content)
+
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        # Trash both
+        run_trash(str(file1))
+        run_trash(str(file2))
+
+        # Get tar hash (should be same for both)
+        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        assert len(metadata_files) == 1, "identical files should deduplicate to one tar"
+        tar_hash = metadata_files[0].stem
+        tar_path = trash_dir / tar_hash
+        assert tar_path.exists(), "tar should exist"
+
+        # Restore only first file
+        run_trash("--restore", str(file1))
+
+        # Run --gc
+        result = run_trash("--gc")
+        assert result.returncode == 0
+
+        # Verify tar still exists (file2 still references it)
+        assert tar_path.exists(), (
+            "tar should be preserved if remaining entries exist (D-04)"
+        )
+
+        # Verify metadata file still exists with file2 entry
+        entries = json.loads(metadata_files[0].read_text())
+        file2_entries = [e for e in entries if file2.name in e.get("path", "")]
+        assert len(file2_entries) > 0, "metadata should still have entry for file2"
+
+    def test_10_gc_on_empty_trash_succeeds(self, mock_trash_env: dict) -> None:
+        """TEST-10: trash --gc on empty/clean trash succeeds with no errors."""
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        # Ensure trash is empty
+        for f in trash_dir.glob("*"):
+            if f.is_file():
+                f.unlink()
+
+        # Run --gc on empty trash
+        result = run_trash("--gc")
+        assert result.returncode == 0, "trash --gc should succeed on empty trash"
+
+
+class TestUIDGIDRemoval:
+    """TEST-11, TEST-12, TEST-13: Validate uid/gid removal and mode restoration."""
+
+    def test_11_metadata_has_no_uid_gid_fields_validation(
+        self, mock_trash_env: dict
+    ) -> None:
+        """TEST-11: Metadata has no original_uid or original_gid fields."""
+        home = Path(mock_trash_env["home"])
+        test_file = home / "test_no_uid_gid_thorough.txt"
+        test_file.write_text("uid/gid removal test")
+
+        run_trash(str(test_file))
+
+        trash_dir = Path(mock_trash_env["trash_dir"])
+        metadata_files = list(trash_dir.glob("*.metadata.json"))
+
+        for metadata_file in metadata_files:
+            entries = json.loads(metadata_file.read_text())
+            for entry in entries:
+                # Explicitly check all forbidden keys
+                forbidden_keys = ["original_uid", "original_gid"]
+                for key in forbidden_keys:
+                    assert key not in entry, f"{key} should not be in metadata (D-01)"
+
+    def test_12_restore_does_not_call_chown(self, mock_trash_env: dict) -> None:
+        """TEST-12: restore_files() does NOT call chown (no ownership change)."""
+        home = Path(mock_trash_env["home"])
+        test_file = home / "test_no_chown.txt"
+        test_file.write_text("no chown test")
+
+        # Trash
+        run_trash(str(test_file))
+
+        # Restore
+        result = run_trash("--restore", str(test_file))
+        assert result.returncode == 0, "restore should succeed without chown"
+
+        # Verify file exists (restore succeeded)
+        assert test_file.exists(), "restored file should exist"
+
+        # The key point: if --restore tries to chown a non-root file, it would fail
+        # We just verify it doesn't crash
+
+    def test_13_file_mode_is_restored(self, mock_trash_env: dict) -> None:
+        """TEST-13: File mode (permissions) IS restored via chmod."""
+        home = Path(mock_trash_env["home"])
+        test_file = home / "test_mode_restore.txt"
+        test_file.write_text("mode test")
+
+        # Set specific mode
+        test_file.chmod(0o640)
+        original_mode = test_file.stat().st_mode & 0o777
+
+        # Trash
+        run_trash(str(test_file))
+        assert not test_file.exists()
+
+        # Restore
+        run_trash("--restore", str(test_file))
+        assert test_file.exists()
+
+        # Verify mode restored
+        restored_mode = test_file.stat().st_mode & 0o777
+        assert restored_mode == original_mode, (
+            "mode should be restored: "
+            f"expected {oct(original_mode)}, got {oct(restored_mode)}"
+        )
+
+
+class TestPhase10EdgeCases:
+    """TEST-14 through TEST-16: Validate edge case handling."""
+
+    def test_14_gc_on_empty_metadata_succeeds(self, mock_trash_env: dict) -> None:
+        """TEST-14: trash --gc succeeds on empty metadata.json."""
+        trash_dir = Path(mock_trash_env["trash_dir"])
+        trash_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create empty metadata.json
+        empty_metadata = trash_dir / "abc123.metadata.json"
+        empty_metadata.write_text("[]")
+
+        # Run --gc
+        result = run_trash("--gc")
+        assert result.returncode == 0, (
+            "trash --gc should handle empty metadata gracefully"
+        )
+
+    def test_15_gc_detects_orphan_tar_without_metadata(
+        self, mock_trash_env: dict
+    ) -> None:
+        """TEST-15: --gc identifies orphan tar (metadata missing)."""
+        trash_dir = Path(mock_trash_env["trash_dir"])
+        trash_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create orphan tar file (no metadata.json)
+        orphan_tar = trash_dir / "orphan_hash_123"
+        orphan_tar.write_text("fake tar content")
+
+        # Run --gc
+        result = run_trash("--gc")
+        # --gc should either delete orphan or warn; either way, should complete
+        assert result.returncode == 0, "trash --gc should handle orphan tar gracefully"
+
+    def test_16_gc_with_mixed_restore_states(self, mock_trash_env: dict) -> None:
+        """TEST-16: --gc removes only restore: true entries from mixed states."""
+        trash_dir = Path(mock_trash_env["trash_dir"])
+        trash_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create metadata with mixed entries
+        metadata_file = trash_dir / "mixed_hash.metadata.json"
+        entries = [
+            {
+                "path": "/home/user/file1",
+                "timestamp": 1000,
+                "original_mode": "0644",
+                "restore": False,
+            },
+            {
+                "path": "/home/user/file1",
+                "timestamp": 1100,
+                "original_mode": "0644",
+                "restore": True,
+            },
+            {
+                "path": "/home/user/file2",
+                "timestamp": 1050,
+                "original_mode": "0755",
+                "restore": False,
+            },
+        ]
+        metadata_file.write_text(json.dumps(entries, indent=2))
+
+        # Create tar file
+        tar_file = trash_dir / "mixed_hash"
+        tar_file.write_text("fake tar")
+
+        # Run --gc
+        result = run_trash("--gc")
+        assert result.returncode == 0
+
+        # Verify only restore: true removed, restore: false preserved
+        remaining = json.loads(metadata_file.read_text())
+        restore_true_count = len([e for e in remaining if e.get("restore") is True])
+        restore_false_count = len([e for e in remaining if e.get("restore") is False])
+
+        assert restore_true_count == 0, "restore: true entries should be removed"
+        assert restore_false_count == 2, "restore: false entries should be preserved"
+        assert tar_file.exists(), (
+            "tar should be preserved (still referenced by remaining entries)"
+        )
