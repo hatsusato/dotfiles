@@ -1391,14 +1391,24 @@ class TestDeduplication:
             f"Should have 2 entries in metadata.json, got {len(metadata_entries)}"
         )
 
-        # Verify entries have required fields
+        # Verify entries have required Phase 10 fields
         for entry in metadata_entries:
+            # Required Phase 10 fields
             assert "path" in entry
-            assert "date" in entry
+            assert "timestamp" in entry  # NEW: epoch int (operation time)
             assert "original_mode" in entry
-            assert "original_uid" in entry
-            assert "original_gid" in entry
-            assert "original_mtime" in entry
+            assert "original_mtime" in entry  # KEPT: original file mtime
+            assert "restore" in entry  # NEW: boolean flag
+
+            # Phase 09 fields REMOVED per D-01
+            assert "original_uid" not in entry, "D-01: uid/gid removed in Phase 10"
+            assert "original_gid" not in entry, "D-01: uid/gid removed in Phase 10"
+            assert "date" not in entry, "D-01: ISO 8601 date removed, use timestamp (epoch)"
+
+            # Type checks for new fields
+            assert isinstance(entry["timestamp"], int), "timestamp must be epoch int"
+            assert isinstance(entry["restore"], bool), "restore must be boolean"
+            assert entry["restore"] is False, "Fresh entries have restore: false"
 
         # Verify entries reference correct paths
         paths = [entry["path"] for entry in metadata_entries]
