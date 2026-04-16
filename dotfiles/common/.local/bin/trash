@@ -734,36 +734,6 @@ class RestoreConfig:
             print(f"     date: {entry.date}")
 
 
-def _read_metadata_entries(metadata_path: Path) -> list[Metadata]:
-    """Read and parse all metadata entries from metadata.jsonl.
-
-    Args:
-        metadata_path: Path to metadata.jsonl
-
-    Returns:
-        List of Metadata objects (empty if file missing or empty)
-
-    Raises:
-        ValueError: If a line contains malformed JSON or invalid type
-    """
-    entries: list[Metadata] = []
-    if not metadata_path.exists():
-        return entries
-    with open(metadata_path) as f:
-        for lineno, line in enumerate(f, 1):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = Metadata.from_dict(json.loads(line))
-                entries.append(entry)
-            except (json.JSONDecodeError, KeyError, ValueError) as e:
-                raise ValueError(
-                    f"Malformed metadata entry at line {lineno}: {e}"
-                ) from e
-    return entries
-
-
 def _remove_metadata_entry(
     metadata_path: Path, target_path: str, target_hash: str
 ) -> None:
@@ -1238,19 +1208,31 @@ def _restore_by_path(path: str, config: RestoreConfig) -> bool:
     # Resolve to absolute canonical path (handles .., symlinks, relative paths)
     target_path = Path(path).resolve()
 
-    entries = _read_metadata_entries(config.metadata_path)
+    trash_log = TrashLog(config.metadata_path)
     metadata_entry: Metadata | None = None
     # Phase 10: Prefer entries with restore: false (actual trash items)
     # Use the most recent restore: false entry (last one found in the list)
-    for entry in entries:
-        if entry.path == str(target_path) and not entry.restore:
-            metadata_entry = entry  # Keep overwriting to get most recent
+    for event in trash_log._events:
+        if event.path == str(target_path) and not event.restore:
+            metadata_entry = Metadata(
+                hash=event.hash,
+                path=event.path,
+                type=event.type,
+                timestamp=event.timestamp,
+                restore=event.restore,
+            )
 
     # Fallback: if no restore: false entry found, use most recent matching
     if metadata_entry is None:
-        for entry in entries:
-            if entry.path == str(target_path):
-                metadata_entry = entry  # Keep overwriting to get most recent
+        for event in trash_log._events:
+            if event.path == str(target_path):
+                metadata_entry = Metadata(
+                    hash=event.hash,
+                    path=event.path,
+                    type=event.type,
+                    timestamp=event.timestamp,
+                    restore=event.restore,
+                )
 
     if metadata_entry is None:
         raise ValueError(f"No trash entry found for {path} (resolved: {target_path})")
