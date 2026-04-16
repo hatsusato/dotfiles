@@ -129,6 +129,8 @@ class TrashLog:
 
         Handles missing file, empty file gracefully.
         Raises ValueError on first malformed JSON line (fail-fast).
+
+        Note: Changes to _events must be persisted via append() or save().
         """
         self._events = []
         if not self._metadata_path.exists():
