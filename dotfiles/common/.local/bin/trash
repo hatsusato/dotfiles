@@ -95,6 +95,149 @@ class FileAttributes:
         )
 
 
+class TrashLog:
+    """Manages metadata.jsonl as append-only event log.
+
+    Loads entire event history into memory at init for fast queries.
+    Provides find_by_path() and find_by_hash() for O(n) lookups.
+    """
+
+    def __init__(self, metadata_path: Path) -> None:
+        """Load all events from metadata.jsonl into memory."""
+        self._metadata_path = metadata_path
+        self._events: list[TrashEvent] = []
+        self.load()
+
+    def load(self) -> None:
+        """Read and parse metadata.jsonl, rebuild in-memory event list.
+
+        Handles missing file, empty file gracefully.
+        Raises ValueError on first malformed JSON line (fail-fast).
+        """
+        self._events = []
+        if not self._metadata_path.exists():
+            return
+
+        with open(self._metadata_path) as f:
+            for lineno, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry_dict = json.loads(line)
+                    event = TrashEvent.from_dict(entry_dict)
+                    self._events.append(event)
+                except (json.JSONDecodeError, KeyError, ValueError) as e:
+                    raise ValueError(
+                        f"Malformed metadata entry at line {lineno}: {e}"
+                    ) from e
+
+    def find_by_path(self, path: str) -> list[TrashEvent]:
+        """Return all events matching this path (original location)."""
+        return [e for e in self._events if e.path == path]
+
+    def find_by_hash(self, hash_value: str) -> list[TrashEvent]:
+        """Return all events matching this hash."""
+        return [e for e in self._events if e.hash == hash_value]
+
+    def append(self, event: TrashEvent) -> None:
+        """Add event to memory and sync to disk immediately."""
+        self._events.append(event)
+        self._atomic_append_jsonl(event)
+
+    def remove_by_path(self, path: str, hash_value: str) -> bool:
+        """Remove first event matching both path and hash.
+
+        Returns True if found and removed, False otherwise.
+        Syncs file immediately.
+        """
+        found = False
+        new_events = []
+        for event in self._events:
+            if not found and event.path == path and event.hash == hash_value:
+                found = True
+                continue
+            new_events.append(event)
+
+        if found:
+            self._events = new_events
+            self.save()
+        return found
+
+    def remove_by_hash(self, hash_value: str) -> int:
+        """Remove all events matching hash (GC operation).
+
+        Returns count of removed events.
+        Syncs file immediately.
+        """
+        original_count = len(self._events)
+        self._events = [e for e in self._events if e.hash != hash_value]
+        removed_count = original_count - len(self._events)
+
+        if removed_count > 0:
+            self.save()
+        return removed_count
+
+    def mark_restored(self, hash_value: str, path: str, event_type: str) -> None:
+        """Append new event with restore=True to create audit trail.
+
+        Creates new event with same hash/path but restore=True.
+        Replaces _append_restore_entry() logic.
+        """
+        restore_event = TrashEvent(
+            hash=hash_value,
+            path=path,
+            type=event_type,
+            timestamp=int(time.time()),
+            restore=True,
+        )
+        self.append(restore_event)
+
+    def save(self) -> None:
+        """Atomically rewrite metadata.jsonl with current in-memory events."""
+        self._metadata_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with NamedTemporaryFile(
+            mode="w",
+            dir=self._metadata_path.parent,
+            delete=False,
+            suffix=".tmp",
+        ) as tmp:
+            temp_path = Path(tmp.name)
+            try:
+                for event in self._events:
+                    json.dump(
+                        event.to_dict(),
+                        tmp,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    )
+                    tmp.write("\n")
+                os.fsync(tmp.fileno())
+            except Exception:
+                if temp_path.exists():
+                    os.unlink(temp_path)
+                raise
+
+        os.replace(temp_path, self._metadata_path)
+
+    def _atomic_append_jsonl(self, event: TrashEvent) -> None:
+        """Safely append single line to metadata.jsonl.
+
+        For append-only, write directly in append mode then fsync.
+        """
+        self._metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self._metadata_path, "a") as f:
+            json.dump(
+                event.to_dict(),
+                f,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            f.write("\n")
+            os.fsync(f.fileno())
+
+
 class TrashPath(Path):
     """Path subclass with type detection and validation.
 
