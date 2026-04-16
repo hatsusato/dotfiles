@@ -2564,3 +2564,282 @@ class TestFileAttributes:
         d = attrs.to_dict()
         assert d["mtime"] == mtime_epoch
         assert isinstance(d["mtime"], int)
+
+
+# ============================================================================
+# Phase 11: Metadata Layer — TrashLog (RED Phase)
+# ============================================================================
+# D-02: TrashLog manages metadata.jsonl as an in-memory event list.
+# Methods: load(), find_by_path(), find_by_hash(), append(), remove_by_path(),
+#          remove_by_hash(), mark_restored(), save()
+
+
+class TestTrashLog:
+    """Unit tests for the TrashLog class (D-02).
+
+    TrashLog manages metadata.jsonl: load, find, append, remove, restore, save.
+    """
+
+    def test_trash_log_init_loads_existing_metadata(self, tmp_path: Path) -> None:
+        """TrashLog initialized with existing metadata.jsonl loads events."""
+        trash = _import_trash_module()
+        jsonl_path = tmp_path / "metadata.jsonl"
+        event_data = {
+            "hash": "abc111",
+            "path": "/home/user/file.txt",
+            "type": "file",
+            "timestamp": 1700000100,
+            "restore": False,
+        }
+        jsonl_path.write_text(json.dumps(event_data, separators=(",", ":")) + "\n")
+        log = trash.TrashLog(jsonl_path)
+        events = log.find_by_path("/home/user/file.txt")
+        assert len(events) >= 1
+        assert events[0].hash == "abc111"
+
+    def test_trash_log_init_handles_missing_file(self, tmp_path: Path) -> None:
+        """TrashLog initialized with nonexistent file returns empty event list."""
+        trash = _import_trash_module()
+        jsonl_path = tmp_path / "nonexistent_metadata.jsonl"
+        log = trash.TrashLog(jsonl_path)
+        # find_by_path on empty log returns empty list
+        events = log.find_by_path("/any/path")
+        assert events == []
+
+    def test_trash_log_find_by_path_returns_matching_events(
+        self, tmp_path: Path
+    ) -> None:
+        """TrashLog.find_by_path() returns all events matching the given path."""
+        trash = _import_trash_module()
+        jsonl_path = tmp_path / "metadata.jsonl"
+        lines = [
+            json.dumps(
+                {
+                    "hash": "hash1",
+                    "path": "/home/user/target.txt",
+                    "type": "file",
+                    "timestamp": 1700000200,
+                    "restore": False,
+                },
+                separators=(",", ":"),
+            ),
+            json.dumps(
+                {
+                    "hash": "hash2",
+                    "path": "/home/user/other.txt",
+                    "type": "file",
+                    "timestamp": 1700000201,
+                    "restore": False,
+                },
+                separators=(",", ":"),
+            ),
+            json.dumps(
+                {
+                    "hash": "hash1",
+                    "path": "/home/user/target.txt",
+                    "type": "file",
+                    "timestamp": 1700000202,
+                    "restore": True,
+                },
+                separators=(",", ":"),
+            ),
+        ]
+        jsonl_path.write_text("\n".join(lines) + "\n")
+        log = trash.TrashLog(jsonl_path)
+        events = log.find_by_path("/home/user/target.txt")
+        assert len(events) == 2
+        assert all(e.path == "/home/user/target.txt" for e in events)
+
+    def test_trash_log_find_by_hash_returns_matching_events(
+        self, tmp_path: Path
+    ) -> None:
+        """TrashLog.find_by_hash() returns all events with the matching hash."""
+        trash = _import_trash_module()
+        jsonl_path = tmp_path / "metadata.jsonl"
+        lines = [
+            json.dumps(
+                {
+                    "hash": "targethash",
+                    "path": "/home/user/file1.txt",
+                    "type": "file",
+                    "timestamp": 1700000300,
+                    "restore": False,
+                },
+                separators=(",", ":"),
+            ),
+            json.dumps(
+                {
+                    "hash": "otherhash",
+                    "path": "/home/user/file2.txt",
+                    "type": "file",
+                    "timestamp": 1700000301,
+                    "restore": False,
+                },
+                separators=(",", ":"),
+            ),
+        ]
+        jsonl_path.write_text("\n".join(lines) + "\n")
+        log = trash.TrashLog(jsonl_path)
+        events = log.find_by_hash("targethash")
+        assert len(events) == 1
+        assert events[0].hash == "targethash"
+        assert events[0].path == "/home/user/file1.txt"
+
+    def test_trash_log_append_adds_to_memory_and_syncs(self, tmp_path: Path) -> None:
+        """TrashLog.append(event) adds to in-memory list and writes to file."""
+        trash = _import_trash_module()
+        jsonl_path = tmp_path / "metadata.jsonl"
+        log = trash.TrashLog(jsonl_path)
+        event = trash.TrashEvent(
+            hash="newhash",
+            path="/home/user/new.txt",
+            type="file",
+            timestamp=1700000400,
+            restore=False,
+        )
+        log.append(event)
+        # Event should appear in memory
+        found = log.find_by_path("/home/user/new.txt")
+        assert len(found) == 1
+        assert found[0].hash == "newhash"
+        # File should be written (or save() needed — implementation detail)
+        # At minimum, re-loading the log should find the event
+        log2 = trash.TrashLog(jsonl_path)
+        found2 = log2.find_by_path("/home/user/new.txt")
+        assert len(found2) >= 1
+
+    def test_trash_log_remove_by_path_deletes_first_matching(
+        self, tmp_path: Path
+    ) -> None:
+        """TrashLog.remove_by_path(path, hash) removes only first matching entry."""
+        trash = _import_trash_module()
+        jsonl_path = tmp_path / "metadata.jsonl"
+        lines = [
+            json.dumps(
+                {
+                    "hash": "rmhash",
+                    "path": "/home/user/remove.txt",
+                    "type": "file",
+                    "timestamp": 1700000500,
+                    "restore": False,
+                },
+                separators=(",", ":"),
+            ),
+            json.dumps(
+                {
+                    "hash": "keepit",
+                    "path": "/home/user/keep.txt",
+                    "type": "file",
+                    "timestamp": 1700000501,
+                    "restore": False,
+                },
+                separators=(",", ":"),
+            ),
+        ]
+        jsonl_path.write_text("\n".join(lines) + "\n")
+        log = trash.TrashLog(jsonl_path)
+        log.remove_by_path("/home/user/remove.txt", "rmhash")
+        # Removed entry gone, other entry preserved
+        assert log.find_by_path("/home/user/remove.txt") == []
+        assert len(log.find_by_path("/home/user/keep.txt")) == 1
+
+    def test_trash_log_remove_by_hash_deletes_all_matching(
+        self, tmp_path: Path
+    ) -> None:
+        """TrashLog.remove_by_hash(hash) removes all entries with that hash."""
+        trash = _import_trash_module()
+        jsonl_path = tmp_path / "metadata.jsonl"
+        lines = [
+            json.dumps(
+                {
+                    "hash": "delhash",
+                    "path": "/home/user/dir1",
+                    "type": "dir",
+                    "timestamp": 1700000600,
+                    "restore": False,
+                },
+                separators=(",", ":"),
+            ),
+            json.dumps(
+                {
+                    "hash": "delhash",
+                    "path": "/home/user/dir2",
+                    "type": "dir",
+                    "timestamp": 1700000601,
+                    "restore": False,
+                },
+                separators=(",", ":"),
+            ),
+            json.dumps(
+                {
+                    "hash": "keephash",
+                    "path": "/home/user/other",
+                    "type": "file",
+                    "timestamp": 1700000602,
+                    "restore": False,
+                },
+                separators=(",", ":"),
+            ),
+        ]
+        jsonl_path.write_text("\n".join(lines) + "\n")
+        log = trash.TrashLog(jsonl_path)
+        log.remove_by_hash("delhash")
+        assert log.find_by_hash("delhash") == []
+        assert len(log.find_by_hash("keephash")) == 1
+
+    def test_trash_log_mark_restored_appends_restore_entry(
+        self, tmp_path: Path
+    ) -> None:
+        """TrashLog.mark_restored(hash, path, type) appends restore=True event."""
+        trash = _import_trash_module()
+        jsonl_path = tmp_path / "metadata.jsonl"
+        line = json.dumps(
+            {
+                "hash": "resthash",
+                "path": "/home/user/restored.txt",
+                "type": "file",
+                "timestamp": 1700000700,
+                "restore": False,
+            },
+            separators=(",", ":"),
+        )
+        jsonl_path.write_text(line + "\n")
+        log = trash.TrashLog(jsonl_path)
+        log.mark_restored("resthash", "/home/user/restored.txt", "file")
+        events = log.find_by_path("/home/user/restored.txt")
+        # At least one event with restore=True should exist
+        restored_events = [e for e in events if e.restore is True]
+        assert len(restored_events) >= 1
+
+    def test_trash_log_save_writes_jsonl_format(self, tmp_path: Path) -> None:
+        """TrashLog.save() writes events as JSONL (one JSON object per line)."""
+        trash = _import_trash_module()
+        jsonl_path = tmp_path / "metadata.jsonl"
+        log = trash.TrashLog(jsonl_path)
+        event = trash.TrashEvent(
+            hash="savehash",
+            path="/home/user/saved.txt",
+            type="file",
+            timestamp=1700000800,
+            restore=False,
+        )
+        log.append(event)
+        log.save()
+        # File should exist and contain valid JSONL
+        assert jsonl_path.exists()
+        lines = [ln for ln in jsonl_path.read_text().splitlines() if ln.strip()]
+        assert len(lines) >= 1
+        parsed = json.loads(lines[0])
+        assert isinstance(parsed, dict)
+        assert parsed.get("hash") == "savehash"
+
+    def test_trash_log_malformed_json_raises_valueerror(self, tmp_path: Path) -> None:
+        """TrashLog.load() raises ValueError on malformed JSON line."""
+        trash = _import_trash_module()
+        jsonl_path = tmp_path / "metadata.jsonl"
+        jsonl_path.write_text("not valid json\n")
+        try:
+            trash.TrashLog(jsonl_path)
+            assert False, "Expected ValueError for malformed JSON"
+        except ValueError:
+            pass
