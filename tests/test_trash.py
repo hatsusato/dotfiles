@@ -1717,7 +1717,7 @@ class TestRestoreMetadata:
         )
 
     def test_restore_14_multiple_metadata_entries(self, mock_trash_env: dict) -> None:
-        """TEST-14: Multiple entries in {hash}.metadata.json → restore first entry."""
+        """TEST-14: Multiple entries in {hash}.metadata.json → append-only restore semantics."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -1743,7 +1743,7 @@ class TestRestoreMetadata:
         ]
         hash_value = entries[0]["hash"]
 
-        # Verify metadata.json has 2 entries
+        # Verify metadata.json has 2 entries (one for each dir)
         metadata_json_path = trash_dir / f"{hash_value}.metadata.json"
         metadata_entries = json.loads(metadata_json_path.read_text())
         assert len(metadata_entries) == 2
@@ -1753,20 +1753,29 @@ class TestRestoreMetadata:
         assert result.returncode == 0
         assert dir1.is_dir()
 
-        # Verify metadata.json now has 1 entry (only dir2 remains)
+        # Phase 10 D-02: Append-only restore semantics
+        # After restore, a new entry with restore: true is appended (original 2 entries kept)
         metadata_entries_after = json.loads(metadata_json_path.read_text())
-        assert len(metadata_entries_after) == 1, (
-            "After restore, should have 1 entry left"
+        assert len(metadata_entries_after) == 3, (
+            "After restore, should have 3 entries (original 2 + restore: true entry)"
         )
+        # Original entries unchanged
+        assert metadata_entries_after[0]["restore"] is False, "Original entry unchanged"
+        assert metadata_entries_after[1]["restore"] is False, "Original entry unchanged"
+        # New restore: true entry appended
+        assert metadata_entries_after[2]["restore"] is True, "Restore entry appended"
 
     def test_restore_15_numeric_uid_gid(self, mock_trash_env: dict) -> None:
-        """TEST-15: Restore with numeric UID/GID different from local system."""
+        """TEST-15: Phase 10 D-01: uid/gid fields absent from metadata; restore does not chown."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
         # Create file with default uid/gid
         test_file = home / "test_file.txt"
         test_file.write_text("content")
+        original_stat = test_file.stat()
+        original_uid = original_stat.st_uid
+        original_gid = original_stat.st_gid
 
         # Trash the file
         result = run_trash(str(test_file))
@@ -1785,21 +1794,24 @@ class TestRestoreMetadata:
         metadata_entries = json.loads(metadata_json_path.read_text())
         entry = metadata_entries[0]
 
-        # Verify numeric uid/gid are stored
-        assert isinstance(entry["original_uid"], int)
-        assert isinstance(entry["original_gid"], int)
+        # Phase 10 D-01: uid/gid fields must NOT be stored in metadata
+        assert "original_uid" not in entry, "D-01: uid/gid removed in Phase 10 — not stored"
+        assert "original_gid" not in entry, "D-01: uid/gid removed in Phase 10 — not stored"
 
         # Restore the file
         result = run_restore(str(test_file))
         assert result.returncode == 0
         assert test_file.exists()
 
-        # If running as root, verify chown would apply
-        if os.getuid() == 0:
-            stat = test_file.stat()
-            assert stat.st_uid == entry["original_uid"]
-            assert stat.st_gid == entry["original_gid"]
-        # If not root, chown is skipped (expected behavior)
+        # Phase 10 D-01: restore does NOT attempt chown (uid/gid not in metadata)
+        # File owner after restore should be current user (no chown applied)
+        restored_stat = test_file.stat()
+        assert restored_stat.st_uid == original_uid, (
+            "Restore should not change uid (no chown attempted)"
+        )
+        assert restored_stat.st_gid == original_gid, (
+            "Restore should not change gid (no chown attempted)"
+        )
 
 
 # ============================================================================
