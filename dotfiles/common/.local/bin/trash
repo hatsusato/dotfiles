@@ -22,6 +22,11 @@ from tempfile import NamedTemporaryFile
 from typing import Literal, Self
 
 
+def _get_epoch_timestamp() -> int:
+    """Get current Unix epoch timestamp (integer seconds)."""
+    return int(time.time())
+
+
 @dataclass
 class TrashEvent:
     """Single event in metadata.jsonl — immutable data container."""
@@ -58,7 +63,7 @@ class TrashEvent:
     @staticmethod
     def now_epoch() -> int:
         """Return current Unix epoch timestamp (integer seconds)."""
-        return int(time.time())
+        return _get_epoch_timestamp()
 
 
 @dataclass
@@ -453,7 +458,7 @@ class Metadata:
         Returns:
             Epoch timestamp as integer
         """
-        return int(time.time())
+        return _get_epoch_timestamp()
 
     @staticmethod
     def now() -> str:
