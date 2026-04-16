@@ -238,6 +238,101 @@ class TrashLog:
             os.fsync(f.fileno())
 
 
+class FileAttributeStore:
+    """Manages per-hash attribute file {hash}.metadata.json.
+
+    Each hash gets one JSON file storing all paths that share this hash
+    (deduplication case: same tar content from different directories).
+    """
+
+    def __init__(self, hash_value: str, trash_dir_path: Path) -> None:
+        """Initialize manager for attributes of specific hash."""
+        self._hash = hash_value
+        self._metadata_path = trash_dir_path / f"{hash_value}.metadata.json"
+        self._attributes: list[FileAttributes] = []
+
+    def load(self) -> list[FileAttributes]:
+        """Load all attributes from {hash}.metadata.json.
+
+        Returns list (also stored in memory).
+        Handles missing file, empty file, malformed JSON gracefully.
+        """
+        self._attributes = []
+        if not self._metadata_path.exists():
+            return self._attributes
+
+        try:
+            entries_data = json.loads(self._metadata_path.read_text())
+            if not isinstance(entries_data, list):
+                return self._attributes
+
+            for entry_dict in entries_data:
+                if isinstance(entry_dict, dict):
+                    try:
+                        attr = FileAttributes.from_dict(entry_dict)
+                        self._attributes.append(attr)
+                    except (ValueError, KeyError):
+                        # Skip malformed entries
+                        pass
+        except (json.JSONDecodeError, OSError):
+            # File missing or corrupt, return empty
+            pass
+
+        return self._attributes
+
+    def append(self, attributes: FileAttributes) -> None:
+        """Add attributes for a new path this hash was trashed from.
+
+        Memory + file sync in one call (similar to append-only pattern).
+        """
+        self._attributes.append(attributes)
+        self.save()
+
+    def save(self) -> None:
+        """Atomically write attributes to {hash}.metadata.json as JSON array."""
+        self._metadata_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with NamedTemporaryFile(
+            mode="w",
+            dir=self._metadata_path.parent,
+            delete=False,
+            suffix=".tmp",
+        ) as tmp:
+            temp_path = Path(tmp.name)
+            try:
+                json.dump(
+                    [attr.to_dict() for attr in self._attributes],
+                    tmp,
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                os.fsync(tmp.fileno())
+            except Exception:
+                if temp_path.exists():
+                    os.unlink(temp_path)
+                raise
+
+        os.replace(temp_path, self._metadata_path)
+
+    def cleanup(self, target_path: str) -> int:
+        """Remove attributes entries marked restore=True (GC operation).
+
+        Returns count removed.
+        Called during garbage collection to clean up restored items.
+        """
+        original_count = len(self._attributes)
+        self._attributes = [
+            attr
+            for attr in self._attributes
+            if not (attr.path == target_path and attr.restore)
+        ]
+        removed_count = original_count - len(self._attributes)
+
+        if removed_count > 0:
+            self.save()
+        return removed_count
+
+
 class TrashPath(Path):
     """Path subclass with type detection and validation.
 
