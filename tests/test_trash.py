@@ -5,11 +5,14 @@ Tests run the trash script as a subprocess via run_trash() with environment
 isolation provided by the mock_trash_env fixture.
 """
 
+import importlib.util
 import json
 import os
 import re
 import subprocess
+import sys
 import tarfile
+import types
 from pathlib import Path
 
 # Absolute path to the trash script under test
@@ -2306,3 +2309,258 @@ class TestPhase10EdgeCases:
         assert tar_file.exists(), (
             "tar should be preserved (still referenced by remaining entries)"
         )
+
+
+# ============================================================================
+# Phase 11: Metadata Layer — TrashEvent and FileAttributes (RED Phase)
+# ============================================================================
+# These tests define the contract for Phase 11 metadata layer classes.
+# All tests in this section FAIL initially (classes not yet extracted).
+#
+# D-03: TrashEvent dataclass — hash, path, type, timestamp, restore
+# D-05: FileAttributes dataclass — path, mode (octal int), mtime, timestamp, restore
+
+
+def _import_trash_module() -> types.ModuleType:
+    """Import the trash script as a module for unit testing.
+
+    The trash script has no .py extension, so we use importlib to load it.
+    Returns the module object so tests can access TrashEvent, FileAttributes, etc.
+    """
+    spec = importlib.util.spec_from_file_location("trash_module", TRASH_SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["trash_module"] = module
+    spec.loader.exec_module(module)  # type: ignore[attr-defined]
+    return module
+
+
+class TestTrashEvent:
+    """Unit tests for the TrashEvent dataclass (D-03).
+
+    TrashEvent represents a single entry in metadata.jsonl.
+    Fields: hash, path, type ("file"|"dir"|"symlink"), timestamp (epoch int),
+    restore (bool).
+    """
+
+    def test_trash_event_instantiation_with_all_fields(self) -> None:
+        """TrashEvent can be created with all required fields."""
+        trash = _import_trash_module()
+        event = trash.TrashEvent(
+            hash="abc123",
+            path="/home/user/file.txt",
+            type="file",
+            timestamp=1700000000,
+            restore=False,
+        )
+        assert event.hash == "abc123"
+        assert event.path == "/home/user/file.txt"
+        assert event.type == "file"
+        assert event.timestamp == 1700000000
+        assert event.restore is False
+
+    def test_trash_event_to_dict_serialization(self) -> None:
+        """TrashEvent.to_dict() returns a dict with all required keys."""
+        trash = _import_trash_module()
+        event = trash.TrashEvent(
+            hash="def456",
+            path="/tmp/mydir",
+            type="dir",
+            timestamp=1700000001,
+            restore=True,
+        )
+        d = event.to_dict()
+        assert isinstance(d, dict)
+        assert d["hash"] == "def456"
+        assert d["path"] == "/tmp/mydir"
+        assert d["type"] == "dir"
+        assert d["timestamp"] == 1700000001
+        assert d["restore"] is True
+
+    def test_trash_event_from_dict_deserialization(self) -> None:
+        """TrashEvent.from_dict() creates an equivalent instance from a dict."""
+        trash = _import_trash_module()
+        data = {
+            "hash": "ghi789",
+            "path": "/home/user/link",
+            "type": "symlink",
+            "timestamp": 1700000002,
+            "restore": False,
+        }
+        event = trash.TrashEvent.from_dict(data)
+        assert event.hash == "ghi789"
+        assert event.path == "/home/user/link"
+        assert event.type == "symlink"
+        assert event.timestamp == 1700000002
+        assert event.restore is False
+
+    def test_trash_event_round_trip_serialization(self) -> None:
+        """TrashEvent -> to_dict() -> from_dict() preserves all fields."""
+        trash = _import_trash_module()
+        original = trash.TrashEvent(
+            hash="round123",
+            path="/data/archive.tar.gz",
+            type="file",
+            timestamp=1700000003,
+            restore=True,
+        )
+        restored = trash.TrashEvent.from_dict(original.to_dict())
+        assert restored.hash == original.hash
+        assert restored.path == original.path
+        assert restored.type == original.type
+        assert restored.timestamp == original.timestamp
+        assert restored.restore == original.restore
+
+    def test_trash_event_invalid_type_raises_valueerror(self) -> None:
+        """TrashEvent.from_dict() raises ValueError for invalid type field."""
+        trash = _import_trash_module()
+        data = {
+            "hash": "bad000",
+            "path": "/tmp/file",
+            "type": "invalid",
+            "timestamp": 1700000004,
+            "restore": False,
+        }
+        try:
+            trash.TrashEvent.from_dict(data)
+            assert False, "Expected ValueError for invalid type"
+        except ValueError:
+            pass
+
+    def test_trash_event_default_values(self) -> None:
+        """TrashEvent has sensible defaults: timestamp=0, restore=False."""
+        trash = _import_trash_module()
+        # Instantiate with only required fields; defaults apply
+        event = trash.TrashEvent(
+            hash="defaults",
+            path="/tmp/default_test.txt",
+            type="file",
+        )
+        # timestamp should default to 0 or a recent epoch (implementation choice)
+        assert isinstance(event.timestamp, int)
+        # restore should default to False
+        assert event.restore is False
+
+    def test_trash_event_now_epoch_returns_int(self) -> None:
+        """TrashEvent.now_epoch() is a static/class method returning int timestamp."""
+        import time
+
+        trash = _import_trash_module()
+        epoch = trash.TrashEvent.now_epoch()
+        assert isinstance(epoch, int)
+        assert not isinstance(epoch, bool)
+        # Should be a recent timestamp (within the last day)
+        assert abs(epoch - int(time.time())) < 86400
+
+
+class TestFileAttributes:
+    """Unit tests for the FileAttributes dataclass (D-05).
+
+    FileAttributes represents a single entry in {hash}.metadata.json.
+    Fields: path, mode (octal int), mtime (epoch int), timestamp (default 0),
+    restore (bool).
+    """
+
+    def test_file_attributes_instantiation(self) -> None:
+        """FileAttributes can be created with required fields (path, mode, mtime)."""
+        trash = _import_trash_module()
+        attrs = trash.FileAttributes(
+            path="/home/user/script.sh",
+            mode=0o755,
+            mtime=1700000000,
+        )
+        assert attrs.path == "/home/user/script.sh"
+        assert attrs.mode == 0o755
+        assert attrs.mtime == 1700000000
+
+    def test_file_attributes_to_dict_serialization(self) -> None:
+        """FileAttributes.to_dict() renders mode as octal string '0o755'."""
+        trash = _import_trash_module()
+        attrs = trash.FileAttributes(
+            path="/home/user/script.sh",
+            mode=0o755,
+            mtime=1700000005,
+            timestamp=1700000006,
+            restore=False,
+        )
+        d = attrs.to_dict()
+        assert isinstance(d, dict)
+        assert d["path"] == "/home/user/script.sh"
+        assert d["mtime"] == 1700000005
+        assert d["timestamp"] == 1700000006
+        assert d["restore"] is False
+        # mode must be serialized as octal string
+        assert isinstance(d["mode"], str)
+        assert d["mode"] == oct(0o755)  # "0o755"
+
+    def test_file_attributes_from_dict_deserialization(self) -> None:
+        """FileAttributes.from_dict() parses octal mode strings correctly."""
+        trash = _import_trash_module()
+        data = {
+            "path": "/home/user/data.txt",
+            "mode": "0o644",
+            "mtime": 1700000010,
+            "timestamp": 1700000011,
+            "restore": False,
+        }
+        attrs = trash.FileAttributes.from_dict(data)
+        assert attrs.path == "/home/user/data.txt"
+        assert attrs.mode == 0o644  # parsed from "0o644"
+        assert attrs.mtime == 1700000010
+        assert attrs.timestamp == 1700000011
+        assert attrs.restore is False
+
+    def test_file_attributes_octal_mode_parsing(self) -> None:
+        """FileAttributes.from_dict() parses '0o755' string to int 493 (0o755)."""
+        trash = _import_trash_module()
+        data = {
+            "path": "/bin/exec",
+            "mode": "0o755",
+            "mtime": 1700000012,
+        }
+        attrs = trash.FileAttributes.from_dict(data)
+        assert attrs.mode == 0o755  # int 493
+        assert isinstance(attrs.mode, int)
+
+    def test_file_attributes_round_trip_serialization(self) -> None:
+        """FileAttributes -> to_dict() -> from_dict() preserves all fields."""
+        trash = _import_trash_module()
+        original = trash.FileAttributes(
+            path="/var/log/app.log",
+            mode=0o640,
+            mtime=1700000013,
+            timestamp=1700000014,
+            restore=True,
+        )
+        restored = trash.FileAttributes.from_dict(original.to_dict())
+        assert restored.path == original.path
+        assert restored.mode == original.mode
+        assert restored.mtime == original.mtime
+        assert restored.timestamp == original.timestamp
+        assert restored.restore == original.restore
+
+    def test_file_attributes_timestamp_defaults(self) -> None:
+        """FileAttributes defaults: timestamp=0 and restore=False if not provided."""
+        trash = _import_trash_module()
+        attrs = trash.FileAttributes(
+            path="/tmp/file.txt",
+            mode=0o644,
+            mtime=1700000015,
+        )
+        # timestamp defaults to 0
+        assert attrs.timestamp == 0
+        # restore defaults to False
+        assert attrs.restore is False
+
+    def test_file_attributes_mtime_epoch_stored_correctly(self) -> None:
+        """FileAttributes.mtime (epoch int) is preserved accurately in dict."""
+        trash = _import_trash_module()
+        mtime_epoch = 1700000020
+        attrs = trash.FileAttributes(
+            path="/home/user/photo.jpg",
+            mode=0o644,
+            mtime=mtime_epoch,
+        )
+        d = attrs.to_dict()
+        assert d["mtime"] == mtime_epoch
+        assert isinstance(d["mtime"], int)
