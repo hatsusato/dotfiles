@@ -735,7 +735,7 @@ def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
 
 
 def _restore_file(target_path: Path, metadata: Metadata, config: RestoreConfig) -> None:
-    """Move a regular file from trash back to target_path.
+    """Copy a regular file from trash back to target_path.
 
     Backs up any existing file at target_path before restoring.
     Applies original metadata (mode, mtime, uid/gid) from {hash}.json
@@ -758,7 +758,7 @@ def _restore_file(target_path: Path, metadata: Metadata, config: RestoreConfig) 
     if target_path.exists() or target_path.is_symlink():
         _backup_existing_to_trash(target_path, config)
     target_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(trash_path), target_path)
+    shutil.copy(str(trash_path), target_path)
 
     # Apply original metadata from {hash}.json if available
     metadata_json_path = config.trash_dir_path / f"{metadata.hash}.metadata.json"
