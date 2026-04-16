@@ -703,56 +703,6 @@ class RestoreConfig:
             print(f"     date: {entry.date}")
 
 
-def _append_restore_entry(
-    trash_dir_path: Path, target_hash: str, target_path: str
-) -> None:
-    """Append a restore: true entry to both metadata.jsonl and {hash}.json (Phase 10).
-
-    After successful restore, appends new entries with "restore": true to both
-    metadata files to mark this as a restoration event. Original entries are
-    preserved for audit trail.
-
-    Args:
-        trash_dir_path: Path to trash directory
-        target_hash: SHA256 hash of the archived item
-        target_path: Original path to mark as restored
-    """
-    # Append to {hash}.json
-    metadata_path = trash_dir_path / f"{target_hash}.metadata.json"
-    if metadata_path.exists():
-        try:
-            entries_data = json.loads(metadata_path.read_text())
-            if not isinstance(entries_data, list):
-                entries_data = []
-        except (json.JSONDecodeError, OSError):
-            entries_data = []
-
-        # Append new entry with restore: true flag
-        restore_entry: dict[str, int | str | bool] = {
-            "path": target_path,
-            "timestamp": int(time.time()),
-            "restore": True,
-        }
-        entries_data.append(restore_entry)
-        metadata_path.write_text(json.dumps(entries_data, indent=2, ensure_ascii=False))
-
-    # Also append to metadata.jsonl (JSON Lines format)
-    jsonl_path = trash_dir_path / "metadata.jsonl"
-    try:
-        restore_entry_jsonl: dict[str, int | str | bool] = {
-            "hash": target_hash,
-            "path": target_path,
-            "type": "file",  # We don't have type info here, use generic "file"
-            "timestamp": int(time.time()),
-            "restore": True,
-        }
-        with open(jsonl_path, "a") as f:
-            json.dump(restore_entry_jsonl, f, ensure_ascii=False, separators=(",", ":"))
-            f.write("\n")
-    except OSError:
-        pass  # Ignore errors appending to metadata.jsonl
-
-
 def _apply_metadata_on_restore(
     target_path: Path, metadata_entry: dict[str, int | str | bool]
 ) -> None:
@@ -1137,8 +1087,20 @@ def _restore_by_path(path: str, config: RestoreConfig) -> bool:
         _restore_symlink(target_path, metadata_entry, config)
 
     # Phase 10: Append-only restore (append restore: true entry to all metadata files)
-    # Append to the specific {hash}.json for this restore
-    _append_restore_entry(config.trash_dir_path, metadata_entry.hash, str(target_path))
+    # Append restore: true event to metadata.jsonl via TrashLog
+    trash_log = TrashLog(config.metadata_path)
+    trash_log.mark_restored(metadata_entry.hash, str(target_path), metadata_entry.type)
+    # Append restore: true to {hash}.metadata.json via FileAttributeStore
+    attr_store = FileAttributeStore(metadata_entry.hash, config.trash_dir_path)
+    attr_store.load()
+    attr_store.append(
+        FileAttributes(
+            path=str(target_path),
+            mode=0o755,  # Placeholder; restore flag is the key info here
+            mtime=0,
+            restore=True,
+        )
+    )
 
     # Also append restore: true to all OTHER metadata.json files
     for metadata_path in config.trash_dir_path.glob("*.metadata.json"):
