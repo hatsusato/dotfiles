@@ -734,53 +734,6 @@ class RestoreConfig:
             print(f"     date: {entry.date}")
 
 
-def _remove_metadata_entry(
-    metadata_path: Path, target_path: str, target_hash: str
-) -> None:
-    """Remove the specific metadata entry matching path AND hash from metadata.jsonl.
-
-    Removes only the first entry whose path and hash both match, leaving any
-    other entries for the same path (e.g. a backup written during conflict
-    handling) intact.
-
-    Args:
-        metadata_path: Path to metadata.jsonl
-        target_path: Absolute canonical path string to match
-        target_hash: SHA256 hash hexdigest to match (prevents removing backup entries)
-    """
-    if not metadata_path.exists():
-        return
-    remaining: list[dict[str, str]] = []
-    removed = False
-    with open(metadata_path) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry_dict_raw = json.loads(line)
-                # Type guard: ensure entry_dict is a dict
-                if not isinstance(entry_dict_raw, dict):
-                    continue
-                entry_dict: dict[str, str] = entry_dict_raw
-                # Remove only the first entry matching both path and hash
-                if (
-                    not removed
-                    and entry_dict.get("path") == target_path
-                    and entry_dict.get("hash") == target_hash
-                ):
-                    removed = True
-                else:
-                    remaining.append(entry_dict)
-            except json.JSONDecodeError:
-                # Preserve malformed lines rather than silently dropping them
-                pass
-    with open(metadata_path, "w") as f:
-        for entry_dict in remaining:
-            json.dump(entry_dict, f, ensure_ascii=False, separators=(",", ":"))
-            f.write("\n")
-
-
 def _remove_metadata_hash_entry(
     trash_dir_path: Path, target_hash: str, target_path: str
 ) -> None:
