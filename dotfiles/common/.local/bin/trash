@@ -804,8 +804,6 @@ def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
         config.write_metadata(metadata)
 
         # Also save {hash}.json for metadata application on restore
-        from datetime import datetime, timezone
-
         metadata_entry = {
             "path": str(path),
             "date": datetime.now(timezone.utc).isoformat(),
@@ -836,8 +834,6 @@ def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
     config.write_metadata(metadata)
 
     # Also save {hash}.json for metadata application on restore
-    from datetime import datetime, timezone
-
     metadata_entry = {
         "path": str(path),
         "date": datetime.now(timezone.utc).isoformat(),
