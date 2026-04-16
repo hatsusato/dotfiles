@@ -641,8 +641,6 @@ class RestoreConfig:
             self.trash_dir_path = Path(
                 os.getenv("TRASH_DIR", str(Path.home() / ".trash"))
             )
-        # Type assertion: __post_init__ ensures trash_dir_path is not None
-        assert self.trash_dir_path is not None
 
     @property
     def metadata_path(self) -> Path:
