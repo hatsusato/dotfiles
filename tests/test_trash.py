@@ -1403,7 +1403,7 @@ class TestDeduplication:
             # Phase 09 fields REMOVED per D-01
             assert "original_uid" not in entry, "D-01: uid/gid removed in Phase 10"
             assert "original_gid" not in entry, "D-01: uid/gid removed in Phase 10"
-            assert "date" not in entry, "D-01: ISO 8601 date removed, use timestamp (epoch)"
+            assert "date" not in entry, "D-01: ISO 8601 removed, use timestamp"
 
             # Type checks for new fields
             assert isinstance(entry["timestamp"], int), "timestamp must be epoch int"
@@ -1520,7 +1520,7 @@ class TestMetadata:
         # Verify uid/gid fields removed (D-01)
         assert "original_uid" not in first_entry, "D-01: uid removed in Phase 10"
         assert "original_gid" not in first_entry, "D-01: gid removed in Phase 10"
-        assert "date" not in first_entry, "D-01: ISO 8601 date removed, use epoch timestamp"
+        assert "date" not in first_entry, "D-01: ISO 8601 removed, use epoch timestamp"
 
     def test_meta_08_metadata_fields_accurate(self, mock_trash_env: dict) -> None:
         """TEST-08: Metadata fields recorded accurately (mode, mtime, no uid/gid)."""
@@ -1568,12 +1568,16 @@ class TestMetadata:
         assert "original_gid" not in entry, "D-01: gid removed in Phase 10"
 
         # Verify original_mtime is preserved from file stat
-        assert entry["original_mtime"] == orig_mtime, "original_mtime should match file stat"
+        assert entry["original_mtime"] == orig_mtime, (
+            "original_mtime should match file stat"
+        )
         assert isinstance(entry["original_mtime"], int)
 
         # Verify timestamp is the trash operation time (not the file's mtime)
         assert "timestamp" in entry
-        assert entry["timestamp"] >= operation_time - 5, "timestamp: recent operation time"
+        assert entry["timestamp"] >= operation_time - 5, (
+            "timestamp: recent operation time"
+        )
         assert isinstance(entry["timestamp"], int)
 
         # Verify restore flag is false on fresh entry
@@ -1717,7 +1721,7 @@ class TestRestoreMetadata:
         )
 
     def test_restore_14_multiple_metadata_entries(self, mock_trash_env: dict) -> None:
-        """TEST-14: Multiple entries in {hash}.metadata.json → append-only restore semantics."""
+        """TEST-14: Multiple entries in {hash}.metadata.json - append-only restore."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -1754,7 +1758,7 @@ class TestRestoreMetadata:
         assert dir1.is_dir()
 
         # Phase 10 D-02: Append-only restore semantics
-        # After restore, a new entry with restore: true is appended (original 2 entries kept)
+        # After restore, a new restore: true entry is appended (originals kept)
         metadata_entries_after = json.loads(metadata_json_path.read_text())
         assert len(metadata_entries_after) == 3, (
             "After restore, should have 3 entries (original 2 + restore: true entry)"
@@ -1766,7 +1770,7 @@ class TestRestoreMetadata:
         assert metadata_entries_after[2]["restore"] is True, "Restore entry appended"
 
     def test_restore_15_numeric_uid_gid(self, mock_trash_env: dict) -> None:
-        """TEST-15: Phase 10 D-01: uid/gid fields absent from metadata; restore does not chown."""
+        """TEST-15: Phase 10 D-01: uid/gid fields absent; restore does not chown."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -1795,8 +1799,8 @@ class TestRestoreMetadata:
         entry = metadata_entries[0]
 
         # Phase 10 D-01: uid/gid fields must NOT be stored in metadata
-        assert "original_uid" not in entry, "D-01: uid/gid removed in Phase 10 — not stored"
-        assert "original_gid" not in entry, "D-01: uid/gid removed in Phase 10 — not stored"
+        assert "original_uid" not in entry, "D-01: uid removed in Phase 10"
+        assert "original_gid" not in entry, "D-01: gid removed in Phase 10"
 
         # Restore the file
         result = run_restore(str(test_file))
