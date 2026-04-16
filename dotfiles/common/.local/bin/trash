@@ -1047,29 +1047,25 @@ def _restore_by_path(path: str, config: RestoreConfig) -> bool:
 
     trash_log = TrashLog(config.metadata_path)
     metadata_entry: Metadata | None = None
-    # Phase 10: Prefer entries with restore: false (actual trash items)
-    # Use the most recent restore: false entry (last one found in the list)
+    latest_entry: Metadata | None = None
+
+    # Phase 10: Single pass - prefer entries with restore: false (actual trash items)
+    # Fallback to most recent matching entry if no restore: false entry found
     for event in trash_log._events:
-        if event.path == str(target_path) and not event.restore:
-            metadata_entry = Metadata(
+        if event.path == str(target_path):
+            latest_entry = Metadata(
                 hash=event.hash,
                 path=event.path,
                 type=event.type,
                 timestamp=event.timestamp,
                 restore=event.restore,
             )
+            if not event.restore:
+                metadata_entry = latest_entry  # Prefer restore: false
 
-    # Fallback: if no restore: false entry found, use most recent matching
-    if metadata_entry is None:
-        for event in trash_log._events:
-            if event.path == str(target_path):
-                metadata_entry = Metadata(
-                    hash=event.hash,
-                    path=event.path,
-                    type=event.type,
-                    timestamp=event.timestamp,
-                    restore=event.restore,
-                )
+    # Use latest_entry as fallback if no restore: false entry found
+    if metadata_entry is None and latest_entry is not None:
+        metadata_entry = latest_entry
 
     if metadata_entry is None:
         raise ValueError(f"No trash entry found for {path} (resolved: {target_path})")
