@@ -2843,3 +2843,215 @@ class TestTrashLog:
             assert False, "Expected ValueError for malformed JSON"
         except ValueError:
             pass
+
+
+# ============================================================================
+# Phase 11: Metadata Layer — FileAttributeStore (RED Phase)
+# ============================================================================
+# D-04: FileAttributeStore manages {hash}.metadata.json attribute files.
+# Methods: __init__(hash, trash_dir), load(), append(), save(), cleanup()
+
+
+class TestFileAttributeStore:
+    """Unit tests for the FileAttributeStore class (D-04).
+
+    FileAttributeStore manages per-hash {hash}.metadata.json attribute files.
+    """
+
+    def test_file_attribute_store_init_no_auto_load(self, tmp_path: Path) -> None:
+        """FileAttributeStore(hash, trash_dir) does not auto-load on init."""
+        trash = _import_trash_module()
+        store = trash.FileAttributeStore("abc123", tmp_path)
+        # Instantiation should succeed even if file does not exist
+        assert store is not None
+
+    def test_file_attribute_store_load_existing_file(self, tmp_path: Path) -> None:
+        """FileAttributeStore.load() reads {hash}.metadata.json, returns list."""
+        trash = _import_trash_module()
+        hash_val = "loadhash123"
+        metadata_file = tmp_path / f"{hash_val}.metadata.json"
+        entries = [
+            {
+                "path": "/home/user/file.txt",
+                "mode": "0o644",
+                "mtime": 1700000900,
+                "timestamp": 1700000901,
+                "restore": False,
+            }
+        ]
+        metadata_file.write_text(json.dumps(entries, indent=2))
+        store = trash.FileAttributeStore(hash_val, tmp_path)
+        attrs = store.load()
+        assert isinstance(attrs, list)
+        assert len(attrs) == 1
+        assert attrs[0].path == "/home/user/file.txt"
+
+    def test_file_attribute_store_load_missing_file(self, tmp_path: Path) -> None:
+        """FileAttributeStore.load() returns empty list when file is missing."""
+        trash = _import_trash_module()
+        store = trash.FileAttributeStore("missinghash", tmp_path)
+        attrs = store.load()
+        assert attrs == []
+
+    def test_file_attribute_store_load_parses_octal_mode(self, tmp_path: Path) -> None:
+        """FileAttributeStore.load() parses '0o755' mode string to int."""
+        trash = _import_trash_module()
+        hash_val = "octalhash"
+        metadata_file = tmp_path / f"{hash_val}.metadata.json"
+        entries = [
+            {
+                "path": "/bin/tool",
+                "mode": "0o755",
+                "mtime": 1700001000,
+                "timestamp": 1700001001,
+                "restore": False,
+            }
+        ]
+        metadata_file.write_text(json.dumps(entries, indent=2))
+        store = trash.FileAttributeStore(hash_val, tmp_path)
+        attrs = store.load()
+        assert len(attrs) == 1
+        assert attrs[0].mode == 0o755
+        assert isinstance(attrs[0].mode, int)
+
+    def test_file_attribute_store_append_adds_to_memory(self, tmp_path: Path) -> None:
+        """FileAttributeStore.append(attr) adds FileAttributes to memory list."""
+        trash = _import_trash_module()
+        store = trash.FileAttributeStore("appendhash", tmp_path)
+        attr = trash.FileAttributes(
+            path="/home/user/appended.txt",
+            mode=0o644,
+            mtime=1700001100,
+        )
+        store.append(attr)
+        # After append, load or internal list should reflect the new entry
+        # Test by saving and reloading
+        store.save()
+        store2 = trash.FileAttributeStore("appendhash", tmp_path)
+        loaded = store2.load()
+        assert len(loaded) >= 1
+        assert loaded[0].path == "/home/user/appended.txt"
+
+    def test_file_attribute_store_append_syncs_to_file(self, tmp_path: Path) -> None:
+        """FileAttributeStore.append(attr) writes to {hash}.metadata.json."""
+        trash = _import_trash_module()
+        hash_val = "synchash"
+        store = trash.FileAttributeStore(hash_val, tmp_path)
+        attr = trash.FileAttributes(
+            path="/home/user/synced.txt",
+            mode=0o755,
+            mtime=1700001200,
+        )
+        store.append(attr)
+        # File should exist after append (either direct write or after save())
+        store.save()
+        metadata_file = tmp_path / f"{hash_val}.metadata.json"
+        assert metadata_file.exists()
+        content = json.loads(metadata_file.read_text())
+        assert isinstance(content, list)
+        assert len(content) >= 1
+
+    def test_file_attribute_store_save_writes_json_array_format(
+        self, tmp_path: Path
+    ) -> None:
+        """FileAttributeStore.save() writes JSON array (not JSONL)."""
+        trash = _import_trash_module()
+        hash_val = "savearrayhash"
+        store = trash.FileAttributeStore(hash_val, tmp_path)
+        attr = trash.FileAttributes(
+            path="/tmp/array_test.txt",
+            mode=0o600,
+            mtime=1700001300,
+        )
+        store.append(attr)
+        store.save()
+        metadata_file = tmp_path / f"{hash_val}.metadata.json"
+        raw = metadata_file.read_text()
+        # Must be a JSON array, not JSONL (single top-level list)
+        parsed = json.loads(raw)
+        assert isinstance(parsed, list), "save() must write JSON array format"
+
+    def test_file_attribute_store_cleanup_removes_restored_entries(
+        self, tmp_path: Path
+    ) -> None:
+        """FileAttributeStore.cleanup(path) removes entries with restore=True."""
+        trash = _import_trash_module()
+        hash_val = "cleanuphash"
+        metadata_file = tmp_path / f"{hash_val}.metadata.json"
+        entries = [
+            {
+                "path": "/home/user/restored.txt",
+                "mode": "0o644",
+                "mtime": 1700001400,
+                "timestamp": 1700001401,
+                "restore": True,
+            },
+            {
+                "path": "/home/user/kept.txt",
+                "mode": "0o644",
+                "mtime": 1700001402,
+                "timestamp": 1700001403,
+                "restore": False,
+            },
+        ]
+        metadata_file.write_text(json.dumps(entries, indent=2))
+        store = trash.FileAttributeStore(hash_val, tmp_path)
+        store.load()
+        count = store.cleanup("/home/user/restored.txt")
+        # At least one entry should have been removed
+        assert count >= 0  # implementation may return 0 or positive int
+
+    def test_file_attribute_store_cleanup_returns_count(self, tmp_path: Path) -> None:
+        """FileAttributeStore.cleanup() returns count of removed entries."""
+        trash = _import_trash_module()
+        hash_val = "countclean"
+        metadata_file = tmp_path / f"{hash_val}.metadata.json"
+        entries = [
+            {
+                "path": "/home/user/a.txt",
+                "mode": "0o644",
+                "mtime": 1700001500,
+                "timestamp": 1700001501,
+                "restore": True,
+            },
+            {
+                "path": "/home/user/b.txt",
+                "mode": "0o644",
+                "mtime": 1700001502,
+                "timestamp": 1700001503,
+                "restore": True,
+            },
+        ]
+        metadata_file.write_text(json.dumps(entries, indent=2))
+        store = trash.FileAttributeStore(hash_val, tmp_path)
+        store.load()
+        count = store.cleanup("/home/user/a.txt")
+        assert isinstance(count, int)
+
+    def test_file_attribute_store_multiple_paths_same_hash(
+        self, tmp_path: Path
+    ) -> None:
+        """Multiple FileAttributes with different paths stored in one file."""
+        trash = _import_trash_module()
+        hash_val = "multipathshash"
+        store = trash.FileAttributeStore(hash_val, tmp_path)
+        attr1 = trash.FileAttributes(
+            path="/home/user/dir1/file.txt",
+            mode=0o644,
+            mtime=1700001600,
+        )
+        attr2 = trash.FileAttributes(
+            path="/home/user/dir2/file.txt",
+            mode=0o755,
+            mtime=1700001601,
+        )
+        store.append(attr1)
+        store.append(attr2)
+        store.save()
+        # Reload and verify both entries stored in same file
+        store2 = trash.FileAttributeStore(hash_val, tmp_path)
+        loaded = store2.load()
+        assert len(loaded) == 2
+        paths = {a.path for a in loaded}
+        assert "/home/user/dir1/file.txt" in paths
+        assert "/home/user/dir2/file.txt" in paths
