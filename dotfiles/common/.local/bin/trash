@@ -72,24 +72,40 @@ class FileAttributes:
     restore: bool = False
 
     def to_dict(self) -> dict[str, str | int | bool]:
-        """Convert to JSON-serializable dict for {hash}.metadata.json."""
+        """Convert to JSON-serializable dict for {hash}.metadata.json.
+
+        Uses legacy field names original_mode/original_mtime for compatibility
+        with _apply_metadata_on_restore() and existing integration tests.
+        Also writes mode key for unit test compatibility.
+        """
+        mode_str = oct(self.mode)  # "0o755" string format
+        ts = self.timestamp if self.timestamp else int(time.time())
         return {
             "path": self.path,
-            "mode": oct(self.mode),  # "0o755" string format
-            "mtime": self.mtime,
-            "timestamp": self.timestamp,
+            "mode": mode_str,  # Unit test key (TestFileAttributes)
+            "original_mode": mode_str,  # Legacy key for _apply_metadata_on_restore
+            "mtime": self.mtime,  # Unit test key
+            "original_mtime": self.mtime,  # Legacy key for _apply_metadata_on_restore
+            "timestamp": ts,
             "restore": self.restore,
         }
 
     @classmethod
     def from_dict(cls, d: dict[str, str | int | bool]) -> "FileAttributes":
-        """Deserialize from JSON dict, parsing octal mode strings."""
-        mode_str = d.get("mode", "0o755")
+        """Deserialize from JSON dict, parsing octal mode strings.
+
+        Handles both legacy keys (original_mode/original_mtime) and new keys
+        (mode/mtime) for backward compatibility with existing metadata files.
+        """
+        # Support both new (mode) and legacy (original_mode) key names
+        mode_str = d.get("mode") or d.get("original_mode", "0o755")
         mode = int(str(mode_str), 0) if mode_str else 0o755
+        # Support both new (mtime) and legacy (original_mtime) key names
+        mtime = int(d.get("mtime") or d.get("original_mtime", 0))
         return cls(
             path=str(d["path"]),
             mode=mode,
-            mtime=int(d.get("mtime", 0)),
+            mtime=mtime,
             timestamp=int(d.get("timestamp", 0)),
             restore=bool(d.get("restore", False)),
         )
@@ -447,53 +463,6 @@ class Metadata:
         return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
 
 
-def _save_metadata_for_hash(
-    hash_value: str,
-    path: str,
-    original_mode: str,
-    original_mtime: int,
-    trash_dir_path: Path,
-) -> None:
-    """Save/append metadata for a hashed item in {hash}.json.
-
-    Creates or appends to {trash_dir}/{hash}.json with per-path metadata
-    including original mode and mtime (epoch). Metadata is stored in JSON array
-    format to support deduplication (same hash, multiple paths).
-
-    Phase 10: Simplified version without uid/gid fields. Uses epoch timestamps.
-
-    Args:
-        hash_value: SHA256 hash of the item
-        path: Original absolute path of the item
-        original_mode: Original file mode as octal string (e.g., "0o755")
-        original_mtime: Original modification time (Unix timestamp, epoch seconds)
-        trash_dir_path: Path to trash directory
-    """
-    metadata_path = trash_dir_path / f"{hash_value}.metadata.json"
-
-    entry = {
-        "path": path,
-        "timestamp": int(time.time()),
-        "original_mode": original_mode,
-        "original_mtime": original_mtime,
-        "restore": False,
-    }
-
-    if metadata_path.exists():
-        # Append to existing entries
-        try:
-            entries_raw = json.loads(metadata_path.read_text())
-            entries = entries_raw if isinstance(entries_raw, list) else []
-        except (json.JSONDecodeError, OSError):
-            entries = []
-    else:
-        # Create new entry list
-        entries = []
-
-    entries.append(entry)  # type: ignore[union-attr]
-    metadata_path.write_text(json.dumps(entries, indent=2, ensure_ascii=False))
-
-
 @dataclass
 class TrashConfig:
     """Immutable configuration for trash operations.
@@ -732,42 +701,6 @@ class RestoreConfig:
             print(f"     hash: {entry.hash}")
             print(f"     type: {entry.type}")
             print(f"     date: {entry.date}")
-
-
-def _remove_metadata_hash_entry(
-    trash_dir_path: Path, target_hash: str, target_path: str
-) -> None:
-    """Remove the specific entry matching path from {hash}.json.
-
-    Removes the entry from the JSON array in {hash}.json. If the array
-    becomes empty, the file is left as an empty array.
-
-    Args:
-        trash_dir_path: Path to trash directory
-        target_hash: SHA256 hash of the archived item
-        target_path: Original path to match (remove only this entry)
-    """
-    metadata_path = trash_dir_path / f"{target_hash}.metadata.json"
-    if not metadata_path.exists():
-        return
-
-    try:
-        entries_data = json.loads(metadata_path.read_text())
-        if not isinstance(entries_data, list):
-            return
-
-        # Remove the first entry matching the path
-        remaining: list[dict[str, int | str]] = [
-            e
-            for e in entries_data
-            if isinstance(e, dict) and e.get("path") != target_path
-        ]
-
-        # Write back the remaining entries (or empty array)
-        metadata_path.write_text(json.dumps(remaining, indent=2, ensure_ascii=False))
-    except (json.JSONDecodeError, OSError):
-        # If metadata.json is corrupt, leave it alone
-        pass
 
 
 def _append_restore_entry(
@@ -1449,12 +1382,14 @@ def _process_files(file_paths: list[Path], config: TrashConfig) -> bool:
             config.write_metadata(metadata)
 
             # Write {hash}.json (new behavior)
-            _save_metadata_for_hash(
-                metadata.hash,
-                metadata.path,
-                original_mode,
-                original_mtime,
-                config.trash_dir_path,
+            attr_store = FileAttributeStore(metadata.hash, config.trash_dir_path)
+            attr_store.load()
+            attr_store.append(
+                FileAttributes(
+                    path=metadata.path,
+                    mode=int(original_mode, 0),
+                    mtime=original_mtime,
+                )
             )
 
             if config.verbose:
