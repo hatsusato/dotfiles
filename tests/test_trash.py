@@ -1497,29 +1497,35 @@ class TestMetadata:
         )
         assert len(metadata_entries) >= 1, "Should have at least 1 entry"
 
-        # Verify first entry has all required keys
+        # Verify first entry has all required Phase 10 keys
         first_entry = metadata_entries[0]
+        # Phase 10 format: epoch timestamp, no uid/gid, append-only restore flag
         required_keys = [
             "path",
-            "date",
+            "timestamp",  # NEW: epoch int (operation time), replaces "date"
             "original_mode",
-            "original_uid",
-            "original_gid",
-            "original_mtime",
+            "original_mtime",  # KEPT: original file mtime
+            "restore",  # NEW: boolean flag
         ]
         for key in required_keys:
             assert key in first_entry, f"Missing required key: {key}"
 
-        # Verify types
+        # Verify types for Phase 10 fields
         assert isinstance(first_entry["path"], str)
-        assert isinstance(first_entry["date"], str)
         assert isinstance(first_entry["original_mode"], str)
-        assert isinstance(first_entry["original_uid"], int)
-        assert isinstance(first_entry["original_gid"], int)
+        assert isinstance(first_entry["timestamp"], int), "timestamp: epoch int"
+        assert isinstance(first_entry["restore"], bool), "restore: boolean"
+        assert first_entry["restore"] is False, "Fresh entries have restore: false"
         assert isinstance(first_entry["original_mtime"], int)
+        # Verify uid/gid fields removed (D-01)
+        assert "original_uid" not in first_entry, "D-01: uid removed in Phase 10"
+        assert "original_gid" not in first_entry, "D-01: gid removed in Phase 10"
+        assert "date" not in first_entry, "D-01: ISO 8601 date removed, use epoch timestamp"
 
     def test_meta_08_metadata_fields_accurate(self, mock_trash_env: dict) -> None:
-        """TEST-08: Metadata fields recorded accurately (mode, uid, gid, mtime)."""
+        """TEST-08: Metadata fields recorded accurately (mode, mtime, no uid/gid)."""
+        import time
+
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -1528,11 +1534,12 @@ class TestMetadata:
         test_dir.mkdir(mode=0o700)
         (test_dir / "file.txt").write_text("content")
 
-        # Get original stat
+        # Get original stat before trashing
         stat = test_dir.stat()
-        orig_uid = stat.st_uid
-        orig_gid = stat.st_gid
         orig_mtime = int(stat.st_mtime)
+
+        # Record operation time for timestamp validation
+        operation_time = int(time.time())
 
         # Trash the directory
         result = run_trash("-r", str(test_dir))
@@ -1556,13 +1563,22 @@ class TestMetadata:
             0o700
         ), f"Mode mismatch: expected 0700, got {entry['original_mode']}"
 
-        # Verify uid/gid
-        assert entry["original_uid"] == orig_uid, "UID should match"
-        assert entry["original_gid"] == orig_gid, "GID should match"
+        # Phase 10 D-01: uid/gid fields must NOT exist
+        assert "original_uid" not in entry, "D-01: uid removed in Phase 10"
+        assert "original_gid" not in entry, "D-01: gid removed in Phase 10"
 
-        # Verify mtime is integer (Unix timestamp)
-        assert entry["original_mtime"] == orig_mtime, "mtime should match"
+        # Verify original_mtime is preserved from file stat
+        assert entry["original_mtime"] == orig_mtime, "original_mtime should match file stat"
         assert isinstance(entry["original_mtime"], int)
+
+        # Verify timestamp is the trash operation time (not the file's mtime)
+        assert "timestamp" in entry
+        assert entry["timestamp"] >= operation_time - 5, "timestamp: recent operation time"
+        assert isinstance(entry["timestamp"], int)
+
+        # Verify restore flag is false on fresh entry
+        assert "restore" in entry
+        assert entry["restore"] is False, "Fresh entries have restore: false"
 
     def test_meta_09_symlink_target_preserved(self, mock_trash_env: dict) -> None:
         """TEST-09: Verify symlink target is preserved in metadata."""
