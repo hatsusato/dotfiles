@@ -2324,10 +2324,15 @@ class TestPhase10EdgeCases:
 def _import_trash_module() -> types.ModuleType:
     """Import the trash script as a module for unit testing.
 
-    The trash script has no .py extension, so we use importlib to load it.
+    The trash script has no .py extension, so we use SourceFileLoader directly.
+    spec_from_file_location returns None for extensionless files; SourceFileLoader
+    bypasses extension detection and loads the file as Python source.
     Returns the module object so tests can access TrashEvent, FileAttributes, etc.
     """
-    spec = importlib.util.spec_from_file_location("trash_module", TRASH_SCRIPT)
+    from importlib.machinery import SourceFileLoader
+
+    loader = SourceFileLoader("trash_module", str(TRASH_SCRIPT))
+    spec = importlib.util.spec_from_loader("trash_module", loader)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules["trash_module"] = module

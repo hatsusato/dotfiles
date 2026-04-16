@@ -22,6 +22,79 @@ from tempfile import NamedTemporaryFile
 from typing import Literal, Self
 
 
+@dataclass
+class TrashEvent:
+    """Single event in metadata.jsonl — immutable data container."""
+
+    hash: str
+    path: str
+    type: str  # "file", "dir", or "symlink"
+    timestamp: int = 0
+    restore: bool = False
+
+    def to_dict(self) -> dict[str, str | int | bool]:
+        """Convert to JSON-serializable dict for metadata.jsonl."""
+        return {
+            "hash": self.hash,
+            "path": self.path,
+            "type": self.type,
+            "timestamp": self.timestamp,
+            "restore": self.restore,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, str | int | bool]) -> "TrashEvent":
+        """Deserialize from JSON dict with validation."""
+        if d.get("type") not in ("file", "dir", "symlink"):
+            raise ValueError(f"Invalid type: {d.get('type')}")
+        return cls(
+            hash=str(d["hash"]),
+            path=str(d["path"]),
+            type=str(d["type"]),
+            timestamp=int(d.get("timestamp", 0)),
+            restore=bool(d.get("restore", False)),
+        )
+
+    @staticmethod
+    def now_epoch() -> int:
+        """Return current Unix epoch timestamp (integer seconds)."""
+        return int(time.time())
+
+
+@dataclass
+class FileAttributes:
+    """Single entry in {hash}.metadata.json — immutable data container."""
+
+    path: str
+    mode: int  # Octal, e.g., 0o755
+    mtime: int  # Unix epoch
+    timestamp: int = 0
+    restore: bool = False
+
+    def to_dict(self) -> dict[str, str | int | bool]:
+        """Convert to JSON-serializable dict for {hash}.metadata.json."""
+        return {
+            "path": self.path,
+            "mode": oct(self.mode),  # "0o755" string format
+            "mtime": self.mtime,
+            "timestamp": self.timestamp,
+            "restore": self.restore,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, str | int | bool]) -> "FileAttributes":
+        """Deserialize from JSON dict, parsing octal mode strings."""
+        mode_str = d.get("mode", "0o755")
+        mode = int(str(mode_str), 0) if mode_str else 0o755
+        return cls(
+            path=str(d["path"]),
+            mode=mode,
+            mtime=int(d.get("mtime", 0)),
+            timestamp=int(d.get("timestamp", 0)),
+            restore=bool(d.get("restore", False)),
+        )
+
+
 class TrashPath(Path):
     """Path subclass with type detection and validation.
 
