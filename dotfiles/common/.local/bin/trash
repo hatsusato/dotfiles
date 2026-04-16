@@ -778,6 +778,25 @@ def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
 
         hash_value = _hash_str(str(path.readlink()))
         item_type: Literal["file", "dir", "symlink"] = "symlink"
+
+        backup_path = config.get_trash_path(hash_value)
+        shutil.move(str(path), backup_path)
+        metadata = Metadata(hash=hash_value, path=str(path), type=item_type)
+        config.write_metadata(metadata)
+
+        # Also save {hash}.json for metadata application on restore
+        metadata_entry = {
+            "path": str(path),
+            "date": datetime.now(timezone.utc).isoformat(),
+            "original_mode": original_mode,
+            "original_uid": original_uid,
+            "original_gid": original_gid,
+            "original_mtime": original_mtime,
+        }
+        metadata_json_path = config.trash_dir_path / f"{hash_value}.metadata.json"
+        entries: list[dict[str, int | str]] = [metadata_entry]
+        metadata_json_path.write_text(json.dumps(entries, indent=2, ensure_ascii=False))
+        return
     elif path.is_dir():
         # Hash directory via tar (mirrors trash_dir)
         # Capture metadata before trashing
