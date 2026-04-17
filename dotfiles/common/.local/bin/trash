@@ -385,7 +385,6 @@ class TrashPath(Path):
         return cls(resolved)
 
 
-
 @dataclass
 class TrashConfig:
     """Immutable configuration for trash operations.
@@ -614,9 +613,7 @@ def _apply_metadata_on_restore(
 
     # Restore mtime (always possible, no privilege required)
     try:
-        mtime_val = metadata_entry.get("mtime") or metadata_entry.get(
-            "timestamp"
-        )
+        mtime_val = metadata_entry.get("mtime") or metadata_entry.get("timestamp")
         if mtime_val is not None and isinstance(mtime_val, int):
             os.utime(target_path, (mtime_val, mtime_val))  # (atime, mtime)
     except (KeyError, ValueError, OSError) as e:
@@ -797,9 +794,7 @@ def _restore_dir(target_path: Path, event: TrashEvent, config: RestoreConfig) ->
     """
     tar_path = config.get_trash_path(event.hash)
     if not tar_path.exists():
-        raise FileNotFoundError(
-            f"Tar archive missing: {tar_path} (hash: {event.hash})"
-        )
+        raise FileNotFoundError(f"Tar archive missing: {tar_path} (hash: {event.hash})")
     # Back up any existing directory at target before restoring
     if target_path.exists() or target_path.is_symlink():
         _backup_existing_to_trash(target_path, config)
@@ -1147,7 +1142,7 @@ def _process_files(file_paths: list[Path], config: TrashConfig) -> bool:
 
             # Capture original attributes before trashing
             original_mode = "0o755"
-            original_mtime = _get_epoch_timestamp()
+            original_mtime = 0  # Safe default; will be overwritten after stat
 
             if trash_path.is_symlink():
                 # Symlinks: capture target and lstat (not stat)
