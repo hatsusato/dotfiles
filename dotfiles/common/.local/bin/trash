@@ -78,18 +78,14 @@ class FileAttributes:
     def to_dict(self) -> dict[str, str | int | bool]:
         """Convert to JSON-serializable dict for {hash}-attributes.json.
 
-        Uses legacy field names original_mode/original_mtime for compatibility
-        with _apply_metadata_on_restore() and existing integration tests.
-        Also writes mode key for unit test compatibility.
+        Outputs only canonical field names: mode and mtime.
         """
         mode_str = oct(self.mode)  # "0o755" string format
         ts = self.timestamp if self.timestamp else int(time.time())
         return {
             "path": self.path,
-            "mode": mode_str,  # Unit test key (TestFileAttributes)
-            "original_mode": mode_str,  # Legacy key for _apply_metadata_on_restore
-            "mtime": self.mtime,  # Unit test key
-            "original_mtime": self.mtime,  # Legacy key for _apply_metadata_on_restore
+            "mode": mode_str,
+            "mtime": self.mtime,
             "timestamp": ts,
             "restore": self.restore,
         }
@@ -98,14 +94,11 @@ class FileAttributes:
     def from_dict(cls, d: dict[str, str | int | bool]) -> "FileAttributes":
         """Deserialize from JSON dict, parsing octal mode strings.
 
-        Handles both legacy keys (original_mode/original_mtime) and new keys
-        (mode/mtime) for backward compatibility with existing metadata files.
+        Reads only canonical keys: mode and mtime.
         """
-        # Support both new (mode) and legacy (original_mode) key names
-        mode_str = d.get("mode") or d.get("original_mode", "0o755")
+        mode_str = d.get("mode", "0o755")
         mode = int(str(mode_str), 0) if mode_str else 0o755
-        # Support both new (mtime) and legacy (original_mtime) key names
-        mtime = int(d.get("mtime") or d.get("original_mtime", 0))
+        mtime = int(d.get("mtime", 0))
         return cls(
             path=str(d["path"]),
             mode=mode,
@@ -596,19 +589,19 @@ def _apply_metadata_on_restore(
     """Restore original mode and timestamp to a restored item.
 
     Called after item is moved or extracted to target_path. Applies metadata
-    saved during trash operation: original_mode, timestamp. Ownership (uid/gid)
+    saved during trash operation: mode, mtime. Ownership (uid/gid)
     is NOT restored (Phase 10 simplification).
 
     Args:
         target_path: Path to the restored item (file, dir, or symlink)
-        metadata_entry: Dict with original_mode and timestamp (or original_mtime)
+        metadata_entry: Dict with mode and mtime keys
 
     Raises:
         OSError: If chmod or utime fails (caught and logged)
     """
     # Restore mode (always possible, no privilege required)
     try:
-        mode_str = metadata_entry.get("original_mode", "0o755")
+        mode_str = metadata_entry.get("mode", "0o755")
         if isinstance(mode_str, str):
             mode = int(mode_str, 0)  # Parse octal string like "0755" or "0o755"
             os.chmod(target_path, mode)
@@ -620,9 +613,8 @@ def _apply_metadata_on_restore(
         )
 
     # Restore mtime (always possible, no privilege required)
-    # Phase 10: Use "original_mtime" field if available, fall back to "timestamp"
     try:
-        mtime_val = metadata_entry.get("original_mtime") or metadata_entry.get(
+        mtime_val = metadata_entry.get("mtime") or metadata_entry.get(
             "timestamp"
         )
         if mtime_val is not None and isinstance(mtime_val, int):
