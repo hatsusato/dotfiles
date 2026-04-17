@@ -936,15 +936,21 @@ def _restore_by_path(path: str, config: RestoreConfig) -> bool:
                 # Check if any entry references this path
                 if any(e.get("path") == str(target_path) for e in entries):
                     # Append restore=True to this file too
-                    restore_entry: dict[str, int | str | bool] = {
-                        "path": str(target_path),
-                        "timestamp": int(time.time()),
-                        "restore": True,
-                    }
-                    entries.append(restore_entry)
+                    restore_attr = FileAttributes(
+                        path=str(target_path),
+                        mode=0o755,
+                        mtime=0,
+                        timestamp=int(time.time()),
+                        restore=True,
+                    )
+                    entries.append(restore_attr.to_dict())
                     attr_path.write_text(json.dumps(entries, indent=2))
-        except (json.JSONDecodeError, OSError):
-            pass  # Ignore errors
+        except (json.JSONDecodeError, OSError) as e:
+            # Log warning: metadata file corruption or permission issue
+            print(
+                f"trash: warning: could not update {attr_path}: {e}",
+                file=sys.stderr,
+            )
 
     if config.verbose:
         print(f"trash: restored {target_path}", file=sys.stderr)
