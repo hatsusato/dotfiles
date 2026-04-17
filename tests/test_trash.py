@@ -104,7 +104,7 @@ class TestSingleFileDeletion:
         assert "hash" in entry
         assert "path" in entry
         assert "type" in entry
-        assert "date" in entry
+        assert "timestamp" in entry
 
     def test_tool_01_004_file_type_in_metadata_is_file(
         self, mock_trash_env: dict
@@ -653,7 +653,7 @@ class TestMetadataFormat:
     def test_meta_002_metadata_includes_all_required_fields(
         self, mock_trash_env: dict
     ) -> None:
-        """META-002: metadata includes all required fields: hash, path, type, date."""
+        """META-002: metadata includes required fields: hash, path, type, timestamp."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -666,10 +666,10 @@ class TestMetadataFormat:
         assert "hash" in entry
         assert "path" in entry
         assert "type" in entry
-        assert "date" in entry
+        assert "timestamp" in entry
 
-    def test_meta_003_date_is_iso8601_utc_format(self, mock_trash_env: dict) -> None:
-        """META-003: date in metadata is ISO 8601 UTC format (YYYY-MM-DDTHH:MM:SS)."""
+    def test_meta_003_timestamp_is_epoch_int(self, mock_trash_env: dict) -> None:
+        """META-003: timestamp in metadata is a Unix epoch integer."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -679,10 +679,10 @@ class TestMetadataFormat:
         assert result.returncode == 0
 
         entry = json.loads((trash_dir / "trash-log.jsonl").read_text().strip())
-        iso8601_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$"
-        assert re.match(iso8601_pattern, entry["date"]), (
-            f"date {entry['date']!r} is not ISO 8601 format"
+        assert isinstance(entry["timestamp"], int), (
+            f"timestamp {entry['timestamp']!r} is not an integer"
         )
+        assert entry["timestamp"] > 0, "timestamp must be a positive epoch value"
 
     def test_meta_004_path_in_metadata_is_absolute(self, mock_trash_env: dict) -> None:
         """META-004: path in metadata is an absolute path."""
@@ -877,10 +877,10 @@ class TestRestore:
         result = run_restore("--list")
         assert result.returncode == 0
         output = result.stdout + result.stderr
-        # Must display hash, path, and date information
+        # Must display hash, path, and timestamp information
         assert "important.txt" in output
-        # Date should contain a date-like pattern (YYYY-MM-DD)
-        assert re.search(r"\d{4}-\d{2}-\d{2}", output) is not None
+        # Timestamp: epoch integer (10+ digits for post-2001 timestamps)
+        assert re.search(r"\d{10,}", output) is not None
         # Hash should be a hex string (64 chars for SHA256)
         assert re.search(r"[0-9a-f]{16,}", output) is not None
 
