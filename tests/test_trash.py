@@ -2584,6 +2584,35 @@ class TestFileAttributes:
         assert d["mtime"] == mtime_epoch
         assert isinstance(d["mtime"], int)
 
+    def test_file_attributes_to_dict_canonical_keys_only(self) -> None:
+        """Phase 12: to_dict() outputs only canonical keys; no legacy original_* keys."""
+        trash = _import_trash_module()
+        attrs = trash.FileAttributes(
+            path="/test/file.txt",
+            mode=0o755,
+            mtime=1700000030,
+            timestamp=1700000031,
+            restore=False,
+        )
+        d = attrs.to_dict()
+
+        # Canonical keys must be present
+        assert "path" in d
+        assert "mode" in d
+        assert "mtime" in d
+        assert "timestamp" in d
+        assert "restore" in d
+
+        # Legacy keys must NOT be present (Phase 12 removed dual-key support)
+        assert "original_mode" not in d, "Phase 12: original_mode must not be in output"
+        assert "original_mtime" not in d, "Phase 12: original_mtime must not be in output"
+
+        # Verify values are correct types
+        assert isinstance(d["mode"], str)
+        assert isinstance(d["mtime"], int)
+        assert isinstance(d["timestamp"], int)
+        assert isinstance(d["restore"], bool)
+
 
 # ============================================================================
 # Phase 11: Metadata Layer — TrashLog (RED Phase)
