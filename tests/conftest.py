@@ -14,8 +14,8 @@ def trash_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def metadata_file(trash_dir: Path) -> Path:
-    """Create empty metadata.jsonl in trash_dir; returns Path to metadata.jsonl."""
-    f = trash_dir / "metadata.jsonl"
+    """Create empty trash-log.jsonl in trash_dir; returns Path to trash-log.jsonl."""
+    f = trash_dir / "trash-log.jsonl"
     f.write_text("")
     return f
 

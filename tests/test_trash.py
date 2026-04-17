@@ -56,7 +56,7 @@ class TestSingleFileDeletion:
         trashed = [
             f
             for f in trash_dir.iterdir()
-            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
         ]
         assert len(trashed) == 1
 
@@ -80,7 +80,7 @@ class TestSingleFileDeletion:
         trashed = [
             f
             for f in trash_dir.iterdir()
-            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
         ]
         assert len(trashed) == 1
         assert trashed[0].name == expected_hash
@@ -88,7 +88,7 @@ class TestSingleFileDeletion:
     def test_tool_01_003_metadata_recorded_in_jsonl_with_correct_format(
         self, mock_trash_env: dict
     ) -> None:
-        """TOOL-01-003: metadata.jsonl exists with all required JSON fields."""
+        """TOOL-01-003: trash-log.jsonl exists with all required JSON fields."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -98,7 +98,7 @@ class TestSingleFileDeletion:
         result = run_trash(str(test_file))
         assert result.returncode == 0
 
-        metadata_path = trash_dir / "metadata.jsonl"
+        metadata_path = trash_dir / "trash-log.jsonl"
         assert metadata_path.exists()
         entry = json.loads(metadata_path.read_text().strip())
         assert "hash" in entry
@@ -119,7 +119,7 @@ class TestSingleFileDeletion:
         result = run_trash(str(test_file))
         assert result.returncode == 0
 
-        metadata_path = trash_dir / "metadata.jsonl"
+        metadata_path = trash_dir / "trash-log.jsonl"
         entry = json.loads(metadata_path.read_text().strip())
         assert entry["type"] == "file"
 
@@ -150,7 +150,7 @@ class TestMultipleFileArguments:
         trashed = [
             f
             for f in trash_dir.iterdir()
-            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
         ]
         assert len(trashed) == 2
 
@@ -178,7 +178,7 @@ class TestMultipleFileArguments:
         trashed = [
             f
             for f in trash_dir.iterdir()
-            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
         ]
         assert len(trashed) == 3
 
@@ -202,7 +202,7 @@ class TestMultipleFileArguments:
         assert not f1.exists()
         assert not f3.exists()
 
-        metadata = (trash_dir / "metadata.jsonl").read_text()
+        metadata = (trash_dir / "trash-log.jsonl").read_text()
         assert "file1.txt" in metadata
         assert "file3.txt" in metadata
 
@@ -250,7 +250,7 @@ class TestForceFlag:
         assert not f1.exists()
         assert not f3.exists()
 
-        metadata = (trash_dir / "metadata.jsonl").read_text()
+        metadata = (trash_dir / "trash-log.jsonl").read_text()
         assert "file1.txt" in metadata
         assert "file3.txt" in metadata
 
@@ -292,7 +292,7 @@ class TestRecursiveFlag:
         trashed = [
             f
             for f in trash_dir.iterdir()
-            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
         ]
         assert len(trashed) == 1
 
@@ -312,11 +312,11 @@ class TestRecursiveFlag:
         trashed = [
             f
             for f in trash_dir.iterdir()
-            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
         ]
         assert len(trashed) == 1
 
-        metadata_lines = (trash_dir / "metadata.jsonl").read_text().strip().splitlines()
+        metadata_lines = (trash_dir / "trash-log.jsonl").read_text().strip().splitlines()
         assert len(metadata_lines) == 1
 
     def test_flag_r_004_directory_structure_preserved_in_tar(
@@ -338,7 +338,7 @@ class TestRecursiveFlag:
         tar_files = [
             f
             for f in trash_dir.iterdir()
-            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
         ]
         assert len(tar_files) == 1
 
@@ -364,7 +364,7 @@ class TestRecursiveFlag:
         result = run_trash("-r", str(d))
         assert result.returncode == 0
 
-        entry = json.loads((trash_dir / "metadata.jsonl").read_text().strip())
+        entry = json.loads((trash_dir / "trash-log.jsonl").read_text().strip())
         assert entry["type"] == "dir"
 
     def test_flag_r_006_original_path_preserved_in_metadata(
@@ -381,7 +381,7 @@ class TestRecursiveFlag:
         result = run_trash("-r", str(d))
         assert result.returncode == 0
 
-        entry = json.loads((trash_dir / "metadata.jsonl").read_text().strip())
+        entry = json.loads((trash_dir / "trash-log.jsonl").read_text().strip())
         assert entry["path"] == str(d)
 
 
@@ -544,7 +544,7 @@ class TestEdgeCases:
         trashed = [
             f
             for f in trash_dir.iterdir()
-            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
         ]
         assert len(trashed) == 1
 
@@ -563,7 +563,7 @@ class TestEdgeCases:
         trashed = [
             f
             for f in trash_dir.iterdir()
-            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
         ]
         assert len(trashed) == 1
 
@@ -604,13 +604,13 @@ class TestEdgeCases:
         trashed = [
             f
             for f in trash_dir.iterdir()
-            if f.name != "metadata.jsonl" and not f.name.endswith(".metadata.json")
+            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
         ]
         assert len(trashed) == 1
 
         # NEW: Verify type is "symlink" in metadata
         metadata_entry = json.loads(
-            (trash_dir / "metadata.jsonl").read_text().strip().split("\n")[-1]
+            (trash_dir / "trash-log.jsonl").read_text().strip().split("\n")[-1]
         )
         assert metadata_entry["type"] == "symlink", (
             f"Expected type='symlink', got {metadata_entry['type']}"
@@ -642,7 +642,7 @@ class TestMetadataFormat:
         result = run_trash(str(home / "file1.txt"), str(home / "file2.txt"))
         assert result.returncode == 0
 
-        metadata_path = trash_dir / "metadata.jsonl"
+        metadata_path = trash_dir / "trash-log.jsonl"
         assert metadata_path.exists()
         lines = metadata_path.read_text().strip().splitlines()
         assert len(lines) == 2
@@ -662,7 +662,7 @@ class TestMetadataFormat:
         result = run_trash(str(home / "testfile.txt"))
         assert result.returncode == 0
 
-        entry = json.loads((trash_dir / "metadata.jsonl").read_text().strip())
+        entry = json.loads((trash_dir / "trash-log.jsonl").read_text().strip())
         assert "hash" in entry
         assert "path" in entry
         assert "type" in entry
@@ -678,7 +678,7 @@ class TestMetadataFormat:
         result = run_trash(str(home / "testfile.txt"))
         assert result.returncode == 0
 
-        entry = json.loads((trash_dir / "metadata.jsonl").read_text().strip())
+        entry = json.loads((trash_dir / "trash-log.jsonl").read_text().strip())
         iso8601_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$"
         assert re.match(iso8601_pattern, entry["date"]), (
             f"date {entry['date']!r} is not ISO 8601 format"
@@ -695,7 +695,7 @@ class TestMetadataFormat:
         result = run_trash(str(test_file))
         assert result.returncode == 0
 
-        entry = json.loads((trash_dir / "metadata.jsonl").read_text().strip())
+        entry = json.loads((trash_dir / "trash-log.jsonl").read_text().strip())
         assert entry["path"].startswith("/"), f"path {entry['path']!r} is not absolute"
         assert str(home) in entry["path"]
 
@@ -713,7 +713,7 @@ class TestMetadataFormat:
         run_trash(str(file_path))
         run_trash("-r", str(d))
 
-        lines = (trash_dir / "metadata.jsonl").read_text().strip().splitlines()
+        lines = (trash_dir / "trash-log.jsonl").read_text().strip().splitlines()
         types = {json.loads(line)["type"] for line in lines}
         assert "file" in types
         assert "dir" in types
@@ -990,7 +990,7 @@ class TestRestore:
 
         # After restore, the metadata should have 2 entries (original got restored,
         # newer file got backed up to trash)
-        metadata_path = trash_dir / "metadata.jsonl"
+        metadata_path = trash_dir / "trash-log.jsonl"
         if metadata_path.exists():
             lines = [ln for ln in metadata_path.read_text().splitlines() if ln.strip()]
             # The newer file should be backed up to trash (at least 1 entry)
@@ -1078,7 +1078,7 @@ class TestRestore:
         assert link.readlink() == target
 
     def test_restore_metadata_cleanup(self, mock_trash_env: dict) -> None:
-        """TOOL-13: metadata entry is removed from metadata.jsonl after restore."""
+        """TOOL-13: metadata entry is removed from trash-log.jsonl after restore."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -1086,7 +1086,7 @@ class TestRestore:
         test_file.write_text("cleanup test content")
         run_trash(str(test_file))
 
-        metadata_path = trash_dir / "metadata.jsonl"
+        metadata_path = trash_dir / "trash-log.jsonl"
         lines_before = [
             ln for ln in metadata_path.read_text().splitlines() if ln.strip()
         ]
@@ -1128,8 +1128,8 @@ class TestTarNormalization:
         assert result.returncode == 0
         assert not test_dir_1.exists()
 
-        # Extract hash from metadata.jsonl
-        metadata_path = trash_dir / "metadata.jsonl"
+        # Extract hash from trash-log.jsonl
+        metadata_path = trash_dir / "trash-log.jsonl"
         entries = [
             json.loads(ln)
             for ln in metadata_path.read_text().splitlines()
@@ -1153,7 +1153,7 @@ class TestTarNormalization:
         assert result.returncode == 0
         assert not test_dir_2.exists()
 
-        # Extract hash from metadata.jsonl again
+        # Extract hash from trash-log.jsonl again
         entries = [
             json.loads(ln)
             for ln in metadata_path.read_text().splitlines()
@@ -1184,7 +1184,7 @@ class TestTarNormalization:
         result = run_trash("-r", str(dir_a))
         assert result.returncode == 0
 
-        metadata_path = trash_dir / "metadata.jsonl"
+        metadata_path = trash_dir / "trash-log.jsonl"
         entries = [
             json.loads(ln)
             for ln in metadata_path.read_text().splitlines()
@@ -1234,7 +1234,7 @@ class TestTarNormalization:
         assert result.returncode == 0
 
         # Get hash and tar path
-        metadata_path = trash_dir / "metadata.jsonl"
+        metadata_path = trash_dir / "trash-log.jsonl"
         entries = [
             json.loads(ln)
             for ln in metadata_path.read_text().splitlines()
@@ -1309,7 +1309,7 @@ class TestDeduplication:
         result = run_trash("-r", str(dir1))
         assert result.returncode == 0
 
-        metadata_path = trash_dir / "metadata.jsonl"
+        metadata_path = trash_dir / "trash-log.jsonl"
         entries = [
             json.loads(ln)
             for ln in metadata_path.read_text().splitlines()
@@ -1340,12 +1340,12 @@ class TestDeduplication:
         assert hash1 == hash2, "Identical content should produce same hash"
         assert trash_path_1 == trash_path_2, "Same hash should use same trash path"
 
-        # Count tar files (exclude metadata.jsonl)
+        # Count tar files (exclude trash-log.jsonl)
         tar_files = [
             f
             for f in trash_dir.iterdir()
-            if f.name != "metadata.jsonl"
-            and not f.name.endswith(".metadata.json")
+            if f.name != "trash-log.jsonl"
+            and not f.name.endswith("-attributes.json")
             and not f.name.endswith(".json")
         ]
         assert len(tar_files) == 1, (
@@ -1356,7 +1356,7 @@ class TestDeduplication:
     def test_dedup_05_metadata_json_multiple_entries(
         self, mock_trash_env: dict
     ) -> None:
-        """TEST-05: {hash}.metadata.json has 2 entries after deduplication."""
+        """TEST-05: {hash}-attributes.json has 2 entries after deduplication."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -1367,7 +1367,7 @@ class TestDeduplication:
         result = run_trash("-r", str(dir1))
         assert result.returncode == 0
 
-        metadata_path = trash_dir / "metadata.jsonl"
+        metadata_path = trash_dir / "trash-log.jsonl"
         entries = [
             json.loads(ln)
             for ln in metadata_path.read_text().splitlines()
@@ -1382,10 +1382,10 @@ class TestDeduplication:
         result = run_trash("-r", str(dir2))
         assert result.returncode == 0
 
-        # Verify {hash}.metadata.json exists and contains 2 entries
-        metadata_json_path = trash_dir / f"{hash1}.metadata.json"
+        # Verify {hash}-attributes.json exists and contains 2 entries
+        metadata_json_path = trash_dir / f"{hash1}-attributes.json"
         assert metadata_json_path.exists(), (
-            f"{hash1}.metadata.json should exist after deduplication"
+            f"{hash1}-attributes.json should exist after deduplication"
         )
 
         metadata_entries = json.loads(metadata_json_path.read_text())
@@ -1421,7 +1421,7 @@ class TestDeduplication:
     def test_dedup_06_metadata_jsonl_multiple_entries(
         self, mock_trash_env: dict
     ) -> None:
-        """TEST-06: metadata.jsonl has 2 entries after deduplication."""
+        """TEST-06: trash-log.jsonl has 2 entries after deduplication."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -1438,8 +1438,8 @@ class TestDeduplication:
         result = run_trash("-r", str(dir2))
         assert result.returncode == 0
 
-        # Read metadata.jsonl
-        metadata_path = trash_dir / "metadata.jsonl"
+        # Read trash-log.jsonl
+        metadata_path = trash_dir / "trash-log.jsonl"
         entries = [
             json.loads(ln)
             for ln in metadata_path.read_text().splitlines()
@@ -1448,7 +1448,7 @@ class TestDeduplication:
 
         # Verify we have 2 entries
         assert len(entries) == 2, (
-            f"metadata.jsonl should have 2 entries, got {len(entries)}"
+            f"trash-log.jsonl should have 2 entries, got {len(entries)}"
         )
 
         # Verify both entries reference the same hash (deduplication)
@@ -1462,10 +1462,10 @@ class TestDeduplication:
 
 
 class TestMetadata:
-    """TEST-07-09: Verify {hash}.metadata.json structure."""
+    """TEST-07-09: Verify {hash}-attributes.json structure."""
 
     def test_meta_07_metadata_json_list_format(self, mock_trash_env: dict) -> None:
-        """TEST-07: {hash}.metadata.json is valid JSON array."""
+        """TEST-07: {hash}-attributes.json is valid JSON array."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -1478,8 +1478,8 @@ class TestMetadata:
         result = run_trash("-r", str(test_dir))
         assert result.returncode == 0
 
-        # Get hash from metadata.jsonl
-        metadata_path = trash_dir / "metadata.jsonl"
+        # Get hash from trash-log.jsonl
+        metadata_path = trash_dir / "trash-log.jsonl"
         entries = [
             json.loads(ln)
             for ln in metadata_path.read_text().splitlines()
@@ -1487,16 +1487,16 @@ class TestMetadata:
         ]
         hash_value = entries[0]["hash"]
 
-        # Read {hash}.metadata.json
-        metadata_json_path = trash_dir / f"{hash_value}.metadata.json"
-        assert metadata_json_path.exists(), f"{hash_value}.metadata.json should exist"
+        # Read {hash}-attributes.json
+        metadata_json_path = trash_dir / f"{hash_value}-attributes.json"
+        assert metadata_json_path.exists(), f"{hash_value}-attributes.json should exist"
 
         # Verify valid JSON
         metadata_entries = json.loads(metadata_json_path.read_text())
 
         # Verify it's a list
         assert isinstance(metadata_entries, list), (
-            "{hash}.metadata.json should be a JSON array"
+            "{hash}-attributes.json should be a JSON array"
         )
         assert len(metadata_entries) >= 1, "Should have at least 1 entry"
 
@@ -1549,7 +1549,7 @@ class TestMetadata:
         assert result.returncode == 0
 
         # Get hash and read metadata
-        metadata_path = trash_dir / "metadata.jsonl"
+        metadata_path = trash_dir / "trash-log.jsonl"
         entries = [
             json.loads(ln)
             for ln in metadata_path.read_text().splitlines()
@@ -1557,7 +1557,7 @@ class TestMetadata:
         ]
         hash_value = entries[0]["hash"]
 
-        metadata_json_path = trash_dir / f"{hash_value}.metadata.json"
+        metadata_json_path = trash_dir / f"{hash_value}-attributes.json"
         metadata_entries = json.loads(metadata_json_path.read_text())
         entry = metadata_entries[0]
 
@@ -1602,8 +1602,8 @@ class TestMetadata:
         result = run_trash(str(link))
         assert result.returncode == 0
 
-        # Verify metadata.jsonl entry exists
-        metadata_path = trash_dir / "metadata.jsonl"
+        # Verify trash-log.jsonl entry exists
+        metadata_path = trash_dir / "trash-log.jsonl"
         entries = [
             json.loads(ln)
             for ln in metadata_path.read_text().splitlines()
@@ -1618,7 +1618,7 @@ class TestMetadata:
                 symlink_entry = entry
                 break
 
-        assert symlink_entry is not None, "Symlink entry should exist in metadata.jsonl"
+        assert symlink_entry is not None, "Symlink entry should exist in trash-log.jsonl"
         assert symlink_entry["path"] == str(link)
 
 
@@ -1724,7 +1724,7 @@ class TestRestoreMetadata:
         )
 
     def test_restore_14_multiple_metadata_entries(self, mock_trash_env: dict) -> None:
-        """TEST-14: Multiple entries in {hash}.metadata.json - append-only restore."""
+        """TEST-14: Multiple entries in {hash}-attributes.json - append-only restore."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -1742,7 +1742,7 @@ class TestRestoreMetadata:
         assert result.returncode == 0
 
         # Get hash
-        metadata_path = trash_dir / "metadata.jsonl"
+        metadata_path = trash_dir / "trash-log.jsonl"
         entries = [
             json.loads(ln)
             for ln in metadata_path.read_text().splitlines()
@@ -1751,7 +1751,7 @@ class TestRestoreMetadata:
         hash_value = entries[0]["hash"]
 
         # Verify metadata.json has 2 entries (one for each dir)
-        metadata_json_path = trash_dir / f"{hash_value}.metadata.json"
+        metadata_json_path = trash_dir / f"{hash_value}-attributes.json"
         metadata_entries = json.loads(metadata_json_path.read_text())
         assert len(metadata_entries) == 2
 
@@ -1789,7 +1789,7 @@ class TestRestoreMetadata:
         assert result.returncode == 0
 
         # Get hash and metadata
-        metadata_path = trash_dir / "metadata.jsonl"
+        metadata_path = trash_dir / "trash-log.jsonl"
         entries = [
             json.loads(ln)
             for ln in metadata_path.read_text().splitlines()
@@ -1797,7 +1797,7 @@ class TestRestoreMetadata:
         ]
         hash_value = entries[0]["hash"]
 
-        metadata_json_path = trash_dir / f"{hash_value}.metadata.json"
+        metadata_json_path = trash_dir / f"{hash_value}-attributes.json"
         metadata_entries = json.loads(metadata_json_path.read_text())
         entry = metadata_entries[0]
 
@@ -1845,9 +1845,9 @@ class TestPhase10MetadataFormat:
         assert result.returncode == 0, f"trash failed: {result.stderr}"
         assert not test_file.exists()
 
-        # Read {hash}.metadata.json and verify no uid/gid fields
+        # Read {hash}-attributes.json and verify no uid/gid fields
         trash_dir = Path(mock_trash_env["trash_dir"])
-        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        metadata_files = list(trash_dir.glob("*-attributes.json"))
         assert len(metadata_files) == 1, (
             f"Expected 1 metadata file, found {len(metadata_files)}"
         )
@@ -1873,7 +1873,7 @@ class TestPhase10MetadataFormat:
         assert result.returncode == 0
 
         trash_dir = Path(mock_trash_env["trash_dir"])
-        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        metadata_files = list(trash_dir.glob("*-attributes.json"))
         assert len(metadata_files) >= 1
 
         for metadata_file in metadata_files:
@@ -1902,7 +1902,7 @@ class TestPhase10MetadataFormat:
         assert result.returncode == 0
 
         trash_dir = Path(mock_trash_env["trash_dir"])
-        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        metadata_files = list(trash_dir.glob("*-attributes.json"))
         assert len(metadata_files) >= 1
 
         for metadata_file in metadata_files:
@@ -1931,7 +1931,7 @@ class TestRestoreAppendOnly:
 
         # Count entries before restore
         trash_dir = Path(mock_trash_env["trash_dir"])
-        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        metadata_files = list(trash_dir.glob("*-attributes.json"))
         assert len(metadata_files) == 1
         entries_before = json.loads(metadata_files[0].read_text())
         count_before = len(entries_before)
@@ -1967,7 +1967,7 @@ class TestRestoreAppendOnly:
         assert not test_file.exists()
 
         trash_dir = Path(mock_trash_env["trash_dir"])
-        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        metadata_files = list(trash_dir.glob("*-attributes.json"))
         entries_before_restore = json.loads(metadata_files[0].read_text())
         original_entry = entries_before_restore[
             0
@@ -2005,7 +2005,7 @@ class TestRestoreAppendOnly:
         assert not test_file.exists()
 
         trash_dir = Path(mock_trash_env["trash_dir"])
-        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        metadata_files = list(trash_dir.glob("*-attributes.json"))
 
         # Restore, modify, trash again, restore again
         run_trash("--restore", str(test_file))
@@ -2043,7 +2043,7 @@ class TestGarbageCollection:
         run_trash("--restore", str(test_file))
 
         trash_dir = Path(mock_trash_env["trash_dir"])
-        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        metadata_files = list(trash_dir.glob("*-attributes.json"))
         entries_before_gc = json.loads(metadata_files[0].read_text())
 
         # Verify restore: true entry exists
@@ -2076,11 +2076,11 @@ class TestGarbageCollection:
         run_trash(str(test_file))
         tar_files_before = list(
             trash_dir.glob("[a-f0-9]*")
-        )  # Non-*.metadata.json files
+        )  # Non-*-attributes.json files
         tar_files_before = [
             f
             for f in tar_files_before
-            if f.is_file() and not f.name.endswith(".metadata.json")
+            if f.is_file() and not f.name.endswith("-attributes.json")
         ]
         assert len(tar_files_before) > 0, "setup: should have tar file"
         tar_hash = tar_files_before[0].name
@@ -2088,7 +2088,7 @@ class TestGarbageCollection:
         run_trash("--restore", str(test_file))
 
         # Now manually delete the restore: false entry to simulate only orphan entry
-        metadata_file = trash_dir / f"{tar_hash}.metadata.json"
+        metadata_file = trash_dir / f"{tar_hash}-attributes.json"
         entries = json.loads(metadata_file.read_text())
         # Keep only restore: true entries
         orphan_entries = [e for e in entries if e.get("restore") is True]
@@ -2122,9 +2122,9 @@ class TestGarbageCollection:
         run_trash(str(file2))
 
         # Get tar hash (should be same for both)
-        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        metadata_files = list(trash_dir.glob("*-attributes.json"))
         assert len(metadata_files) == 1, "identical files should deduplicate to one tar"
-        tar_hash = metadata_files[0].name.replace(".metadata.json", "")
+        tar_hash = metadata_files[0].name.replace("-attributes.json", "")
         tar_path = trash_dir / tar_hash
         assert tar_path.exists(), "tar should exist"
 
@@ -2173,7 +2173,7 @@ class TestUIDGIDRemoval:
         run_trash(str(test_file))
 
         trash_dir = Path(mock_trash_env["trash_dir"])
-        metadata_files = list(trash_dir.glob("*.metadata.json"))
+        metadata_files = list(trash_dir.glob("*-attributes.json"))
 
         for metadata_file in metadata_files:
             entries = json.loads(metadata_file.read_text())
@@ -2237,7 +2237,7 @@ class TestPhase10EdgeCases:
         trash_dir.mkdir(parents=True, exist_ok=True)
 
         # Create empty metadata.json
-        empty_metadata = trash_dir / "abc123.metadata.json"
+        empty_metadata = trash_dir / "abc123-attributes.json"
         empty_metadata.write_text("[]")
 
         # Run --gc
@@ -2268,7 +2268,7 @@ class TestPhase10EdgeCases:
         trash_dir.mkdir(parents=True, exist_ok=True)
 
         # Create metadata with mixed entries
-        metadata_file = trash_dir / "mixed_hash.metadata.json"
+        metadata_file = trash_dir / "mixed_hash-attributes.json"
         entries = [
             {
                 "path": "/home/user/file1",
@@ -2343,7 +2343,7 @@ def _import_trash_module() -> types.ModuleType:
 class TestTrashEvent:
     """Unit tests for the TrashEvent dataclass (D-03).
 
-    TrashEvent represents a single entry in metadata.jsonl.
+    TrashEvent represents a single entry in trash-log.jsonl.
     Fields: hash, path, type ("file"|"dir"|"symlink"), timestamp (epoch int),
     restore (bool).
     """
@@ -2461,7 +2461,7 @@ class TestTrashEvent:
 class TestFileAttributes:
     """Unit tests for the FileAttributes dataclass (D-05).
 
-    FileAttributes represents a single entry in {hash}.metadata.json.
+    FileAttributes represents a single entry in {hash}-attributes.json.
     Fields: path, mode (octal int), mtime (epoch int), timestamp (default 0),
     restore (bool).
     """
@@ -2574,7 +2574,7 @@ class TestFileAttributes:
 # ============================================================================
 # Phase 11: Metadata Layer — TrashLog (RED Phase)
 # ============================================================================
-# D-02: TrashLog manages metadata.jsonl as an in-memory event list.
+# D-02: TrashLog manages trash-log.jsonl as an in-memory event list.
 # Methods: load(), find_by_path(), find_by_hash(), append(), remove_by_path(),
 #          remove_by_hash(), mark_restored(), save()
 
@@ -2582,13 +2582,13 @@ class TestFileAttributes:
 class TestTrashLog:
     """Unit tests for the TrashLog class (D-02).
 
-    TrashLog manages metadata.jsonl: load, find, append, remove, restore, save.
+    TrashLog manages trash-log.jsonl: load, find, append, remove, restore, save.
     """
 
     def test_trash_log_init_loads_existing_metadata(self, tmp_path: Path) -> None:
-        """TrashLog initialized with existing metadata.jsonl loads events."""
+        """TrashLog initialized with existing trash-log.jsonl loads events."""
         trash = _import_trash_module()
-        jsonl_path = tmp_path / "metadata.jsonl"
+        jsonl_path = tmp_path / "trash-log.jsonl"
         event_data = {
             "hash": "abc111",
             "path": "/home/user/file.txt",
@@ -2605,7 +2605,7 @@ class TestTrashLog:
     def test_trash_log_init_handles_missing_file(self, tmp_path: Path) -> None:
         """TrashLog initialized with nonexistent file returns empty event list."""
         trash = _import_trash_module()
-        jsonl_path = tmp_path / "nonexistent_metadata.jsonl"
+        jsonl_path = tmp_path / "nonexistent_trash-log.jsonl"
         log = trash.TrashLog(jsonl_path)
         # find_by_path on empty log returns empty list
         events = log.find_by_path("/any/path")
@@ -2616,7 +2616,7 @@ class TestTrashLog:
     ) -> None:
         """TrashLog.find_by_path() returns all events matching the given path."""
         trash = _import_trash_module()
-        jsonl_path = tmp_path / "metadata.jsonl"
+        jsonl_path = tmp_path / "trash-log.jsonl"
         lines = [
             json.dumps(
                 {
@@ -2660,7 +2660,7 @@ class TestTrashLog:
     ) -> None:
         """TrashLog.find_by_hash() returns all events with the matching hash."""
         trash = _import_trash_module()
-        jsonl_path = tmp_path / "metadata.jsonl"
+        jsonl_path = tmp_path / "trash-log.jsonl"
         lines = [
             json.dumps(
                 {
@@ -2693,7 +2693,7 @@ class TestTrashLog:
     def test_trash_log_append_adds_to_memory_and_syncs(self, tmp_path: Path) -> None:
         """TrashLog.append(event) adds to in-memory list and writes to file."""
         trash = _import_trash_module()
-        jsonl_path = tmp_path / "metadata.jsonl"
+        jsonl_path = tmp_path / "trash-log.jsonl"
         log = trash.TrashLog(jsonl_path)
         event = trash.TrashEvent(
             hash="newhash",
@@ -2718,7 +2718,7 @@ class TestTrashLog:
     ) -> None:
         """TrashLog.remove_by_path(path, hash) removes only first matching entry."""
         trash = _import_trash_module()
-        jsonl_path = tmp_path / "metadata.jsonl"
+        jsonl_path = tmp_path / "trash-log.jsonl"
         lines = [
             json.dumps(
                 {
@@ -2753,7 +2753,7 @@ class TestTrashLog:
     ) -> None:
         """TrashLog.remove_by_hash(hash) removes all entries with that hash."""
         trash = _import_trash_module()
-        jsonl_path = tmp_path / "metadata.jsonl"
+        jsonl_path = tmp_path / "trash-log.jsonl"
         lines = [
             json.dumps(
                 {
@@ -2797,7 +2797,7 @@ class TestTrashLog:
     ) -> None:
         """TrashLog.mark_restored(hash, path, type) appends restore=True event."""
         trash = _import_trash_module()
-        jsonl_path = tmp_path / "metadata.jsonl"
+        jsonl_path = tmp_path / "trash-log.jsonl"
         line = json.dumps(
             {
                 "hash": "resthash",
@@ -2819,7 +2819,7 @@ class TestTrashLog:
     def test_trash_log_save_writes_jsonl_format(self, tmp_path: Path) -> None:
         """TrashLog.save() writes events as JSONL (one JSON object per line)."""
         trash = _import_trash_module()
-        jsonl_path = tmp_path / "metadata.jsonl"
+        jsonl_path = tmp_path / "trash-log.jsonl"
         log = trash.TrashLog(jsonl_path)
         event = trash.TrashEvent(
             hash="savehash",
@@ -2841,7 +2841,7 @@ class TestTrashLog:
     def test_trash_log_malformed_json_raises_valueerror(self, tmp_path: Path) -> None:
         """TrashLog.load() raises ValueError on malformed JSON line."""
         trash = _import_trash_module()
-        jsonl_path = tmp_path / "metadata.jsonl"
+        jsonl_path = tmp_path / "trash-log.jsonl"
         jsonl_path.write_text("not valid json\n")
         try:
             trash.TrashLog(jsonl_path)
@@ -2853,14 +2853,14 @@ class TestTrashLog:
 # ============================================================================
 # Phase 11: Metadata Layer — FileAttributeStore (RED Phase)
 # ============================================================================
-# D-04: FileAttributeStore manages {hash}.metadata.json attribute files.
+# D-04: FileAttributeStore manages {hash}-attributes.json attribute files.
 # Methods: __init__(hash, trash_dir), load(), append(), save(), cleanup()
 
 
 class TestFileAttributeStore:
     """Unit tests for the FileAttributeStore class (D-04).
 
-    FileAttributeStore manages per-hash {hash}.metadata.json attribute files.
+    FileAttributeStore manages per-hash {hash}-attributes.json attribute files.
     """
 
     def test_file_attribute_store_init_no_auto_load(self, tmp_path: Path) -> None:
@@ -2871,10 +2871,10 @@ class TestFileAttributeStore:
         assert store is not None
 
     def test_file_attribute_store_load_existing_file(self, tmp_path: Path) -> None:
-        """FileAttributeStore.load() reads {hash}.metadata.json, returns list."""
+        """FileAttributeStore.load() reads {hash}-attributes.json, returns list."""
         trash = _import_trash_module()
         hash_val = "loadhash123"
-        metadata_file = tmp_path / f"{hash_val}.metadata.json"
+        metadata_file = tmp_path / f"{hash_val}-attributes.json"
         entries = [
             {
                 "path": "/home/user/file.txt",
@@ -2902,7 +2902,7 @@ class TestFileAttributeStore:
         """FileAttributeStore.load() parses '0o755' mode string to int."""
         trash = _import_trash_module()
         hash_val = "octalhash"
-        metadata_file = tmp_path / f"{hash_val}.metadata.json"
+        metadata_file = tmp_path / f"{hash_val}-attributes.json"
         entries = [
             {
                 "path": "/bin/tool",
@@ -2938,7 +2938,7 @@ class TestFileAttributeStore:
         assert loaded[0].path == "/home/user/appended.txt"
 
     def test_file_attribute_store_append_syncs_to_file(self, tmp_path: Path) -> None:
-        """FileAttributeStore.append(attr) writes to {hash}.metadata.json."""
+        """FileAttributeStore.append(attr) writes to {hash}-attributes.json."""
         trash = _import_trash_module()
         hash_val = "synchash"
         store = trash.FileAttributeStore(hash_val, tmp_path)
@@ -2950,7 +2950,7 @@ class TestFileAttributeStore:
         store.append(attr)
         # File should exist after append (either direct write or after save())
         store.save()
-        metadata_file = tmp_path / f"{hash_val}.metadata.json"
+        metadata_file = tmp_path / f"{hash_val}-attributes.json"
         assert metadata_file.exists()
         content = json.loads(metadata_file.read_text())
         assert isinstance(content, list)
@@ -2970,7 +2970,7 @@ class TestFileAttributeStore:
         )
         store.append(attr)
         store.save()
-        metadata_file = tmp_path / f"{hash_val}.metadata.json"
+        metadata_file = tmp_path / f"{hash_val}-attributes.json"
         raw = metadata_file.read_text()
         # Must be a JSON array, not JSONL (single top-level list)
         parsed = json.loads(raw)
@@ -2982,7 +2982,7 @@ class TestFileAttributeStore:
         """FileAttributeStore.cleanup(path) removes entries with restore=True."""
         trash = _import_trash_module()
         hash_val = "cleanuphash"
-        metadata_file = tmp_path / f"{hash_val}.metadata.json"
+        metadata_file = tmp_path / f"{hash_val}-attributes.json"
         entries = [
             {
                 "path": "/home/user/restored.txt",
@@ -3010,7 +3010,7 @@ class TestFileAttributeStore:
         """FileAttributeStore.cleanup() returns count of removed entries."""
         trash = _import_trash_module()
         hash_val = "countclean"
-        metadata_file = tmp_path / f"{hash_val}.metadata.json"
+        metadata_file = tmp_path / f"{hash_val}-attributes.json"
         entries = [
             {
                 "path": "/home/user/a.txt",
