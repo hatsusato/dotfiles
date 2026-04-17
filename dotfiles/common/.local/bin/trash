@@ -924,7 +924,12 @@ def _restore_by_path(path: str, config: RestoreConfig) -> bool:
         )
     )
 
-    # Also append restore=True to all OTHER {hash}-attributes.json files
+    # Deduplication safeguard: Also append restore=True to all OTHER
+    # {hash}-attributes.json files that reference this path. This handles the
+    # scenario where the same path was backed up multiple times under
+    # different hashes (e.g., via content-addressed deduplication).
+    # Marking the path as restored in all files ensures garbage collection
+    # can later clean up all backup variants.
     for attr_path in config.trash_dir_path.glob("*-attributes.json"):
         # Extract hash: "{hash}-attributes.json" → "{hash}"
         hash_val = attr_path.name.replace("-attributes.json", "")
