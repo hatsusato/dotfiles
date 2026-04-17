@@ -1394,21 +1394,25 @@ class TestDeduplication:
             f"Should have 2 entries in metadata.json, got {len(metadata_entries)}"
         )
 
-        # Verify entries have required Phase 10 fields
+        # Verify entries have required Phase 12 fields
         for entry in metadata_entries:
-            # Required Phase 10 fields
+            # Required canonical fields
             assert "path" in entry
-            assert "timestamp" in entry  # NEW: epoch int (operation time)
-            assert "original_mode" in entry
-            assert "original_mtime" in entry  # KEPT: original file mtime
-            assert "restore" in entry  # NEW: boolean flag
+            assert "timestamp" in entry  # epoch int (operation time)
+            assert "mode" in entry
+            assert "mtime" in entry  # original file mtime
+            assert "restore" in entry  # boolean flag
+
+            # Legacy keys must NOT exist (Phase 12: removed dual-key support)
+            assert "original_mode" not in entry, "Phase 12: original_mode removed"
+            assert "original_mtime" not in entry, "Phase 12: original_mtime removed"
 
             # Phase 09 fields REMOVED per D-01
             assert "original_uid" not in entry, "D-01: uid/gid removed in Phase 10"
             assert "original_gid" not in entry, "D-01: uid/gid removed in Phase 10"
             assert "date" not in entry, "D-01: ISO 8601 removed, use timestamp"
 
-            # Type checks for new fields
+            # Type checks for fields
             assert isinstance(entry["timestamp"], int), "timestamp must be epoch int"
             assert isinstance(entry["restore"], bool), "restore must be boolean"
             assert entry["restore"] is False, "Fresh entries have restore: false"
@@ -1500,26 +1504,29 @@ class TestMetadata:
         )
         assert len(metadata_entries) >= 1, "Should have at least 1 entry"
 
-        # Verify first entry has all required Phase 10 keys
+        # Verify first entry has all required Phase 12 canonical keys
         first_entry = metadata_entries[0]
-        # Phase 10 format: epoch timestamp, no uid/gid, append-only restore flag
+        # Phase 12 format: canonical keys only (mode/mtime, no legacy original_* keys)
         required_keys = [
             "path",
-            "timestamp",  # NEW: epoch int (operation time), replaces "date"
-            "original_mode",
-            "original_mtime",  # KEPT: original file mtime
-            "restore",  # NEW: boolean flag
+            "timestamp",  # epoch int (operation time), replaces "date"
+            "mode",
+            "mtime",  # original file mtime
+            "restore",  # boolean flag
         ]
         for key in required_keys:
             assert key in first_entry, f"Missing required key: {key}"
 
-        # Verify types for Phase 10 fields
+        # Verify types for canonical fields
         assert isinstance(first_entry["path"], str)
-        assert isinstance(first_entry["original_mode"], str)
+        assert isinstance(first_entry["mode"], str)
         assert isinstance(first_entry["timestamp"], int), "timestamp: epoch int"
         assert isinstance(first_entry["restore"], bool), "restore: boolean"
         assert first_entry["restore"] is False, "Fresh entries have restore: false"
-        assert isinstance(first_entry["original_mtime"], int)
+        assert isinstance(first_entry["mtime"], int)
+        # Verify legacy keys removed (Phase 12)
+        assert "original_mode" not in first_entry, "Phase 12: original_mode removed"
+        assert "original_mtime" not in first_entry, "Phase 12: original_mtime removed"
         # Verify uid/gid fields removed (D-01)
         assert "original_uid" not in first_entry, "D-01: uid removed in Phase 10"
         assert "original_gid" not in first_entry, "D-01: gid removed in Phase 10"
@@ -1561,20 +1568,24 @@ class TestMetadata:
         metadata_entries = json.loads(metadata_json_path.read_text())
         entry = metadata_entries[0]
 
-        # Verify mode is recorded as octal string
-        assert entry["original_mode"] == "0700" or entry["original_mode"] == oct(
+        # Verify mode is recorded as octal string (canonical key)
+        assert entry["mode"] == "0700" or entry["mode"] == oct(
             0o700
-        ), f"Mode mismatch: expected 0700, got {entry['original_mode']}"
+        ), f"Mode mismatch: expected 0700, got {entry['mode']}"
+
+        # Phase 12: legacy keys must NOT exist
+        assert "original_mode" not in entry, "Phase 12: original_mode removed"
+        assert "original_mtime" not in entry, "Phase 12: original_mtime removed"
 
         # Phase 10 D-01: uid/gid fields must NOT exist
         assert "original_uid" not in entry, "D-01: uid removed in Phase 10"
         assert "original_gid" not in entry, "D-01: gid removed in Phase 10"
 
-        # Verify original_mtime is preserved from file stat
-        assert entry["original_mtime"] == orig_mtime, (
-            "original_mtime should match file stat"
+        # Verify mtime is preserved from file stat (canonical key)
+        assert entry["mtime"] == orig_mtime, (
+            "mtime should match file stat"
         )
-        assert isinstance(entry["original_mtime"], int)
+        assert isinstance(entry["mtime"], int)
 
         # Verify timestamp is the trash operation time (not the file's mtime)
         assert "timestamp" in entry
@@ -2267,25 +2278,28 @@ class TestPhase10EdgeCases:
         trash_dir = Path(mock_trash_env["trash_dir"])
         trash_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create metadata with mixed entries
+        # Create metadata with mixed entries (canonical keys: mode/mtime)
         metadata_file = trash_dir / "mixed_hash-attributes.json"
         entries = [
             {
                 "path": "/home/user/file1",
                 "timestamp": 1000,
-                "original_mode": "0644",
+                "mode": "0644",
+                "mtime": 1000,
                 "restore": False,
             },
             {
                 "path": "/home/user/file1",
                 "timestamp": 1100,
-                "original_mode": "0644",
+                "mode": "0644",
+                "mtime": 1000,
                 "restore": True,
             },
             {
                 "path": "/home/user/file2",
                 "timestamp": 1050,
-                "original_mode": "0755",
+                "mode": "0755",
+                "mtime": 1050,
                 "restore": False,
             },
         ]
