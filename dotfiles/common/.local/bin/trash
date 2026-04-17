@@ -29,7 +29,7 @@ def _get_epoch_timestamp() -> int:
 
 @dataclass
 class TrashEvent:
-    """Single event in metadata.jsonl — immutable data container."""
+    """Single event in trash-log.jsonl — immutable data container."""
 
     hash: str
     path: str
@@ -38,7 +38,7 @@ class TrashEvent:
     restore: bool = False
 
     def to_dict(self) -> dict[str, str | int | bool]:
-        """Convert to JSON-serializable dict for metadata.jsonl."""
+        """Convert to JSON-serializable dict for trash-log.jsonl."""
         return {
             "hash": self.hash,
             "path": self.path,
@@ -68,7 +68,7 @@ class TrashEvent:
 
 @dataclass
 class FileAttributes:
-    """Single entry in {hash}.metadata.json — immutable data container."""
+    """Single entry in {hash}-attributes.json — immutable data container."""
 
     path: str
     mode: int  # Octal, e.g., 0o755
@@ -77,7 +77,7 @@ class FileAttributes:
     restore: bool = False
 
     def to_dict(self) -> dict[str, str | int | bool]:
-        """Convert to JSON-serializable dict for {hash}.metadata.json.
+        """Convert to JSON-serializable dict for {hash}-attributes.json.
 
         Uses legacy field names original_mode/original_mtime for compatibility
         with _apply_metadata_on_restore() and existing integration tests.
@@ -117,20 +117,20 @@ class FileAttributes:
 
 
 class TrashLog:
-    """Manages metadata.jsonl as append-only event log.
+    """Manages trash-log.jsonl as append-only event log.
 
     Loads entire event history into memory at init for fast queries.
     Provides find_by_path() and find_by_hash() for O(n) lookups.
     """
 
     def __init__(self, metadata_path: Path) -> None:
-        """Load all events from metadata.jsonl into memory."""
+        """Load all events from trash-log.jsonl into memory."""
         self._metadata_path = metadata_path
         self._events: list[TrashEvent] = []
         self.load()
 
     def load(self) -> None:
-        """Read and parse metadata.jsonl, rebuild in-memory event list.
+        """Read and parse trash-log.jsonl, rebuild in-memory event list.
 
         Handles missing file, empty file gracefully.
         Raises ValueError on first malformed JSON line (fail-fast).
@@ -217,7 +217,7 @@ class TrashLog:
         self.append(restore_event)
 
     def save(self) -> None:
-        """Atomically rewrite metadata.jsonl with current in-memory events."""
+        """Atomically rewrite trash-log.jsonl with current in-memory events."""
         self._metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
         with NamedTemporaryFile(
@@ -245,7 +245,7 @@ class TrashLog:
         os.replace(temp_path, self._metadata_path)
 
     def _atomic_append_jsonl(self, event: TrashEvent) -> None:
-        """Safely append single line to metadata.jsonl.
+        """Safely append single line to trash-log.jsonl.
 
         For append-only, write directly in append mode then fsync.
         """
@@ -262,7 +262,7 @@ class TrashLog:
 
 
 class FileAttributeStore:
-    """Manages per-hash attribute file {hash}.metadata.json.
+    """Manages per-hash attribute file {hash}-attributes.json.
 
     Each hash gets one JSON file storing all paths that share this hash
     (deduplication case: same tar content from different directories).
@@ -271,11 +271,11 @@ class FileAttributeStore:
     def __init__(self, hash_value: str, trash_dir_path: Path) -> None:
         """Initialize manager for attributes of specific hash."""
         self._hash = hash_value
-        self._metadata_path = trash_dir_path / f"{hash_value}.metadata.json"
+        self._metadata_path = trash_dir_path / f"{hash_value}-attributes.json"
         self._attributes: list[FileAttributes] = []
 
     def load(self) -> list[FileAttributes]:
-        """Load all attributes from {hash}.metadata.json.
+        """Load all attributes from {hash}-attributes.json.
 
         Returns list (also stored in memory).
         Handles missing file, empty file, malformed JSON gracefully.
@@ -312,7 +312,7 @@ class FileAttributeStore:
         self.save()
 
     def save(self) -> None:
-        """Atomically write attributes to {hash}.metadata.json as JSON array."""
+        """Atomically write attributes to {hash}-attributes.json as JSON array."""
         self._metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
         with NamedTemporaryFile(
@@ -528,7 +528,7 @@ class TrashConfig:
                 os.unlink(tmp.name)
 
     def write_metadata(self, metadata: Metadata) -> None:
-        """Append this metadata entry to metadata.jsonl in JSON Lines format.
+        """Append this metadata entry to trash-log.jsonl in JSON Lines format.
 
         Each line is a complete JSON object representing one trashed item.
         Uses ensure_ascii=False to preserve original characters; separators
@@ -537,7 +537,7 @@ class TrashConfig:
         Args:
             metadata: Metadata entry to write
         """
-        metadata_path = self.trash_dir_path / "metadata.jsonl"
+        metadata_path = self.trash_dir_path / "trash-log.jsonl"
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
         with open(metadata_path, "a") as f:
             json.dump(metadata.to_dict(), f, ensure_ascii=False, separators=(",", ":"))
@@ -651,8 +651,8 @@ class RestoreConfig:
 
     @property
     def metadata_path(self) -> Path:
-        """Return path to metadata.jsonl inside trash_dir."""
-        return self.trash_dir_path / "metadata.jsonl"
+        """Return path to trash-log.jsonl inside trash_dir."""
+        return self.trash_dir_path / "trash-log.jsonl"
 
     def get_trash_path(self, hash_value: str) -> Path:
         """Return path to trashed item by hash.
@@ -666,7 +666,7 @@ class RestoreConfig:
         return self.trash_dir_path / hash_value
 
     def write_metadata(self, metadata: Metadata) -> None:
-        """Append a metadata entry to metadata.jsonl.
+        """Append a metadata entry to trash-log.jsonl.
 
         Args:
             metadata: Metadata entry to append
@@ -677,10 +677,10 @@ class RestoreConfig:
             f.write("\n")
 
     def list_trash(self) -> None:
-        """Print metadata.jsonl contents in human-readable format to stdout.
+        """Print trash-log.jsonl contents in human-readable format to stdout.
 
         Displays numbered list with path, hash, type, and date for each entry.
-        Prints nothing (empty output) if trash is empty or metadata.jsonl missing.
+        Prints nothing (empty output) if trash is empty or trash-log.jsonl missing.
         """
         if not self.metadata_path.exists():
             return
@@ -793,7 +793,7 @@ def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
             "original_gid": original_gid,
             "original_mtime": original_mtime,
         }
-        metadata_json_path = config.trash_dir_path / f"{hash_value}.metadata.json"
+        metadata_json_path = config.trash_dir_path / f"{hash_value}-attributes.json"
         entries: list[dict[str, int | str]] = [metadata_entry]
         metadata_json_path.write_text(json.dumps(entries, indent=2, ensure_ascii=False))
         return
@@ -836,7 +836,7 @@ def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
             "original_gid": original_gid,
             "original_mtime": original_mtime,
         }
-        metadata_json_path = config.trash_dir_path / f"{hash_value}.metadata.json"
+        metadata_json_path = config.trash_dir_path / f"{hash_value}-attributes.json"
         entries: list[dict[str, int | str]] = [metadata_entry]
         metadata_json_path.write_text(json.dumps(entries, indent=2, ensure_ascii=False))
         return
@@ -866,7 +866,7 @@ def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
         "original_gid": original_gid,
         "original_mtime": original_mtime,
     }
-    metadata_json_path = config.trash_dir_path / f"{hash_value}.metadata.json"
+    metadata_json_path = config.trash_dir_path / f"{hash_value}-attributes.json"
     entries: list[dict[str, int | str]] = [metadata_entry]
     metadata_json_path.write_text(json.dumps(entries, indent=2, ensure_ascii=False))
 
@@ -898,7 +898,7 @@ def _restore_file(target_path: Path, metadata: Metadata, config: RestoreConfig) 
     shutil.copy(str(trash_path), target_path)
 
     # Apply original metadata from {hash}.json if available
-    metadata_json_path = config.trash_dir_path / f"{metadata.hash}.metadata.json"
+    metadata_json_path = config.trash_dir_path / f"{metadata.hash}-attributes.json"
     if metadata_json_path.exists():
         try:
             entries_data = json.loads(metadata_json_path.read_text())
@@ -955,7 +955,7 @@ def _restore_dir(target_path: Path, metadata: Metadata, config: RestoreConfig) -
         tf.extractall(target_path, filter="data")
 
     # Apply original metadata from {hash}.json if available
-    metadata_json_path = config.trash_dir_path / f"{metadata.hash}.metadata.json"
+    metadata_json_path = config.trash_dir_path / f"{metadata.hash}-attributes.json"
     if metadata_json_path.exists():
         try:
             entries_data = json.loads(metadata_json_path.read_text())
@@ -1013,7 +1013,7 @@ def _restore_symlink(
     shutil.move(str(trash_path), target_path)
 
     # Apply original metadata from {hash}.json if available
-    metadata_json_path = config.trash_dir_path / f"{metadata.hash}.metadata.json"
+    metadata_json_path = config.trash_dir_path / f"{metadata.hash}-attributes.json"
     if metadata_json_path.exists():
         try:
             entries_data = json.loads(metadata_json_path.read_text())
@@ -1043,7 +1043,7 @@ def _restore_symlink(
 def _restore_by_path(path: str, config: RestoreConfig) -> bool:
     """Restore a single file/dir/symlink from trash by its original path.
 
-    Searches metadata.jsonl for an entry matching the resolved absolute path,
+    Searches trash-log.jsonl for an entry matching the resolved absolute path,
     dispatches to the appropriate type-specific restore function, then removes
     the metadata entry on success.
 
@@ -1103,10 +1103,10 @@ def _restore_by_path(path: str, config: RestoreConfig) -> bool:
         _restore_symlink(target_path, metadata_entry, config)
 
     # Phase 10: Append-only restore (append restore: true entry to all metadata files)
-    # Append restore: true event to metadata.jsonl via TrashLog
+    # Append restore: true event to trash-log.jsonl via TrashLog
     trash_log = TrashLog(config.metadata_path)
     trash_log.mark_restored(metadata_entry.hash, str(target_path), metadata_entry.type)
-    # Append restore: true to {hash}.metadata.json via FileAttributeStore
+    # Append restore: true to {hash}-attributes.json via FileAttributeStore
     attr_store = FileAttributeStore(metadata_entry.hash, config.trash_dir_path)
     attr_store.load()
     attr_store.append(
@@ -1119,9 +1119,9 @@ def _restore_by_path(path: str, config: RestoreConfig) -> bool:
     )
 
     # Also append restore: true to all OTHER metadata.json files
-    for metadata_path in config.trash_dir_path.glob("*.metadata.json"):
-        # Extract hash: "{hash}.metadata.json" → "{hash}"
-        hash_val = metadata_path.name.replace(".metadata.json", "")
+    for metadata_path in config.trash_dir_path.glob("*-attributes.json"):
+        # Extract hash: "{hash}-attributes.json" → "{hash}"
+        hash_val = metadata_path.name.replace("-attributes.json", "")
         if hash_val == metadata_entry.hash:
             continue  # Already handled above
         try:
@@ -1270,7 +1270,7 @@ def garbage_collect(config: TrashConfig) -> tuple[int, int]:
     orphan_hashes: set[str] = set()
 
     # Step 1: Scan all {hash}.json files
-    for metadata_path in config.trash_dir_path.glob("*.metadata.json"):
+    for metadata_path in config.trash_dir_path.glob("*-attributes.json"):
         try:
             entries = json.loads(metadata_path.read_text())
             if not isinstance(entries, list):
@@ -1287,8 +1287,8 @@ def garbage_collect(config: TrashConfig) -> tuple[int, int]:
         # Update or delete metadata file
         if not remaining:
             # No more entries → tar is orphan
-            # Extract hash from filename: "{hash}.metadata.json" → "{hash}"
-            hash_val = metadata_path.name.replace(".metadata.json", "")
+            # Extract hash from filename: "{hash}-attributes.json" → "{hash}"
+            hash_val = metadata_path.name.replace("-attributes.json", "")
             orphan_hashes.add(hash_val)
             try:
                 metadata_path.unlink()
@@ -1356,7 +1356,7 @@ def _process_files(file_paths: list[Path], config: TrashConfig) -> bool:
                 original_mtime = int(stat.st_mtime)
                 metadata = config.trash_file(trash_path)
 
-            # Write metadata.jsonl (existing behavior)
+            # Write trash-log.jsonl (existing behavior)
             config.write_metadata(metadata)
 
             # Write {hash}.json (new behavior)
