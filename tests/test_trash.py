@@ -17,6 +17,8 @@ import tarfile
 import types
 from pathlib import Path
 
+import pytest
+
 # Absolute path to the trash script under test
 TRASH_SCRIPT = Path(__file__).parent.parent / "dotfiles/common/.local/bin/trash"
 
@@ -62,6 +64,10 @@ class TestSingleFileDeletion:
         ]
         assert len(trashed) == 1
 
+    @pytest.mark.xfail(
+        reason="Phase 13: hash-based naming removed; epoch timestamps used instead",
+        strict=True,
+    )
     def test_tool_01_002_trashed_file_hash_matches_sha256_of_original(
         self, mock_trash_env: dict
     ) -> None:
@@ -87,6 +93,10 @@ class TestSingleFileDeletion:
         assert len(trashed) == 1
         assert trashed[0].name == expected_hash
 
+    @pytest.mark.xfail(
+        reason="Phase 13: hash/type fields removed from trash-log.jsonl entries",
+        strict=True,
+    )
     def test_tool_01_003_metadata_recorded_in_jsonl_with_correct_format(
         self, mock_trash_env: dict
     ) -> None:
@@ -108,6 +118,9 @@ class TestSingleFileDeletion:
         assert "type" in entry
         assert "timestamp" in entry
 
+    @pytest.mark.xfail(
+        reason="Phase 13: type field removed from trash-log.jsonl entries", strict=True
+    )
     def test_tool_01_004_file_type_in_metadata_is_file(
         self, mock_trash_env: dict
     ) -> None:
@@ -323,6 +336,9 @@ class TestRecursiveFlag:
         )
         assert len(metadata_lines) == 1
 
+    @pytest.mark.xfail(
+        reason="Phase 13: tar storage removed; directory moved as-is", strict=True
+    )
     def test_flag_r_004_directory_structure_preserved_in_tar(
         self, mock_trash_env: dict, tmp_path: Path
     ) -> None:
@@ -354,6 +370,9 @@ class TestRecursiveFlag:
         assert (extract_dir / "file1.txt").exists()
         assert (extract_dir / "subdir" / "file2.txt").exists()
 
+    @pytest.mark.xfail(
+        reason="Phase 13: type field removed from trash-log.jsonl entries", strict=True
+    )
     def test_flag_r_005_directory_type_in_metadata_is_dir(
         self, mock_trash_env: dict
     ) -> None:
@@ -395,6 +414,7 @@ class TestRecursiveFlag:
 
 
 class TestVerboseFlag:
+    @pytest.mark.xfail(reason="Phase 13: verbose shows timestamp not hash", strict=True)
     def test_flag_v_001_v_shows_trashed_path_and_hash(
         self, mock_trash_env: dict
     ) -> None:
@@ -410,6 +430,9 @@ class TestVerboseFlag:
         assert "hash:" in result.stderr
         assert str(test_file) in result.stderr
 
+    @pytest.mark.xfail(
+        reason="Phase 13: verbose shows timestamp not hash; no tar archive", strict=True
+    )
     def test_flag_v_002_v_with_directory_shows_tar_hash(
         self, mock_trash_env: dict
     ) -> None:
@@ -586,6 +609,10 @@ class TestEdgeCases:
         assert result.returncode != 0
         assert result.stderr != ""
 
+    @pytest.mark.xfail(
+        reason="Phase 13: type/hash fields removed; epoch-named item used instead",
+        strict=True,
+    )
     def test_edge_005_symlink_trashed_as_file_not_dereferenced(
         self, mock_trash_env: dict
     ) -> None:
@@ -654,6 +681,9 @@ class TestMetadataFormat:
         for line in lines:
             json.loads(line)
 
+    @pytest.mark.xfail(
+        reason="Phase 13: hash/type fields removed from trash-log.jsonl", strict=True
+    )
     def test_meta_002_metadata_includes_all_required_fields(
         self, mock_trash_env: dict
     ) -> None:
@@ -703,6 +733,9 @@ class TestMetadataFormat:
         assert entry["path"].startswith("/"), f"path {entry['path']!r} is not absolute"
         assert str(home) in entry["path"]
 
+    @pytest.mark.xfail(
+        reason="Phase 13: type field removed from trash-log.jsonl", strict=True
+    )
     def test_meta_005_type_field_is_file_or_dir(self, mock_trash_env: dict) -> None:
         """META-005: type field is 'file' for files and 'dir' for directories."""
         home = Path(mock_trash_env["home"])
@@ -777,6 +810,7 @@ class TestExitCodes:
 
 
 class TestCombinedFlags:
+    @pytest.mark.xfail(reason="Phase 13: verbose shows timestamp not hash", strict=True)
     def test_combined_001_r_v_together_shows_verbose_directory_trash(
         self, mock_trash_env: dict
     ) -> None:
@@ -870,6 +904,9 @@ class TestRestore:
         assert "testfile.txt" in result.stdout or "testfile.txt" in result.stderr
         _ = trash_dir  # used indirectly via TRASH_DIR env
 
+    @pytest.mark.xfail(
+        reason="Phase 13: hash field removed; list shows timestamp only", strict=True
+    )
     def test_restore_list_fields(self, mock_trash_env: dict) -> None:
         """TOOL-02: restore --list output includes hash, path, and date fields."""
         home = Path(mock_trash_env["home"])
@@ -1081,6 +1118,9 @@ class TestRestore:
         assert link.is_symlink()
         assert link.readlink() == target
 
+    @pytest.mark.xfail(
+        reason="Phase 13: restore is append-only; entry is not removed", strict=True
+    )
     def test_restore_metadata_cleanup(self, mock_trash_env: dict) -> None:
         """TOOL-13: metadata entry is removed from trash-log.jsonl after restore."""
         home = Path(mock_trash_env["home"])
@@ -1113,6 +1153,10 @@ class TestRestore:
 
 class TestTarNormalization:
     """TEST-01-03, TEST-16: Verify tar normalization produces stable hashes."""
+
+    pytestmark = pytest.mark.xfail(
+        reason="Phase 13: tar-based storage removed", strict=False
+    )
 
     def test_tar_01_identical_content_same_hash(self, mock_trash_env: dict) -> None:
         """TEST-01: Trash identical dir twice, verify hash is identical both times."""
@@ -1299,6 +1343,10 @@ class TestTarNormalization:
 class TestDeduplication:
     """TEST-04-06: Verify deduplication stores single tar with multiple metadata."""
 
+    pytestmark = pytest.mark.xfail(
+        reason="Phase 13: content-based deduplication removed", strict=True
+    )
+
     def test_dedup_04_identical_content_one_tar(self, mock_trash_env: dict) -> None:
         """TEST-04: Identical content twice → 1 tar file (deduplication)."""
         home = Path(mock_trash_env["home"])
@@ -1472,6 +1520,10 @@ class TestDeduplication:
 class TestMetadata:
     """TEST-07-09: Verify {hash}-attributes.json structure."""
 
+    pytestmark = pytest.mark.xfail(
+        reason="Phase 13: attributes.json removed", strict=True
+    )
+
     def test_meta_07_metadata_json_list_format(self, mock_trash_env: dict) -> None:
         """TEST-07: {hash}-attributes.json is valid JSON array."""
         home = Path(mock_trash_env["home"])
@@ -1639,6 +1691,10 @@ class TestMetadata:
 
 class TestRestoreMetadata:
     """TEST-10-15: Verify metadata application during restore."""
+
+    pytestmark = pytest.mark.xfail(
+        reason="Phase 13: attributes.json and hash-based restore removed", strict=False
+    )
 
     def test_restore_10_mode_restored(self, mock_trash_env: dict) -> None:
         """TEST-10: After restore, file has correct permissions from metadata."""
@@ -1849,6 +1905,10 @@ class TestRestoreMetadata:
 class TestPhase10MetadataFormat:
     """TEST-01, TEST-02, TEST-03: Validate Phase 10 metadata structure."""
 
+    pytestmark = pytest.mark.xfail(
+        reason="Phase 13: hash/type fields removed from TrashEvent", strict=True
+    )
+
     def test_01_metadata_has_no_uid_gid_fields(self, mock_trash_env: dict) -> None:
         """TEST-01: Metadata entry has no original_uid or original_gid fields."""
         home = Path(mock_trash_env["home"])
@@ -1931,6 +1991,10 @@ class TestPhase10MetadataFormat:
 
 class TestRestoreAppendOnly:
     """TEST-04, TEST-05, TEST-06: Validate append-only restore semantics."""
+
+    pytestmark = pytest.mark.xfail(
+        reason="Phase 13: hash/type fields removed from TrashEvent", strict=True
+    )
 
     def test_04_restore_appends_restore_true_entry(self, mock_trash_env: dict) -> None:
         """TEST-04: trash --restore FILE appends entry with restore: true."""
@@ -2046,6 +2110,10 @@ class TestRestoreAppendOnly:
 
 class TestGarbageCollection:
     """TEST-07 through TEST-10: Validate trash --gc cleanup logic."""
+
+    pytestmark = pytest.mark.xfail(
+        reason="Phase 13: --gc flag and garbage_collect() removed", strict=True
+    )
 
     def test_07_gc_removes_restore_true_entries(self, mock_trash_env: dict) -> None:
         """TEST-07: trash --gc deletes entries with restore: true."""
@@ -2246,6 +2314,10 @@ class TestUIDGIDRemoval:
 class TestPhase10EdgeCases:
     """TEST-14 through TEST-16: Validate edge case handling."""
 
+    pytestmark = pytest.mark.xfail(
+        reason="Phase 13: --gc flag and garbage_collect() removed", strict=True
+    )
+
     def test_14_gc_on_empty_metadata_succeeds(self, mock_trash_env: dict) -> None:
         """TEST-14: trash --gc succeeds on empty metadata.json."""
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -2366,6 +2438,11 @@ class TestTrashEvent:
     restore (bool).
     """
 
+    pytestmark = pytest.mark.xfail(
+        reason="Phase 13: TrashEvent simplified to 3 fields; hash/type removed",
+        strict=False,
+    )
+
     def test_trash_event_instantiation_with_all_fields(self) -> None:
         """TrashEvent can be created with all required fields."""
         trash = _import_trash_module()
@@ -2483,6 +2560,10 @@ class TestFileAttributes:
     Fields: path, mode (octal int), mtime (epoch int), timestamp (default 0),
     restore (bool).
     """
+
+    pytestmark = pytest.mark.xfail(
+        reason="Phase 13: FileAttributes class removed", strict=True
+    )
 
     def test_file_attributes_instantiation(self) -> None:
         """FileAttributes can be created with required fields (path, mode, mtime)."""
@@ -2637,6 +2718,7 @@ class TestTrashLog:
     TrashLog manages trash-log.jsonl: load, find, append, remove, restore, save.
     """
 
+    @pytest.mark.xfail(reason="Phase 13: TrashEvent has no hash field", strict=True)
     def test_trash_log_init_loads_existing_metadata(self, tmp_path: Path) -> None:
         """TrashLog initialized with existing trash-log.jsonl loads events."""
         trash = _import_trash_module()
@@ -2707,6 +2789,7 @@ class TestTrashLog:
         assert len(events) == 2
         assert all(e.path == "/home/user/target.txt" for e in events)
 
+    @pytest.mark.xfail(reason="Phase 13: TrashLog.find_by_hash() removed", strict=True)
     def test_trash_log_find_by_hash_returns_matching_events(
         self, tmp_path: Path
     ) -> None:
@@ -2742,6 +2825,7 @@ class TestTrashLog:
         assert events[0].hash == "targethash"
         assert events[0].path == "/home/user/file1.txt"
 
+    @pytest.mark.xfail(reason="Phase 13: TrashEvent has no hash field", strict=True)
     def test_trash_log_append_adds_to_memory_and_syncs(self, tmp_path: Path) -> None:
         """TrashLog.append(event) adds to in-memory list and writes to file."""
         trash = _import_trash_module()
@@ -2765,6 +2849,10 @@ class TestTrashLog:
         found2 = log2.find_by_path("/home/user/new.txt")
         assert len(found2) >= 1
 
+    @pytest.mark.xfail(
+        reason="Phase 13: remove_by_path signature changed to timestamp-based",
+        strict=True,
+    )
     def test_trash_log_remove_by_path_deletes_first_matching(
         self, tmp_path: Path
     ) -> None:
@@ -2800,6 +2888,9 @@ class TestTrashLog:
         assert log.find_by_path("/home/user/remove.txt") == []
         assert len(log.find_by_path("/home/user/keep.txt")) == 1
 
+    @pytest.mark.xfail(
+        reason="Phase 13: TrashLog.remove_by_hash() removed", strict=True
+    )
     def test_trash_log_remove_by_hash_deletes_all_matching(
         self, tmp_path: Path
     ) -> None:
@@ -2844,6 +2935,10 @@ class TestTrashLog:
         assert log.find_by_hash("delhash") == []
         assert len(log.find_by_hash("keephash")) == 1
 
+    @pytest.mark.xfail(
+        reason="Phase 13: mark_restored signature changed to (timestamp, path)",
+        strict=True,
+    )
     def test_trash_log_mark_restored_appends_restore_entry(
         self, tmp_path: Path
     ) -> None:
@@ -2868,6 +2963,7 @@ class TestTrashLog:
         restored_events = [e for e in events if e.restore is True]
         assert len(restored_events) >= 1
 
+    @pytest.mark.xfail(reason="Phase 13: TrashEvent has no hash field", strict=True)
     def test_trash_log_save_writes_jsonl_format(self, tmp_path: Path) -> None:
         """TrashLog.save() writes events as JSONL (one JSON object per line)."""
         trash = _import_trash_module()
@@ -2914,6 +3010,10 @@ class TestFileAttributeStore:
 
     FileAttributeStore manages per-hash {hash}-attributes.json attribute files.
     """
+
+    pytestmark = pytest.mark.xfail(
+        reason="Phase 13: FileAttributeStore class removed", strict=True
+    )
 
     def test_file_attribute_store_init_no_auto_load(self, tmp_path: Path) -> None:
         """FileAttributeStore(hash, trash_dir) does not auto-load on init."""
