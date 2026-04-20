@@ -5,7 +5,9 @@ Tests run the trash script as a subprocess via run_trash() with environment
 isolation provided by the mock_trash_env fixture.
 """
 
+import dataclasses
 import importlib.util
+import inspect
 import json
 import os
 import re
@@ -316,7 +318,9 @@ class TestRecursiveFlag:
         ]
         assert len(trashed) == 1
 
-        metadata_lines = (trash_dir / "trash-log.jsonl").read_text().strip().splitlines()
+        metadata_lines = (
+            (trash_dir / "trash-log.jsonl").read_text().strip().splitlines()
+        )
         assert len(metadata_lines) == 1
 
     def test_flag_r_004_directory_structure_preserved_in_tar(
@@ -1569,9 +1573,9 @@ class TestMetadata:
         entry = metadata_entries[0]
 
         # Verify mode is recorded as octal string (canonical key)
-        assert entry["mode"] == "0700" or entry["mode"] == oct(
-            0o700
-        ), f"Mode mismatch: expected 0700, got {entry['mode']}"
+        assert entry["mode"] == "0700" or entry["mode"] == oct(0o700), (
+            f"Mode mismatch: expected 0700, got {entry['mode']}"
+        )
 
         # Phase 12: legacy keys must NOT exist
         assert "original_mode" not in entry, "Phase 12: original_mode removed"
@@ -1582,9 +1586,7 @@ class TestMetadata:
         assert "original_gid" not in entry, "D-01: gid removed in Phase 10"
 
         # Verify mtime is preserved from file stat (canonical key)
-        assert entry["mtime"] == orig_mtime, (
-            "mtime should match file stat"
-        )
+        assert entry["mtime"] == orig_mtime, "mtime should match file stat"
         assert isinstance(entry["mtime"], int)
 
         # Verify timestamp is the trash operation time (not the file's mtime)
@@ -1629,7 +1631,9 @@ class TestMetadata:
                 symlink_entry = entry
                 break
 
-        assert symlink_entry is not None, "Symlink entry should exist in trash-log.jsonl"
+        assert symlink_entry is not None, (
+            "Symlink entry should exist in trash-log.jsonl"
+        )
         assert symlink_entry["path"] == str(link)
 
 
@@ -2585,7 +2589,10 @@ class TestFileAttributes:
         assert isinstance(d["mtime"], int)
 
     def test_file_attributes_to_dict_canonical_keys_only(self) -> None:
-        """Phase 12: to_dict() outputs only canonical keys; no legacy original_* keys."""
+        """Phase 12: to_dict() outputs only canonical keys; no legacy original_* keys.
+
+        Checks that original_mode and original_mtime are absent from output.
+        """
         trash = _import_trash_module()
         attrs = trash.FileAttributes(
             path="/test/file.txt",
@@ -2605,7 +2612,9 @@ class TestFileAttributes:
 
         # Legacy keys must NOT be present (Phase 12 removed dual-key support)
         assert "original_mode" not in d, "Phase 12: original_mode must not be in output"
-        assert "original_mtime" not in d, "Phase 12: original_mtime must not be in output"
+        assert "original_mtime" not in d, (
+            "Phase 12: original_mtime must not be in output"
+        )
 
         # Verify values are correct types
         assert isinstance(d["mode"], str)
@@ -3103,3 +3112,382 @@ class TestFileAttributeStore:
         paths = {a.path for a in loaded}
         assert "/home/user/dir1/file.txt" in paths
         assert "/home/user/dir2/file.txt" in paths
+
+
+# ============================================================================
+# Phase 13 Wave 0 (RED): D-01 to D-16
+# ============================================================================
+
+
+class TestEpochNaming:
+    """D-01: All items use epoch integer naming in .trash/"""
+
+    def test_file_uses_epoch_timestamp_naming(self, mock_trash_env: dict) -> None:
+        """Trashing a file creates .trash/{digits} (not a hash)."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        test_file = home / "testfile.txt"
+        test_file.write_text("hello epoch")
+
+        result = run_trash(str(test_file))
+        assert result.returncode == 0
+
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
+        assert len(trashed) == 1
+        name = trashed[0].name
+        assert name.isdigit(), f"Expected epoch digits, got: {name}"
+
+    def test_dir_uses_epoch_timestamp_naming(self, mock_trash_env: dict) -> None:
+        """Trashing a directory creates .trash/{digits} as a directory (not a tar)."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        test_dir = home / "mydir"
+        test_dir.mkdir()
+        (test_dir / "file.txt").write_text("content")
+
+        result = run_trash("-r", str(test_dir))
+        assert result.returncode == 0
+
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
+        assert len(trashed) == 1
+        name = trashed[0].name
+        assert name.isdigit(), f"Expected epoch digits, got: {name}"
+        assert trashed[0].is_dir(), f"Expected directory (not tar), got: {trashed[0]}"
+
+
+class TestCollisionAvoidance:
+    """D-02: Collision avoidance increments epoch until free slot found."""
+
+    def test_collision_avoided_by_increment(self, mock_trash_env: dict) -> None:
+        """get_unique_timestamp() returns ts+N when existing names occupy ts."""
+        import time
+
+        trash_dir = Path(mock_trash_env["trash_dir"])
+        module = _import_trash_module()
+
+        # Pre-occupy current and next epoch
+        ts = int(time.time())
+        (trash_dir / str(ts)).mkdir()
+        (trash_dir / str(ts + 1)).mkdir()
+
+        result = module.get_unique_timestamp(trash_dir)
+        assert result >= ts + 2, f"Expected >= {ts + 2}, got {result}"
+
+    def test_rapid_fire_trash_creates_separate_entries(
+        self, mock_trash_env: dict
+    ) -> None:
+        """Rapid-fire trash: each file gets a separate epoch-named unique item."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        files = []
+        for i in range(3):
+            f = home / f"file{i}.txt"
+            f.write_text(f"content {i}")
+            files.append(str(f))
+
+        result = run_trash(*files)
+        assert result.returncode == 0
+
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
+        assert len(trashed) == 3
+        names = {f.name for f in trashed}
+        assert all(n.isdigit() for n in names), f"All names must be digits: {names}"
+        assert len(names) == 3, f"All names must be unique: {names}"
+
+
+class TestNoTar:
+    """D-03: No tar archives created; import tarfile removed."""
+
+    def test_no_tar_archives_in_trash_after_dir_trash(
+        self, mock_trash_env: dict
+    ) -> None:
+        """Trashing a directory produces no .tar files in .trash/"""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        test_dir = home / "mydir"
+        test_dir.mkdir()
+        (test_dir / "a.txt").write_text("data")
+
+        run_trash("-r", str(test_dir))
+
+        tar_files = list(trash_dir.glob("*.tar"))
+        assert len(tar_files) == 0, f"Found unexpected tar files: {tar_files}"
+
+    def test_tarfile_not_imported_in_script(self) -> None:
+        """trash script does not import tarfile module."""
+        source = TRASH_SCRIPT.read_text()
+        assert "import tarfile" not in source, "Found 'import tarfile' in trash script"
+
+
+class TestTrashEventFields:
+    """D-04, D-05, D-06: TrashEvent has exactly 3 fields: path, timestamp, restore."""
+
+    def test_trash_event_has_only_three_fields(self) -> None:
+        """TrashEvent dataclass has exactly {path, timestamp, restore} fields."""
+        module = _import_trash_module()
+        fields = {f.name for f in dataclasses.fields(module.TrashEvent)}
+        assert fields == {"path", "timestamp", "restore"}, (
+            f"Expected {{path, timestamp, restore}}, got: {fields}"
+        )
+
+    def test_trash_log_entry_has_no_hash_field(self, mock_trash_env: dict) -> None:
+        """trash-log.jsonl entries must not contain 'hash' key."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        f = home / "test.txt"
+        f.write_text("data")
+        run_trash(str(f))
+
+        log = trash_dir / "trash-log.jsonl"
+        entry = json.loads(log.read_text().strip().splitlines()[0])
+        assert "hash" not in entry, f"Found 'hash' in entry: {entry}"
+
+    def test_trash_log_entry_has_no_type_field(self, mock_trash_env: dict) -> None:
+        """trash-log.jsonl entries must not contain 'type' key."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        f = home / "test.txt"
+        f.write_text("data")
+        run_trash(str(f))
+
+        log = trash_dir / "trash-log.jsonl"
+        entry = json.loads(log.read_text().strip().splitlines()[0])
+        assert "type" not in entry, f"Found 'type' in entry: {entry}"
+
+
+class TestMetadataFiles:
+    """D-09: No {timestamp}-attributes.json or {hash}-attributes.json created."""
+
+    def test_no_attributes_json_created_for_file(self, mock_trash_env: dict) -> None:
+        """Trashing a file creates no *-attributes.json file."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        f = home / "test.txt"
+        f.write_text("data")
+        run_trash(str(f))
+
+        attrs = list(trash_dir.glob("*-attributes.json"))
+        assert len(attrs) == 0, f"Found unexpected attributes files: {attrs}"
+
+    def test_no_attributes_json_created_for_dir(self, mock_trash_env: dict) -> None:
+        """Trashing a directory creates no *-attributes.json file."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        d = home / "mydir"
+        d.mkdir()
+        (d / "f.txt").write_text("x")
+        run_trash("-r", str(d))
+
+        attrs = list(trash_dir.glob("*-attributes.json"))
+        assert len(attrs) == 0, f"Found unexpected attributes files: {attrs}"
+
+
+class TestNoDeduplicate:
+    """D-10: Content-based deduplication removed; same content = 2 separate entries."""
+
+    def test_same_file_trashed_twice_creates_two_entries(
+        self, mock_trash_env: dict
+    ) -> None:
+        """Trashing identical content twice creates 2 separate .trash/ items."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        f1 = home / "file1.txt"
+        f2 = home / "file2.txt"
+        f1.write_text("identical content")
+        f2.write_text("identical content")
+
+        run_trash(str(f1))
+        run_trash(str(f2))
+
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
+        assert len(trashed) == 2, f"Expected 2 separate items, got {len(trashed)}"
+
+
+class TestGCRemoved:
+    """D-11: --gc flag and garbage_collect() function removed."""
+
+    def test_gc_flag_not_recognized(self, mock_trash_env: dict) -> None:
+        """trash --gc returns non-zero exit code (unknown flag)."""
+        result = run_trash("--gc")
+        assert result.returncode != 0, (
+            f"Expected non-zero exit for --gc, got {result.returncode}"
+        )
+
+    def test_garbage_collect_function_deleted(self) -> None:
+        """garbage_collect() function must not exist in trash module."""
+        module = _import_trash_module()
+        assert not hasattr(module, "garbage_collect"), (
+            "garbage_collect() still exists in trash module"
+        )
+
+
+class TestRestoreDir13:
+    """D-12: _restore_dir() uses shutil.move (not tarfile.extractall)."""
+
+    def test_restore_dir_moves_directory_not_extracts(
+        self, mock_trash_env: dict
+    ) -> None:
+        """Restored directory comes from shutil.move, not tarfile extraction."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        # Create and trash a directory
+        test_dir = home / "mydir"
+        test_dir.mkdir()
+        inner_file = test_dir / "inner.txt"
+        inner_file.write_text("inner content")
+
+        run_trash("-r", str(test_dir))
+        assert not test_dir.exists()
+
+        # Restore should succeed via shutil.move
+        result = run_trash("--restore", str(test_dir))
+        assert result.returncode == 0
+        assert test_dir.exists()
+        assert test_dir.is_dir()
+        assert (test_dir / "inner.txt").read_text() == "inner content"
+
+        # Verify no tar files exist in trash (directory stored as-is)
+        tar_files = list(trash_dir.glob("*.tar"))
+        assert len(tar_files) == 0, f"Found tar files: {tar_files}"
+
+    def test_restore_dir_uses_timestamp_key_not_hash(
+        self, mock_trash_env: dict
+    ) -> None:
+        """Trash log uses timestamp to identify trashed directory (no hash field)."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        d = home / "mydir"
+        d.mkdir()
+        (d / "f.txt").write_text("x")
+
+        run_trash("-r", str(d))
+
+        log_path = trash_dir / "trash-log.jsonl"
+        entry = json.loads(log_path.read_text().strip().splitlines()[0])
+        assert "hash" not in entry, f"Found hash in log entry: {entry}"
+        assert "timestamp" in entry, f"Missing timestamp in log entry: {entry}"
+        assert str(entry["timestamp"]).isdigit(), f"timestamp not an integer: {entry}"
+
+
+class TestRestore13:
+    """D-13: Restore operations use timestamp key (not hash)."""
+
+    def test_restore_file_uses_timestamp_path(self, mock_trash_env: dict) -> None:
+        """Restoring a file: .trash/{timestamp} is used as source, not hash."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        f = home / "restore_me.txt"
+        f.write_text("restore content")
+
+        run_trash(str(f))
+        assert not f.exists()
+
+        # Find the trashed item
+        trashed = [x for x in trash_dir.iterdir() if x.name != "trash-log.jsonl"]
+        assert len(trashed) == 1
+        assert trashed[0].name.isdigit(), f"Expected epoch-named item: {trashed[0]}"
+
+        # Restore should work
+        result = run_trash("--restore", str(f))
+        assert result.returncode == 0
+        assert f.exists()
+        assert f.read_text() == "restore content"
+
+    def test_restore_symlink_uses_timestamp_path(self, mock_trash_env: dict) -> None:
+        """Restoring a symlink: .trash/{timestamp} used as source."""
+        home = Path(mock_trash_env["home"])
+
+        target = home / "target.txt"
+        target.write_text("target content")
+        link = home / "mylink"
+        link.symlink_to(target)
+
+        run_trash(str(link))
+        assert not link.exists()
+
+        result = run_trash("--restore", str(link))
+        assert result.returncode == 0
+        assert link.is_symlink()
+
+
+class TestRestoreConflict13:
+    """D-14: Restore to existing path triggers _backup_existing_to_trash."""
+
+    def test_restore_with_existing_file_backs_up_first(
+        self, mock_trash_env: dict
+    ) -> None:
+        """Restoring when target exists: existing file is backed up first."""
+        home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
+
+        original = home / "conflict.txt"
+        original.write_text("original content")
+        run_trash(str(original))
+
+        # Create a new file at the same path (conflict)
+        original.write_text("new content that should be backed up")
+
+        # Restore should back up the new file and restore the original
+        result = run_trash("--restore", str(original))
+        assert result.returncode == 0
+        assert original.exists()
+        # The original content should be restored
+        assert original.read_text() == "original content"
+
+        # The new content should be in trash (backed up)
+        log_path = trash_dir / "trash-log.jsonl"
+        entries = [
+            json.loads(line)
+            for line in log_path.read_text().strip().splitlines()
+            if line
+        ]
+        paths = [e["path"] for e in entries]
+        assert str(original) in paths, (
+            f"Backup entry for {original} not found in {paths}"
+        )
+
+
+class TestTrashLogAPI:
+    """D-15, D-16: TrashLog API updated: remove hash methods, update mark_restored."""
+
+    def test_find_by_hash_method_removed(self) -> None:
+        """TrashLog.find_by_hash() must not exist."""
+        module = _import_trash_module()
+        assert not hasattr(module.TrashLog, "find_by_hash"), (
+            "TrashLog.find_by_hash() still exists"
+        )
+
+    def test_remove_by_hash_method_removed(self) -> None:
+        """TrashLog.remove_by_hash() must not exist."""
+        module = _import_trash_module()
+        assert not hasattr(module.TrashLog, "remove_by_hash"), (
+            "TrashLog.remove_by_hash() still exists"
+        )
+
+    def test_mark_restored_signature_uses_timestamp(self) -> None:
+        """TrashLog.mark_restored(timestamp: int, path: str) signature."""
+        module = _import_trash_module()
+        sig = inspect.signature(module.TrashLog.mark_restored)
+        params = list(sig.parameters.keys())
+        # Expected: ['self', 'timestamp', 'path']
+        assert "timestamp" in params, (
+            f"'timestamp' param missing from mark_restored: {params}"
+        )
+        assert "hash_value" not in params, (
+            f"'hash_value' still present in mark_restored: {params}"
+        )
+        assert "event_type" not in params, (
+            f"'event_type' still present in mark_restored: {params}"
+        )
