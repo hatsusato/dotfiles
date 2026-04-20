@@ -5,16 +5,12 @@ Moves files and directories to ~/.trash/ (configurable via TRASH_DIR environment
 variable) and records metadata about each operation in JSON Lines format for recovery.
 """
 
-import hashlib
 import json
 import os
 import shutil
-import subprocess
 import sys
-import tarfile
 import time
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
-from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -30,32 +26,24 @@ def _get_epoch_timestamp() -> int:
 class TrashEvent:
     """Single event in trash-log.jsonl — immutable data container."""
 
-    hash: str
     path: str
-    type: str  # "file", "dir", or "symlink"
-    timestamp: int = 0
+    timestamp: int  # Epoch when trashed (= filename in .trash/)
     restore: bool = False
 
     def to_dict(self) -> dict[str, str | int | bool]:
         """Convert to JSON-serializable dict for trash-log.jsonl."""
         return {
-            "hash": self.hash,
             "path": self.path,
-            "type": self.type,
             "timestamp": self.timestamp,
             "restore": self.restore,
         }
 
     @classmethod
     def from_dict(cls, d: dict[str, str | int | bool]) -> "TrashEvent":
-        """Deserialize from JSON dict with validation."""
-        if d.get("type") not in ("file", "dir", "symlink"):
-            raise ValueError(f"Invalid type: {d.get('type')}")
+        """Deserialize from JSON dict."""
         return cls(
-            hash=str(d["hash"]),
             path=str(d["path"]),
-            type=str(d["type"]),
-            timestamp=int(d.get("timestamp", 0)),
+            timestamp=int(d["timestamp"]),
             restore=bool(d.get("restore", False)),
         )
 
@@ -65,54 +53,23 @@ class TrashEvent:
         return _get_epoch_timestamp()
 
 
-@dataclass
-class FileAttributes:
-    """Single entry in {hash}-attributes.json — immutable data container."""
+def get_unique_timestamp(trash_dir: Path) -> int:
+    """Return first available epoch timestamp in trash_dir.
 
-    path: str
-    mode: int  # Octal, e.g., 0o755
-    mtime: int  # Unix epoch
-    timestamp: int = 0
-    restore: bool = False
-
-    def to_dict(self) -> dict[str, str | int | bool]:
-        """Convert to JSON-serializable dict for {hash}-attributes.json.
-
-        Outputs only canonical field names: mode and mtime.
-        """
-        mode_str = oct(self.mode)  # "0o755" string format
-        ts = self.timestamp if self.timestamp else int(time.time())
-        return {
-            "path": self.path,
-            "mode": mode_str,
-            "mtime": self.mtime,
-            "timestamp": ts,
-            "restore": self.restore,
-        }
-
-    @classmethod
-    def from_dict(cls, d: dict[str, str | int | bool]) -> "FileAttributes":
-        """Deserialize from JSON dict, parsing octal mode strings.
-
-        Reads only canonical keys: mode and mtime.
-        """
-        mode_str = d.get("mode", "0o755")
-        mode = int(str(mode_str), 0) if mode_str else 0o755
-        mtime = int(d.get("mtime", 0))
-        return cls(
-            path=str(d["path"]),
-            mode=mode,
-            mtime=mtime,
-            timestamp=int(d.get("timestamp", 0)),
-            restore=bool(d.get("restore", False)),
-        )
+    Starts at current epoch, increments by 1 until a non-existing
+    name is found in trash_dir. Simple collision avoidance.
+    """
+    timestamp = int(time.time())
+    while (trash_dir / str(timestamp)).exists():
+        timestamp += 1
+    return timestamp
 
 
 class TrashLog:
     """Manages trash-log.jsonl as append-only event log.
 
     Loads entire event history into memory at init for fast queries.
-    Provides find_by_path() and find_by_hash() for O(n) lookups.
+    Provides find_by_path() for O(n) lookups.
     """
 
     def __init__(self, metadata_path: Path) -> None:
@@ -151,25 +108,20 @@ class TrashLog:
         """Return all events matching this path (original location)."""
         return [e for e in self._events if e.path == path]
 
-    def find_by_hash(self, hash_value: str) -> list[TrashEvent]:
-        """Return all events matching this hash."""
-        return [e for e in self._events if e.hash == hash_value]
-
     def append(self, event: TrashEvent) -> None:
         """Add event to memory and sync to disk immediately."""
         self._events.append(event)
         self._atomic_append_jsonl(event)
 
-    def remove_by_path(self, path: str, hash_value: str) -> bool:
-        """Remove first event matching both path and hash.
+    def remove_by_path(self, path: str, timestamp: int) -> bool:
+        """Remove first event matching both path and timestamp.
 
         Returns True if found and removed, False otherwise.
-        Syncs file immediately.
         """
         found = False
         new_events = []
         for event in self._events:
-            if not found and event.path == path and event.hash == hash_value:
+            if not found and event.path == path and event.timestamp == timestamp:
                 found = True
                 continue
             new_events.append(event)
@@ -179,30 +131,13 @@ class TrashLog:
             self.save()
         return found
 
-    def remove_by_hash(self, hash_value: str) -> int:
-        """Remove all events matching hash (GC operation).
-
-        Returns count of removed events.
-        Syncs file immediately.
-        """
-        original_count = len(self._events)
-        self._events = [e for e in self._events if e.hash != hash_value]
-        removed_count = original_count - len(self._events)
-
-        if removed_count > 0:
-            self.save()
-        return removed_count
-
-    def mark_restored(self, hash_value: str, path: str, event_type: str) -> None:
+    def mark_restored(self, timestamp: int, path: str) -> None:
         """Append new event with restore=True to create audit trail.
 
-        Creates new event with same hash/path but restore=True.
-        Replaces _append_restore_entry() logic.
+        Uses current epoch as new timestamp for the restore event.
         """
         restore_event = TrashEvent(
-            hash=hash_value,
             path=path,
-            type=event_type,
             timestamp=int(time.time()),
             restore=True,
         )
@@ -253,101 +188,6 @@ class TrashLog:
             os.fsync(f.fileno())
 
 
-class FileAttributeStore:
-    """Manages per-hash attribute file {hash}-attributes.json.
-
-    Each hash gets one JSON file storing all paths that share this hash
-    (deduplication case: same tar content from different directories).
-    """
-
-    def __init__(self, hash_value: str, trash_dir_path: Path) -> None:
-        """Initialize manager for attributes of specific hash."""
-        self._hash = hash_value
-        self._metadata_path = trash_dir_path / f"{hash_value}-attributes.json"
-        self._attributes: list[FileAttributes] = []
-
-    def load(self) -> list[FileAttributes]:
-        """Load all attributes from {hash}-attributes.json.
-
-        Returns list (also stored in memory).
-        Handles missing file, empty file, malformed JSON gracefully.
-        """
-        self._attributes = []
-        if not self._metadata_path.exists():
-            return self._attributes
-
-        try:
-            entries_data = json.loads(self._metadata_path.read_text())
-            if not isinstance(entries_data, list):
-                return self._attributes
-
-            for entry_dict in entries_data:
-                if isinstance(entry_dict, dict):
-                    try:
-                        attr = FileAttributes.from_dict(entry_dict)
-                        self._attributes.append(attr)
-                    except (ValueError, KeyError):
-                        # Skip malformed entries
-                        pass
-        except (json.JSONDecodeError, OSError):
-            # File missing or corrupt, return empty
-            pass
-
-        return self._attributes
-
-    def append(self, attributes: FileAttributes) -> None:
-        """Add attributes for a new path this hash was trashed from.
-
-        Memory + file sync in one call (similar to append-only pattern).
-        """
-        self._attributes.append(attributes)
-        self.save()
-
-    def save(self) -> None:
-        """Atomically write attributes to {hash}-attributes.json as JSON array."""
-        self._metadata_path.parent.mkdir(parents=True, exist_ok=True)
-
-        with NamedTemporaryFile(
-            mode="w",
-            dir=self._metadata_path.parent,
-            delete=False,
-            suffix=".tmp",
-        ) as tmp:
-            temp_path = Path(tmp.name)
-            try:
-                json.dump(
-                    [attr.to_dict() for attr in self._attributes],
-                    tmp,
-                    indent=2,
-                    ensure_ascii=False,
-                )
-                os.fsync(tmp.fileno())
-            except Exception:
-                if temp_path.exists():
-                    os.unlink(temp_path)
-                raise
-
-        os.replace(temp_path, self._metadata_path)
-
-    def cleanup(self, target_path: str) -> int:
-        """Remove attributes entries marked restore=True (GC operation).
-
-        Returns count removed.
-        Called during garbage collection to clean up restored items.
-        """
-        original_count = len(self._attributes)
-        self._attributes = [
-            attr
-            for attr in self._attributes
-            if not (attr.path == target_path and attr.restore)
-        ]
-        removed_count = original_count - len(self._attributes)
-
-        if removed_count > 0:
-            self.save()
-        return removed_count
-
-
 class TrashPath(Path):
     """Path subclass with type detection and validation.
 
@@ -390,7 +230,7 @@ class TrashConfig:
     """Immutable configuration for trash operations.
 
     Dataclass enforces field ordering: verbose, force, recursive must be
-    provided by caller; trash_dir defaults to TrashDir() which reads TRASH_DIR
+    provided by caller; trash_dir defaults to reading TRASH_DIR
     environment variable at instantiation time.
     """
 
@@ -400,135 +240,47 @@ class TrashConfig:
     # Default: read TRASH_DIR env var or ~/.trash
     trash_dir_path = Path(os.getenv("TRASH_DIR", Path.home() / ".trash"))
 
-    def get_trash_path(self, hash_value: str) -> Path:
-        """Get final trash path for given hash.
+    def get_trash_path(self, timestamp: int) -> Path:
+        """Get final trash path for given epoch timestamp.
 
-        Ensures trash directory and its parents exist, then returns the
-        path to the trashed item (trash_dir/{hash_value}).
-
-        Args:
-            hash_value: SHA256 hash hexdigest of item content or symlink target
-
-        Returns:
-            Path to the trashed item in trash_dir
+        Ensures trash directory exists, then returns the
+        path to the trashed item (trash_dir/{timestamp}).
         """
-        trash_path = self.trash_dir_path / hash_value
-        trash_path.parent.mkdir(parents=True, exist_ok=True)
-        return trash_path
+        self.trash_dir_path.mkdir(parents=True, exist_ok=True)
+        return self.trash_dir_path / str(timestamp)
 
-    @contextmanager
-    def get_temp_file(self, prefix: str | None = None, suffix: str | None = None):
-        """Context manager for creating a temporary file in trash_dir.
+    def trash_symlink(self, path: TrashPath) -> int:
+        """Trash a symlink by moving it directly to trash with epoch timestamp name.
 
-        Creates NamedTemporaryFile with delete=False, so caller must delete it
-        explicitly. If an exception occurs, file is deleted automatically.
-
-        Args:
-            prefix: Optional prefix for temp file name
-            suffix: Optional suffix for temp file name (e.g., ".tar")
-
-        Yields:
-            NamedTemporaryFile instance (already created and open)
+        Returns epoch timestamp used as storage key.
         """
-        tmp = NamedTemporaryFile(
-            delete=False, dir=self.trash_dir_path, prefix=prefix, suffix=suffix
-        )
-        success = False
-        try:
-            yield tmp
-            success = True
-        finally:
-            tmp.close()
-            if not success:
-                os.unlink(tmp.name)
+        timestamp = get_unique_timestamp(self.trash_dir_path)
+        trash_path = self.get_trash_path(timestamp)
+        shutil.move(str(path), str(trash_path))
+        return timestamp
 
-    def trash_symlink(self, path: TrashPath) -> str:
-        """Trash a symlink by hashing its target and moving it to trash.
+    def trash_dir(self, path: TrashPath) -> int:
+        """Trash a directory by moving it directly to trash with epoch timestamp name.
 
-        Hash is computed from symlink target string. Returns hash value.
-
-        Args:
-            path: Path to symlink
-
-        Returns:
-            SHA256 hash hexdigest of symlink target
-
-        Raises:
-            RuntimeError: If symlink cannot be trashed
+        Returns epoch timestamp used as storage key.
+        No tar archive is created; shutil.move preserves metadata on same filesystem.
         """
-        hash_value = _hash_str(str(path.readlink()))
-        trash_path = self.get_trash_path(hash_value)
-        shutil.move(path, trash_path)
-        return hash_value
-
-    def trash_dir(self, path: TrashPath) -> str:
-        """Trash a directory by creating a tar of its contents and moving it to trash.
-
-        Returns hash value of the tar archive.
-
-        Args:
-            path: Path to directory
-
-        Returns:
-            SHA256 hash hexdigest of tar archive
-
-        Raises:
-            RuntimeError: If directory cannot be trashed
-        """
-        # Check -r guard (permission-aware guard, not validation)
         if not self.recursive:
             raise ValueError("Cannot trash directory without -r flag")
-        with self.get_temp_file(suffix=".tar") as tmp:
-            cmd = [
-                "tar",
-                "--sort=name",
-                "--owner=0",
-                "--group=0",
-                "--mtime=@0",
-                "--numeric-owner",
-                "-cf",
-                tmp.name,
-                "-C",
-                str(path),
-                ".",
-            ]
-            subprocess.run(cmd, check=True)
-            tar_path = Path(tmp.name)
+        timestamp = get_unique_timestamp(self.trash_dir_path)
+        trash_path = self.get_trash_path(timestamp)
+        shutil.move(str(path), str(trash_path))
+        return timestamp
 
-        # Compute hash of normalized tar
-        hash_value = _hash_file(tar_path)
-        trash_path = self.get_trash_path(hash_value)
+    def trash_file(self, path: TrashPath) -> int:
+        """Trash a regular file by moving it to trash with epoch timestamp name.
 
-        # Deduplication: check if tar with this hash already exists
-        if not trash_path.exists():
-            # First occurrence: save tar to trash
-            tar_path.rename(trash_path)
-        else:
-            # Deduplication: tar already exists, just delete the temp tar
-            # (metadata will be appended separately in _process_files)
-            os.unlink(tar_path)
-
-        shutil.rmtree(path)
-        return hash_value
-
-    def trash_file(self, path: TrashPath) -> str:
-        """Trash a regular file by hashing it and moving it to trash.
-
-        Returns hash value of the file.
-
-        Args:
-            path: Path to file
-
-        Returns:
-            SHA256 hash hexdigest of file content
-
-        Raises:
-            RuntimeError: If file cannot be trashed
+        Returns epoch timestamp used as storage key.
         """
-        hash_value = _hash_file(path)
-        trash_path = self.get_trash_path(hash_value)
-        shutil.move(path, trash_path)
-        return hash_value
+        timestamp = get_unique_timestamp(self.trash_dir_path)
+        trash_path = self.get_trash_path(timestamp)
+        shutil.move(str(path), str(trash_path))
+        return timestamp
 
 
 @dataclass
@@ -553,21 +305,14 @@ class RestoreConfig:
         """Return path to trash-log.jsonl inside trash_dir."""
         return self.trash_dir_path / "trash-log.jsonl"
 
-    def get_trash_path(self, hash_value: str) -> Path:
-        """Return path to trashed item by hash.
-
-        Args:
-            hash_value: SHA256 hash hexdigest of the item
-
-        Returns:
-            Path to the item in trash_dir
-        """
-        return self.trash_dir_path / hash_value
+    def get_trash_path(self, timestamp: int) -> Path:
+        """Return path to trashed item by epoch timestamp."""
+        return self.trash_dir_path / str(timestamp)
 
     def list_trash(self) -> None:
         """Print trash-log.jsonl contents in human-readable format to stdout.
 
-        Displays numbered list with path, hash, type, and timestamp for each entry.
+        Displays numbered list with path and timestamp for each entry.
         Prints nothing (empty output) if trash is empty or trash-log.jsonl missing.
         """
         trash_log = TrashLog(self.metadata_path)
@@ -577,319 +322,50 @@ class RestoreConfig:
         print(f"Files in trash ({len(entries)}):")
         for i, entry in enumerate(entries, 1):
             print(f"  {i}. {entry.path}")
-            print(f"     hash: {entry.hash}")
-            print(f"     type: {entry.type}")
             print(f"     timestamp: {entry.timestamp}")
-
-
-def _apply_metadata_on_restore(
-    target_path: Path, metadata_entry: dict[str, int | str | bool]
-) -> None:
-    """Restore original mode and timestamp to a restored item.
-
-    Called after item is moved or extracted to target_path. Applies metadata
-    saved during trash operation: mode, mtime. Ownership (uid/gid)
-    is NOT restored (Phase 10 simplification).
-
-    Args:
-        target_path: Path to the restored item (file, dir, or symlink)
-        metadata_entry: Dict with mode and mtime keys
-
-    Raises:
-        OSError: If chmod or utime fails (caught and logged)
-    """
-    # Restore mode (always possible, no privilege required)
-    try:
-        mode_str = metadata_entry.get("mode", "0o755")
-        if isinstance(mode_str, str):
-            mode = int(mode_str, 0)  # Parse octal string like "0755" or "0o755"
-            os.chmod(target_path, mode)
-    except (KeyError, ValueError, OSError) as e:
-        # Log warning but continue; mode restoration is best-effort
-        print(
-            f"trash: warning: could not restore mode for {target_path}: {e}",
-            file=sys.stderr,
-        )
-
-    # Restore mtime (always possible, no privilege required)
-    try:
-        mtime_val = metadata_entry.get("mtime") or metadata_entry.get("timestamp")
-        if mtime_val is not None and isinstance(mtime_val, int):
-            os.utime(target_path, (mtime_val, mtime_val))  # (atime, mtime)
-    except (KeyError, ValueError, OSError) as e:
-        # Log warning but continue; mtime restoration is best-effort
-        print(
-            f"trash: warning: could not restore mtime for {target_path}: {e}",
-            file=sys.stderr,
-        )
 
 
 def _backup_existing_to_trash(path: Path, config: RestoreConfig) -> None:
     """Move an existing file/dir/symlink to trash before restoring over it.
 
-    Called when restore target already exists. The existing item is backed up
-    to trash with its own metadata entry to prevent data loss.
-
-    Args:
-        path: Path to the existing item to back up
-        config: RestoreConfig with trash_dir_path
+    Uses epoch timestamp naming (same as regular trash operation).
+    shutil.move preserves all metadata automatically.
     """
     print(
         f"trash: {path} exists; backing up to trash...",
         file=sys.stderr,
     )
     trash_log = TrashLog(config.metadata_path)
-    if path.is_symlink():
-        # Hash from symlink target string (mirrors trash_symlink)
-        # Capture metadata from symlink itself (use lstat, not stat)
-        stat = path.lstat()
-        original_mode = oct(stat.st_mode & 0o777)
-        original_mtime = int(stat.st_mtime)
-
-        hash_value = _hash_str(str(path.readlink()))
-        item_type = "symlink"
-
-        backup_path = config.get_trash_path(hash_value)
-        shutil.move(str(path), backup_path)
-        trash_log.append(
-            TrashEvent(
-                hash=hash_value,
-                path=str(path),
-                type=item_type,
-                timestamp=_get_epoch_timestamp(),
-            )
-        )
-
-        # Save {hash}-attributes.json for metadata application on restore
-        attr_store = FileAttributeStore(hash_value, config.trash_dir_path)
-        attr_store.load()
-        attr_store.append(
-            FileAttributes(
-                path=str(path), mode=int(original_mode, 0), mtime=original_mtime
-            )
-        )
-        return
-    elif path.is_dir():
-        # Hash directory via tar (mirrors trash_dir)
-        # Capture metadata before trashing
-        stat = path.stat()
-        original_mode = oct(stat.st_mode & 0o777)
-        original_mtime = int(stat.st_mtime)
-
-        with NamedTemporaryFile(
-            delete=False, dir=config.trash_dir_path, suffix=".tar"
-        ) as tmp:
-            tmp_path = Path(tmp.name)
-        try:
-            subprocess.run(
-                ["tar", "-cf", str(tmp_path), "-C", str(path), "."],
-                check=True,
-            )
-            hash_value = _hash_file(tmp_path)
-            item_type = "dir"
-            backup_path = config.get_trash_path(hash_value)
-            tmp_path.rename(backup_path)
-            shutil.rmtree(path)
-        except Exception:
-            if tmp_path.exists():
-                os.unlink(tmp_path)
-            raise
-        trash_log.append(
-            TrashEvent(
-                hash=hash_value,
-                path=str(path),
-                type=item_type,
-                timestamp=_get_epoch_timestamp(),
-            )
-        )
-
-        # Save {hash}-attributes.json for metadata application on restore
-        attr_store = FileAttributeStore(hash_value, config.trash_dir_path)
-        attr_store.load()
-        attr_store.append(
-            FileAttributes(
-                path=str(path), mode=int(original_mode, 0), mtime=original_mtime
-            )
-        )
-        return
-    else:
-        # Regular file
-        # Capture metadata before trashing
-        stat = path.stat()
-        original_mode = oct(stat.st_mode & 0o777)
-        original_mtime = int(stat.st_mtime)
-
-        hash_value = _hash_file(path)
-        item_type = "file"
-
-    backup_path = config.get_trash_path(hash_value)
-    shutil.move(str(path), backup_path)
+    timestamp = get_unique_timestamp(config.trash_dir_path)
+    backup_path = config.get_trash_path(timestamp)
+    shutil.move(str(path), str(backup_path))
     trash_log.append(
         TrashEvent(
-            hash=hash_value,
             path=str(path),
-            type=item_type,
-            timestamp=_get_epoch_timestamp(),
+            timestamp=timestamp,
         )
     )
-
-    # Save {hash}-attributes.json for metadata application on restore
-    attr_store = FileAttributeStore(hash_value, config.trash_dir_path)
-    attr_store.load()
-    attr_store.append(
-        FileAttributes(path=str(path), mode=int(original_mode, 0), mtime=original_mtime)
-    )
-
-
-def _restore_file(target_path: Path, event: TrashEvent, config: RestoreConfig) -> None:
-    """Copy a regular file from trash back to target_path.
-
-    Backs up any existing file at target_path before restoring.
-    Applies original attributes (mode, mtime) from {hash}-attributes.json
-    if available.
-
-    Args:
-        target_path: Destination path for the restored file
-        event: TrashEvent with hash
-        config: RestoreConfig with trash_dir_path
-
-    Raises:
-        FileNotFoundError: If the trash file is missing
-    """
-    trash_path = config.get_trash_path(event.hash)
-    if not trash_path.exists():
-        raise FileNotFoundError(
-            f"Trash file missing: {trash_path} (hash: {event.hash})"
-        )
-    # Back up any existing file at target before restoring
-    if target_path.exists() or target_path.is_symlink():
-        _backup_existing_to_trash(target_path, config)
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy(str(trash_path), target_path)
-
-    # Apply original attributes from {hash}-attributes.json if available
-    attr_store = FileAttributeStore(event.hash, config.trash_dir_path)
-    attrs = attr_store.load()
-    matching = next(
-        (a for a in attrs if a.path == str(target_path) and not a.restore), None
-    ) or (attrs[0] if attrs else None)
-    if matching:
-        _apply_metadata_on_restore(target_path, matching.to_dict())
-
-
-def _restore_dir(target_path: Path, event: TrashEvent, config: RestoreConfig) -> None:
-    """Extract a tar archive from trash back to target_path as a directory.
-
-    Uses tarfile.extractall(filter="data") to prevent Zip Slip attacks.
-    Backs up any existing directory at target_path before restoring.
-    Applies original attributes (mode, mtime) from {hash}-attributes.json if available.
-
-    Args:
-        target_path: Destination directory path for the restored directory
-        event: TrashEvent with hash
-        config: RestoreConfig with trash_dir_path
-
-    Raises:
-        FileNotFoundError: If the tar archive is missing
-    """
-    tar_path = config.get_trash_path(event.hash)
-    if not tar_path.exists():
-        raise FileNotFoundError(f"Tar archive missing: {tar_path} (hash: {event.hash})")
-    # Back up any existing directory at target before restoring
-    if target_path.exists() or target_path.is_symlink():
-        _backup_existing_to_trash(target_path, config)
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    target_path.mkdir(exist_ok=True)
-    with tarfile.open(tar_path) as tf:
-        # filter="data" prevents Zip Slip: rejects symlinks outside extraction dir
-        tf.extractall(target_path, filter="data")
-
-    # Apply original attributes from {hash}-attributes.json if available
-    attr_store = FileAttributeStore(event.hash, config.trash_dir_path)
-    attrs = attr_store.load()
-    matching = next(
-        (a for a in attrs if a.path == str(target_path) and not a.restore), None
-    ) or (attrs[0] if attrs else None)
-    if matching:
-        _apply_metadata_on_restore(target_path, matching.to_dict())
-
-    # Tar is kept in trash (only deleted by --gc after entries are cleaned)
-
-
-def _restore_symlink(
-    target_path: Path, event: TrashEvent, config: RestoreConfig
-) -> None:
-    """Move a symlink from trash back to target_path.
-
-    Backs up any existing file/symlink at target_path before restoring.
-    Applies original attributes (mode, mtime) from {hash}-attributes.json if available.
-
-    Args:
-        target_path: Destination path for the restored symlink
-        event: TrashEvent with hash
-        config: RestoreConfig with trash_dir_path
-
-    Raises:
-        FileNotFoundError: If the trash symlink is missing
-    """
-    trash_path = config.get_trash_path(event.hash)
-    if not trash_path.exists() and not trash_path.is_symlink():
-        raise FileNotFoundError(
-            f"Trash symlink missing: {trash_path} (hash: {event.hash})"
-        )
-    # Back up any existing item at target before restoring
-    if target_path.exists() or target_path.is_symlink():
-        _backup_existing_to_trash(target_path, config)
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(trash_path), target_path)
-
-    # Apply original attributes from {hash}-attributes.json if available
-    attr_store = FileAttributeStore(event.hash, config.trash_dir_path)
-    attrs = attr_store.load()
-    matching = next(
-        (a for a in attrs if a.path == str(target_path) and not a.restore), None
-    ) or (attrs[0] if attrs else None)
-    if matching:
-        _apply_metadata_on_restore(target_path, matching.to_dict())
 
 
 def _restore_by_path(path: str, config: RestoreConfig) -> bool:
-    """Restore a single file/dir/symlink from trash by its original path.
+    """Restore a single item from trash by its original path.
 
-    Searches trash-log.jsonl for an entry matching the resolved absolute path,
-    dispatches to the appropriate type-specific restore function, then appends
-    a restore audit entry on success.
-
-    Security: Always resolves user-provided path to absolute canonical form
-    via Path.resolve() before comparing against metadata (prevents path traversal).
-
-    Args:
-        path: User-provided path (relative or absolute) to restore
-        config: RestoreConfig with trash_dir_path
-
-    Returns:
-        True on success
-
-    Raises:
-        ValueError: If no metadata entry matches the resolved path
-        FileNotFoundError: If trash file/archive is missing
+    Searches trash-log.jsonl for a matching non-restored event,
+    moves the item from .trash/{timestamp} back to original path,
+    then appends a restore audit entry.
     """
-    # Resolve to absolute canonical path (handles .., symlinks, relative paths)
     target_path = Path(path).resolve()
 
     trash_log = TrashLog(config.metadata_path)
     selected_event: TrashEvent | None = None
     latest_event: TrashEvent | None = None
 
-    # Single pass - prefer events with restore=False (actual trash items)
-    # Fallback to most recent matching event if no restore=False event found
     for event in trash_log._events:
         if event.path == str(target_path):
             latest_event = event
             if not event.restore:
-                selected_event = event  # Prefer restore=False
+                selected_event = event
 
-    # Use latest_event as fallback if no restore=False event found
     if selected_event is None and latest_event is not None:
         selected_event = latest_event
 
@@ -898,64 +374,25 @@ def _restore_by_path(path: str, config: RestoreConfig) -> bool:
 
     if config.verbose:
         print(
-            f"trash: restoring {target_path} [hash: {selected_event.hash}]",
+            f"trash: restoring {target_path} [timestamp: {selected_event.timestamp}]",
             file=sys.stderr,
         )
 
-    if selected_event.type == "file":
-        _restore_file(target_path, selected_event, config)
-    elif selected_event.type == "dir":
-        _restore_dir(target_path, selected_event, config)
-    elif selected_event.type == "symlink":
-        _restore_symlink(target_path, selected_event, config)
-
-    # Append-only restore: append restore=True event to trash-log.jsonl
-    trash_log = TrashLog(config.metadata_path)
-    trash_log.mark_restored(selected_event.hash, str(target_path), selected_event.type)
-    # Append restore=True to {hash}-attributes.json via FileAttributeStore
-    attr_store = FileAttributeStore(selected_event.hash, config.trash_dir_path)
-    attr_store.load()
-    attr_store.append(
-        FileAttributes(
-            path=str(target_path),
-            mode=0o755,  # Placeholder; restore flag is the key info here
-            mtime=0,
-            restore=True,
+    trash_path = config.get_trash_path(selected_event.timestamp)
+    if not trash_path.exists() and not trash_path.is_symlink():
+        raise FileNotFoundError(
+            f"Trash item missing: {trash_path} (timestamp: {selected_event.timestamp})"
         )
-    )
 
-    # Deduplication safeguard: Also append restore=True to all OTHER
-    # {hash}-attributes.json files that reference this path. This handles the
-    # scenario where the same path was backed up multiple times under
-    # different hashes (e.g., via content-addressed deduplication).
-    # Marking the path as restored in all files ensures garbage collection
-    # can later clean up all backup variants.
-    for attr_path in config.trash_dir_path.glob("*-attributes.json"):
-        # Extract hash: "{hash}-attributes.json" → "{hash}"
-        hash_val = attr_path.name.replace("-attributes.json", "")
-        if hash_val == selected_event.hash:
-            continue  # Already handled above
-        try:
-            entries = json.loads(attr_path.read_text())
-            if isinstance(entries, list):
-                # Check if any entry references this path
-                if any(e.get("path") == str(target_path) for e in entries):
-                    # Append restore=True to this file too
-                    restore_attr = FileAttributes(
-                        path=str(target_path),
-                        mode=0o755,
-                        mtime=0,
-                        timestamp=int(time.time()),
-                        restore=True,
-                    )
-                    entries.append(restore_attr.to_dict())
-                    attr_path.write_text(json.dumps(entries, indent=2))
-        except (json.JSONDecodeError, OSError) as e:
-            # Log warning: metadata file corruption or permission issue
-            print(
-                f"trash: warning: could not update {attr_path}: {e}",
-                file=sys.stderr,
-            )
+    if target_path.exists() or target_path.is_symlink():
+        _backup_existing_to_trash(target_path, config)
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(trash_path), str(target_path))
+
+    # Append-only restore: record audit trail
+    trash_log = TrashLog(config.metadata_path)
+    trash_log.mark_restored(selected_event.timestamp, str(target_path))
 
     if config.verbose:
         print(f"trash: restored {target_path}", file=sys.stderr)
@@ -963,44 +400,51 @@ def _restore_by_path(path: str, config: RestoreConfig) -> bool:
     return True
 
 
-def _hash_str(s: str) -> str:
-    """Compute SHA256 hash of a string.
+def _process_files(file_paths: list[Path], config: TrashConfig) -> bool:
+    """Process multiple files by trashing them and recording metadata.
 
-    Pure function for hashing strings. Takes explicit string parameter,
-    returns computed hash string. No state mutation.
-
-    Args:
-        s: Input string to hash
-
-    Returns:
-        SHA256 hexdigest as string
+    Iterates over file paths, trashes each one, and tracks overall success.
+    Returns True if all files processed successfully, False if any errors occurred
+    (unless force flag is set).
     """
-    return hashlib.sha256(s.encode()).hexdigest()
+    trash_log = TrashLog(config.trash_dir_path / "trash-log.jsonl")
+    success = True
+    for file_path in file_paths:
+        try:
+            trash_path = TrashPath.create(file_path)
 
+            if trash_path.is_symlink():
+                timestamp = config.trash_symlink(trash_path)
+            elif trash_path.is_dir():
+                timestamp = config.trash_dir(trash_path)
+            else:
+                timestamp = config.trash_file(trash_path)
 
-def _hash_file(file_path: Path) -> str:
-    """Compute SHA256 hash of file in 8KB chunks.
+            trash_log.append(
+                TrashEvent(
+                    path=str(trash_path),
+                    timestamp=timestamp,
+                )
+            )
 
-    Pure function for hashing files. Takes explicit path parameter,
-    returns computed hash string. No state mutation.
-
-    Args:
-        file_path: Path to file to hash
-
-    Returns:
-        SHA256 hexdigest as string
-
-    Raises:
-        RuntimeError: If file cannot be read
-    """
-    sha256 = hashlib.sha256()
-    try:
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(8192), b""):
-                sha256.update(chunk)
-        return sha256.hexdigest()
-    except (FileNotFoundError, PermissionError, IOError) as e:
-        raise RuntimeError(f"Failed to hash file: {e}") from e
+            if config.verbose:
+                print(
+                    f"Trashed: {file_path} [timestamp: {timestamp}]",
+                    file=sys.stderr,
+                )
+        except FileNotFoundError:
+            if config.force:
+                # force flag: silently skip nonexistent files
+                continue
+            print(
+                f"Error trashing {file_path}: No such file or directory",
+                file=sys.stderr,
+            )
+            success = False
+        except (ValueError, RuntimeError) as e:
+            print(f"Error trashing {file_path}: {e}", file=sys.stderr)
+            success = False
+    return success
 
 
 def _setup_parser() -> ArgumentParser:
@@ -1043,18 +487,13 @@ def _setup_parser() -> ArgumentParser:
         "-r",
         "--recursive",
         action="store_true",
-        help="Required for directories (compress with tar)",
+        help="Required for directories",
     )
     parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Show hashes for trashed items"
+        "-v", "--verbose", action="store_true", help="Show timestamps for trashed items"
     )
     parser.add_argument(
         "-f", "--force", action="store_true", help="Ignore nonexistent files"
-    )
-    parser.add_argument(
-        "--gc",
-        action="store_true",
-        help="Garbage collect: remove restore-marked entries and orphans",
     )
     parser.add_argument(
         "files",
@@ -1063,159 +502,6 @@ def _setup_parser() -> ArgumentParser:
         help="Files or directories to trash (or paths to restore with --restore)",
     )
     return parser
-
-
-def garbage_collect(config: TrashConfig) -> tuple[int, int]:
-    """Delete restore: true entries and orphan tar files (Phase 10 --gc implementation).
-
-    Scans all {hash}.json files in trash_dir. For each file:
-    1. Filters out entries with "restore": true
-    2. If remaining entries exist: updates metadata.json, keeps tar
-    3. If no remaining entries: deletes metadata.json AND orphan tar
-
-    Args:
-        config: TrashConfig with trash_dir_path
-
-    Returns:
-        tuple: (deleted_entry_count, deleted_tar_count)
-    """
-    if not config.trash_dir_path.exists():
-        return 0, 0
-
-    deleted_entries = 0
-    deleted_tars = 0
-    orphan_hashes: set[str] = set()
-
-    # Step 1: Scan all {hash}.json files
-    for metadata_path in config.trash_dir_path.glob("*-attributes.json"):
-        try:
-            entries = json.loads(metadata_path.read_text())
-            if not isinstance(entries, list):
-                continue
-        except (json.JSONDecodeError, OSError):
-            continue
-
-        # Filter out restore: true entries
-        remaining: list[dict[str, int | str | bool]] = [
-            e for e in entries if not e.get("restore", False)
-        ]
-        deleted_entries += len(entries) - len(remaining)
-
-        # Update or delete metadata file
-        if not remaining:
-            # No more entries → tar is orphan
-            # Extract hash from filename: "{hash}-attributes.json" → "{hash}"
-            hash_val = metadata_path.name.replace("-attributes.json", "")
-            orphan_hashes.add(hash_val)
-            try:
-                metadata_path.unlink()
-            except OSError:
-                pass  # Ignore deletion errors
-        elif remaining != entries:
-            # Some entries removed → update file
-            try:
-                metadata_path.write_text(json.dumps(remaining, indent=2))
-            except OSError:
-                pass  # Ignore write errors
-
-    # Step 2: Delete orphan tar files
-    for hash_val in orphan_hashes:
-        tar_path = config.trash_dir_path / hash_val
-        if tar_path.exists():
-            try:
-                tar_path.unlink()
-                deleted_tars += 1
-            except OSError:
-                pass  # Ignore deletion errors (tar may be in use)
-
-    return deleted_entries, deleted_tars
-
-
-def _process_files(file_paths: list[Path], config: TrashConfig) -> bool:
-    """Process multiple files by trashing them and recording metadata.
-
-    Iterates over file paths, calls _process_file_path for each, and tracks
-    overall success. Returns True if all files processed successfully, False
-    if any errors occurred (unless force flag is set).
-
-    Args:
-        file_paths: List of paths to files or directories
-        config: Trash configuration
-
-    Returns:
-        True if all files processed successfully, False if any errors occurred
-    """
-    trash_log = TrashLog(config.trash_dir_path / "trash-log.jsonl")
-    success = True
-    for file_path in file_paths:
-        try:
-            trash_path = TrashPath.create(file_path)
-
-            # Capture original attributes before trashing
-            original_mode = "0o755"
-            original_mtime = 0  # Safe default; will be overwritten after stat
-
-            if trash_path.is_symlink():
-                # Symlinks: capture target and lstat (not stat)
-                stat = trash_path.lstat()
-                original_mode = oct(stat.st_mode & 0o777)
-                original_mtime = int(stat.st_mtime)
-                hash_value = config.trash_symlink(trash_path)
-                item_type = "symlink"
-            elif trash_path.is_dir():
-                # Directories: capture stat
-                stat = trash_path.stat()
-                original_mode = oct(stat.st_mode & 0o777)
-                original_mtime = int(stat.st_mtime)
-                hash_value = config.trash_dir(trash_path)
-                item_type = "dir"
-            else:
-                # Regular files: capture stat
-                stat = trash_path.stat()
-                original_mode = oct(stat.st_mode & 0o777)
-                original_mtime = int(stat.st_mtime)
-                hash_value = config.trash_file(trash_path)
-                item_type = "file"
-
-            # Append event to trash-log.jsonl
-            trash_log.append(
-                TrashEvent(
-                    hash=hash_value,
-                    path=str(trash_path),
-                    type=item_type,
-                    timestamp=_get_epoch_timestamp(),
-                )
-            )
-
-            # Write {hash}-attributes.json
-            attr_store = FileAttributeStore(hash_value, config.trash_dir_path)
-            attr_store.load()
-            attr_store.append(
-                FileAttributes(
-                    path=str(trash_path),
-                    mode=int(original_mode, 0),
-                    mtime=original_mtime,
-                )
-            )
-
-            if config.verbose:
-                print(
-                    f"Trashed: {file_path} [hash: {hash_value}]",
-                    file=sys.stderr,
-                )
-        except FileNotFoundError:
-            if config.force:
-                # force flag: silently skip nonexistent files
-                continue
-            print(
-                f"Error trashing {file_path}: No such file or directory",
-                file=sys.stderr,
-            )
-            success = False
-        except (ValueError, RuntimeError) as e:
-            print(f"Error trashing {file_path}: {e}", file=sys.stderr)
-            success = False
-    return success
 
 
 EXIT_SUCCESS = 0
@@ -1230,21 +516,6 @@ def main() -> int:
     """
     parser = _setup_parser()
     args = parser.parse_args()
-
-    # Handle --gc (garbage collect restore: true entries and orphan tars)
-    if args.gc:
-        config = TrashConfig(
-            verbose=args.verbose,
-            force=args.force,
-            recursive=args.recursive,
-        )
-        deleted_entries, deleted_tars = garbage_collect(config)
-        if args.verbose or deleted_entries > 0 or deleted_tars > 0:
-            print(
-                f"trash --gc: {deleted_entries} entries, {deleted_tars} tars deleted",
-                file=sys.stderr,
-            )
-        return EXIT_SUCCESS
 
     # Handle --list (shows all items in trash)
     if args.list:
