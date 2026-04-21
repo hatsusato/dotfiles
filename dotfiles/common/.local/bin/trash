@@ -247,37 +247,13 @@ class TrashConfig:
         self.trash_dir_path.mkdir(parents=True, exist_ok=True)
         return self.trash_dir_path / str(timestamp)
 
-    def trash_symlink(self, path: TrashPath) -> int:
-        """Trash a symlink by moving it directly to trash with epoch timestamp name.
+    def _move_to_trash(self, path: TrashPath) -> int:
+        """Move any path type to trash with epoch timestamp name.
 
         Returns epoch timestamp used as storage key.
         """
         timestamp = get_unique_timestamp(self.trash_dir_path)
-        trash_path = self.get_trash_path(timestamp)
-        shutil.move(str(path), str(trash_path))
-        return timestamp
-
-    def trash_dir(self, path: TrashPath) -> int:
-        """Trash a directory by moving it directly to trash with epoch timestamp name.
-
-        Returns epoch timestamp used as storage key.
-        No tar archive is created; shutil.move preserves metadata on same filesystem.
-        """
-        if not self.recursive:
-            raise ValueError("Cannot trash directory without -r flag")
-        timestamp = get_unique_timestamp(self.trash_dir_path)
-        trash_path = self.get_trash_path(timestamp)
-        shutil.move(str(path), str(trash_path))
-        return timestamp
-
-    def trash_file(self, path: TrashPath) -> int:
-        """Trash a regular file by moving it to trash with epoch timestamp name.
-
-        Returns epoch timestamp used as storage key.
-        """
-        timestamp = get_unique_timestamp(self.trash_dir_path)
-        trash_path = self.get_trash_path(timestamp)
-        shutil.move(str(path), str(trash_path))
+        shutil.move(str(path), str(self.get_trash_path(timestamp)))
         return timestamp
 
 
@@ -411,12 +387,9 @@ def _process_files(file_paths: list[Path], config: TrashConfig) -> bool:
         try:
             trash_path = TrashPath.create(file_path)
 
-            if trash_path.is_symlink():
-                timestamp = config.trash_symlink(trash_path)
-            elif trash_path.is_dir():
-                timestamp = config.trash_dir(trash_path)
-            else:
-                timestamp = config.trash_file(trash_path)
+            if trash_path.is_dir() and not config.recursive:
+                raise ValueError("Cannot trash directory without -r flag")
+            timestamp = config._move_to_trash(trash_path)
 
             trash_log.append(
                 TrashEvent(
