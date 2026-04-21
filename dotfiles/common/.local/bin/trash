@@ -11,7 +11,7 @@ import shutil
 import sys
 import time
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Self
@@ -135,10 +135,11 @@ class TrashLog:
             self.save()
         return found
 
-    def mark_restored(self, timestamp: int, path: str) -> None:
+    def mark_restored(self, _original_timestamp: int, path: str) -> None:
         """Append new event with restore=True to create audit trail.
 
         Uses current epoch as new timestamp for the restore event.
+        The _original_timestamp parameter is unused; kept for audit context.
         """
         restore_event = TrashEvent(
             path=path,
@@ -241,8 +242,12 @@ class TrashConfig:
     verbose: bool
     force: bool
     recursive: bool
-    # Default: read TRASH_DIR env var or ~/.trash
-    trash_dir_path = Path(os.getenv("TRASH_DIR", Path.home() / ".trash"))
+    # Default: read TRASH_DIR env var or ~/.trash (evaluated per instantiation)
+    trash_dir_path: Path = field(
+        default_factory=lambda: Path(
+            os.getenv("TRASH_DIR", str(Path.home() / ".trash"))
+        )
+    )
 
     def get_trash_path(self, timestamp: int) -> Path:
         """Get final trash path for given epoch timestamp.
@@ -296,7 +301,11 @@ class RestoreConfig:
     """
 
     verbose: bool = False
-    trash_dir_path: Path = Path(os.getenv("TRASH_DIR", str(Path.home() / ".trash")))
+    trash_dir_path: Path = field(
+        default_factory=lambda: Path(
+            os.getenv("TRASH_DIR", str(Path.home() / ".trash"))
+        )
+    )
 
     @property
     def metadata_path(self) -> Path:
@@ -364,10 +373,12 @@ def _restore_by_path(path: str, config: RestoreConfig) -> bool:
             if not event.restore:
                 selected_event = event
 
-    if selected_event is None and latest_event is not None:
-        selected_event = latest_event
-
     if selected_event is None:
+        if latest_event is not None and latest_event.restore:
+            raise ValueError(
+                f"No restorable entry found for {path}:"
+                " most recent entry is already restored"
+            )
         raise ValueError(f"No trash entry found for {path} (resolved: {target_path})")
 
     if config.verbose:
