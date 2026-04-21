@@ -1589,17 +1589,12 @@ class TestTrashLogAPI:
         )
 
     def test_mark_restored_signature_uses_timestamp(self) -> None:
-        """TrashLog.mark_restored(timestamp: int, path: str) signature."""
+        """TrashLog.mark_restored(path: str) — timestamp arg removed in Phase 14."""
         module = _import_trash_module()
         sig = inspect.signature(module.TrashLog.mark_restored)
         params = list(sig.parameters.keys())
-        # Expected: ['self', 'timestamp', 'path']
-        assert "timestamp" in params, (
-            f"'timestamp' param missing from mark_restored: {params}"
-        )
-        assert "hash_value" not in params, (
-            f"'hash_value' still present in mark_restored: {params}"
-        )
-        assert "event_type" not in params, (
-            f"'event_type' still present in mark_restored: {params}"
+        # Expected: ['self', 'path']
+        assert params == ["self", "path"], f"mark_restored signature mismatch: {params}"
+        assert "timestamp" not in params, (
+            f"'timestamp' param should have been removed from mark_restored: {params}"
         )

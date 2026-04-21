@@ -125,11 +125,8 @@ class TrashLog:
             self.save()
         return found
 
-    def mark_restored(self, timestamp: int, path: str) -> None:  # noqa: ARG002
-        """Append new event with restore=True to create audit trail.
-
-        Uses get_unique_timestamp for collision-safe timestamps.
-        """
+    def mark_restored(self, path: str) -> None:
+        """Append new event with restore=True to create audit trail."""
         restore_event = TrashEvent(
             path=path,
             timestamp=get_unique_timestamp(self._metadata_path.parent),
@@ -365,8 +362,7 @@ def _restore_by_path(path: str, config: RestoreConfig) -> bool:
     shutil.move(str(trash_path), str(target_path))
 
     # Append-only restore: record audit trail
-    trash_log = TrashLog(config.metadata_path)
-    trash_log.mark_restored(selected_event.timestamp, str(target_path))
+    trash_log.mark_restored(str(target_path))
 
     if config.verbose:
         print(f"trash: restored {target_path}", file=sys.stderr)
