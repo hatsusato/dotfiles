@@ -135,11 +135,11 @@ class TrashLog:
             self.save()
         return found
 
-    def mark_restored(self, _original_timestamp: int, path: str) -> None:
+    def mark_restored(self, timestamp: int, path: str) -> None:  # noqa: ARG002
         """Append new event with restore=True to create audit trail.
 
         Uses current epoch as new timestamp for the restore event.
-        The _original_timestamp parameter is unused; kept for audit context.
+        The timestamp parameter identifies the original trash entry (audit context).
         """
         restore_event = TrashEvent(
             path=path,
