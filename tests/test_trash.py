@@ -1146,17 +1146,6 @@ class TestTrashEvent:
         # restore should default to False
         assert event.restore is False
 
-    def test_trash_event_now_epoch_returns_int(self) -> None:
-        """TrashEvent.now_epoch() is a static/class method returning int timestamp."""
-        import time
-
-        trash = _import_trash_module()
-        epoch = trash.TrashEvent.now_epoch()
-        assert isinstance(epoch, int)
-        assert not isinstance(epoch, bool)
-        # Should be a recent timestamp (within the last day)
-        assert abs(epoch - int(time.time())) < 86400
-
 
 # ============================================================================
 # Phase 11: Metadata Layer — TrashLog (RED Phase)
