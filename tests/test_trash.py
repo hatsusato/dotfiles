@@ -13,7 +13,6 @@ import os
 import re
 import subprocess
 import sys
-import tarfile
 import types
 from pathlib import Path
 
@@ -343,6 +342,8 @@ class TestRecursiveFlag:
         self, mock_trash_env: dict, tmp_path: Path
     ) -> None:
         """FLAG-R-004: directory structure preserved in tar archive (no dir prefix)."""
+        import tarfile
+
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -1331,12 +1332,10 @@ class TestTarNormalization:
             # Since we're testing via the script, we need to check the actual command
             # For this test, we'll verify the normalization flags in actual tar creation
 
-            result = run_trash("-r", str(test_dir))
-            # This test would need internal visibility to verify the exact tar command
-            # For RED phase, we expect this to fail because flags aren't implemented yet
-            # We'll skip the mock verification and test via actual behavior
-            assert result.returncode == 0 or result.returncode != 0, (
-                "RED phase: awaiting implementation"
+            # This test would need internal visibility to verify the exact tar command.
+            # Skip until normalization flags are implemented and can be verified.
+            pytest.skip(
+                "awaiting implementation: tar normalization flags not yet verifiable"
             )
 
 
