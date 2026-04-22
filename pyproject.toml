@@ -20,6 +20,9 @@ addopts = "-v --tb=short"
 
 [tool.ruff]
 target-version = "py312"
+extend-include = ["dotfiles/common/.local/bin/trash"]
+
+[tool.ruff.lint]
 select = ["E", "F", "I"]
 
 [tool.ruff.format]
