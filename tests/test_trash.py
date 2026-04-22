@@ -1180,9 +1180,7 @@ class TestTrashLog:
         lines = [
             json.dumps(
                 {
-                    "hash": "hash1",
                     "path": "/home/user/target.txt",
-                    "type": "file",
                     "timestamp": 1700000200,
                     "restore": False,
                 },
@@ -1190,9 +1188,7 @@ class TestTrashLog:
             ),
             json.dumps(
                 {
-                    "hash": "hash2",
                     "path": "/home/user/other.txt",
-                    "type": "file",
                     "timestamp": 1700000201,
                     "restore": False,
                 },
@@ -1200,9 +1196,7 @@ class TestTrashLog:
             ),
             json.dumps(
                 {
-                    "hash": "hash1",
                     "path": "/home/user/target.txt",
-                    "type": "file",
                     "timestamp": 1700000202,
                     "restore": True,
                 },
