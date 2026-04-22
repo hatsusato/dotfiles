@@ -1131,7 +1131,7 @@ class TestTrashEvent:
         }
         try:
             trash.TrashEvent.from_dict(data)
-            assert False, "Expected ValueError for invalid type"
+            pytest.fail("Expected ValueError for invalid type")
         except ValueError:
             pass
 
@@ -1224,7 +1224,7 @@ class TestTrashLog:
         jsonl_path.write_text("not valid json\n")
         try:
             trash.TrashLog(jsonl_path)
-            assert False, "Expected ValueError for malformed JSON"
+            pytest.fail("Expected ValueError for malformed JSON")
         except ValueError:
             pass
 
