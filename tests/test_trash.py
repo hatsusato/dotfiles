@@ -673,19 +673,22 @@ class TestRestore:
         assert result.returncode != 0
         assert result.stderr != ""
 
-    def test_restore_relative_path(self, mock_trash_env: dict, tmp_path: Path) -> None:
+    def test_restore_relative_path(self, mock_trash_env: dict) -> None:
         """TOOL-05: restore with relative path resolves to absolute (cwd-aware)."""
         home = Path(mock_trash_env["home"])
-
         test_file = home / "relative_test.txt"
         test_file.write_text("relative path content")
         run_trash(str(test_file))
-
         assert not test_file.exists()
 
-        # Run restore with a path that is absolute (constructed from known cwd context)
-        # The test invokes with absolute path but verifies resolution works
-        result = run_restore(str(test_file))
+        rel = os.path.relpath(str(test_file), start=str(home))
+        result = subprocess.run(
+            [str(TRASH_SCRIPT), "--restore", rel],
+            capture_output=True,
+            text=True,
+            env={**os.environ.copy(), "HOME": str(home)},
+            cwd=str(home),
+        )
         assert result.returncode == 0
         assert test_file.exists()
 
