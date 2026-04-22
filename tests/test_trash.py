@@ -625,7 +625,6 @@ class TestRestore:
     def test_restore_list_basic(self, mock_trash_env: dict) -> None:
         """TOOL-01: restore --list displays trash contents in text format."""
         home = Path(mock_trash_env["home"])
-        trash_dir = Path(mock_trash_env["trash_dir"])
 
         # Trash a file first using trash command
         test_file = home / "testfile.txt"
@@ -635,7 +634,6 @@ class TestRestore:
         result = run_restore("--list")
         assert result.returncode == 0
         assert "testfile.txt" in result.stdout or "testfile.txt" in result.stderr
-        _ = trash_dir  # used indirectly via TRASH_DIR env
 
     def test_restore_list_empty(self, mock_trash_env: dict) -> None:
         """TOOL-14: restore --list on empty trash shows empty list or empty message."""
