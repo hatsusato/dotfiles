@@ -299,7 +299,7 @@ class RestoreConfig:
         Prints nothing (empty output) if trash is empty or trash-log.jsonl missing.
         """
         trash_log = TrashLog(self.metadata_path)
-        entries = [e for e in trash_log.all_events() if not e.restore]
+        entries = trash_log.active_events()
         if not entries:
             return
         print(f"Files in trash ({len(entries)}):")
@@ -340,20 +340,12 @@ def _restore_by_path(path: str, config: RestoreConfig) -> bool:
     target_path = Path(path).resolve()
 
     trash_log = TrashLog(config.metadata_path)
-    latest_event: TrashEvent | None = None
 
     # Select the most recent non-restored event for the target path
-    candidates = [
-        e
-        for e in trash_log.all_events()
-        if e.path == str(target_path) and not e.restore
-    ]
-    selected_event = candidates[-1] if candidates else None
+    selected_event = trash_log.find_latest_restorable(str(target_path))
 
     # Track latest event (any type) for error messages
-    for event in trash_log.all_events():
-        if event.path == str(target_path):
-            latest_event = event
+    latest_event = trash_log.find_latest(str(target_path))
 
     if selected_event is None:
         if latest_event is not None and latest_event.restore:
