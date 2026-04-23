@@ -220,8 +220,8 @@ class TrashPath(Path):
         # Normalize path to absolute
         absolute_path = Path(path).absolute()
         resolved = absolute_path.parent.resolve() / absolute_path.name
-        # Check existence (symlinks may point to nonexistent targets — check both)
-        if not resolved.exists() and not resolved.is_symlink():
+        # Check existence (symlinks may point to nonexistent targets — use lexists)
+        if not os.path.lexists(resolved):  # D-08: lexists() applied (location 1)
             raise FileNotFoundError(f"{path}: No such file or directory")
         # Reject if resolved is ancestor of cwd (system directory)
         if Path.cwd().is_relative_to(resolved):
@@ -282,6 +282,119 @@ class TrashConfig:
         timestamp = self._move_to_trash(path)
         trash_log.append(TrashEvent(path=str(path), timestamp=timestamp))
         return timestamp
+
+    def backup_to_trash(self, path: Path) -> None:
+        """Move existing file/dir/symlink to trash before restoring over it (per D-03).
+
+        Uses the same _trash_and_log pattern as regular trash operation.
+        """
+        print(
+            f"trash: {path} exists; backing up to trash...",
+            file=sys.stderr,
+        )
+        trash_log = TrashLog(self.metadata_path)
+        self._trash_and_log(path, trash_log)
+
+    def list_trash(self) -> None:
+        """Print trash-log.jsonl contents in human-readable format to stdout.
+
+        Displays numbered list with path and timestamp for each non-restored entry.
+        Prints nothing if trash is empty or trash-log.jsonl missing.
+        """
+        trash_log = TrashLog(self.metadata_path)
+        entries = trash_log.active_events()
+        if not entries:
+            return
+        print(f"Files in trash ({len(entries)}):")
+        for i, entry in enumerate(entries, 1):
+            print(f"  {i}. {entry.path}")
+            print(f"     timestamp: {entry.timestamp}")
+
+    def process_files(self, file_paths: list[Path]) -> bool:
+        """Process multiple files by trashing them and recording metadata (per D-06).
+
+        Returns True if all files processed successfully, False if any errors occurred
+        (unless force flag is set).
+        """
+        trash_log = TrashLog(self.metadata_path)
+        success = True
+        for file_path in file_paths:
+            try:
+                trash_path = TrashPath.create(file_path)
+
+                if trash_path.is_dir() and not self.recursive:
+                    raise ValueError("Cannot trash directory without -r flag")
+                timestamp = self._trash_and_log(trash_path, trash_log)
+
+                if self.verbose:
+                    print(
+                        f"Trashed: {file_path} [timestamp: {timestamp}]",
+                        file=sys.stderr,
+                    )
+            except FileNotFoundError:
+                if self.force:
+                    # force flag: silently skip nonexistent files
+                    continue
+                print(
+                    f"Error trashing {file_path}: No such file or directory",
+                    file=sys.stderr,
+                )
+                success = False
+            except (ValueError, RuntimeError) as e:
+                print(f"Error trashing {file_path}: {e}", file=sys.stderr)
+                success = False
+        return success
+
+    def restore_by_path(self, path: str) -> bool:
+        """Restore a single item from trash by its original path (per D-07).
+
+        Searches trash-log.jsonl for a matching non-restored event,
+        moves the item from .trash/{timestamp} back to original path,
+        then appends a restore audit entry.
+        """
+        target_path = Path(path).resolve()
+        trash_log = TrashLog(self.metadata_path)
+
+        selected_event = trash_log.find_latest_restorable(str(target_path))
+        latest_event = trash_log.find_latest(str(target_path))
+
+        if selected_event is None:
+            if latest_event is not None and latest_event.restore:
+                raise ValueError(
+                    f"No restorable entry found for {path}:"
+                    " most recent entry is already restored"
+                )
+            raise ValueError(
+                f"No trash entry found for {path} (resolved: {target_path})"
+            )
+
+        if self.verbose:
+            ts = selected_event.timestamp
+            print(
+                f"trash: restoring {target_path} [timestamp: {ts}]",
+                file=sys.stderr,
+            )
+
+        trash_path = self.get_trash_path(selected_event.timestamp)
+        if not os.path.lexists(trash_path):  # D-08: lexists() applied (location 2)
+            ts = selected_event.timestamp
+            raise FileNotFoundError(
+                f"Trash item missing: {trash_path} (timestamp: {ts})"
+            )
+
+        if os.path.lexists(target_path):  # D-08: lexists() applied (location 3)
+            self.backup_to_trash(target_path)
+
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(trash_path), str(target_path))
+
+        # Append-only restore: record audit trail
+        trash_log.mark_restored(str(target_path))
+
+        if self.verbose:
+            print(f"trash: restored {target_path}", file=sys.stderr)
+
+        return True
 
 
 @dataclass
