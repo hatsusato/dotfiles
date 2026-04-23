@@ -170,7 +170,13 @@ class TrashLog:
                     os.unlink(temp_path)
                 raise
 
-        os.replace(temp_path, self._metadata_path)
+        # Move os.replace inside a try so cleanup still fires on failure
+        try:
+            os.replace(temp_path, self._metadata_path)
+        except Exception:
+            if temp_path.exists():
+                os.unlink(temp_path)
+            raise
 
     def _atomic_append_jsonl(self, event: TrashEvent) -> None:
         """Safely append single line to trash-log.jsonl.
