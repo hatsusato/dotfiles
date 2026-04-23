@@ -272,6 +272,17 @@ class TrashConfig:
         shutil.move(str(path), str(self.get_trash_path(timestamp)))
         return timestamp
 
+    def _trash_and_log(self, path: Path, trash_log: TrashLog) -> int:
+        """Move path to trash and record event in log (per D-05).
+
+        Combines _move_to_trash + TrashLog.append into a single atomic
+        operation to eliminate the repeated pattern.
+        Returns the epoch timestamp used as the storage key.
+        """
+        timestamp = self._move_to_trash(path)
+        trash_log.append(TrashEvent(path=str(path), timestamp=timestamp))
+        return timestamp
+
 
 @dataclass
 class RestoreConfig:
