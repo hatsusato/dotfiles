@@ -102,6 +102,20 @@ class TrashLog:
         """Return a copy of all in-memory events (read-only access)."""
         return list(self._events)
 
+    def active_events(self) -> list[TrashEvent]:
+        """Return non-restored events (for --list output)."""
+        return [e for e in self._events if not e.restore]
+
+    def find_latest_restorable(self, path: str) -> TrashEvent | None:
+        """Return most recent non-restored event for path."""
+        candidates = [e for e in self._events if e.path == path and not e.restore]
+        return candidates[-1] if candidates else None
+
+    def find_latest(self, path: str) -> TrashEvent | None:
+        """Return most recent event (any type) for path (used for error messages)."""
+        matches = [e for e in self._events if e.path == path]
+        return matches[-1] if matches else None
+
     def append(self, event: TrashEvent) -> None:
         """Add event to memory and sync to disk immediately."""
         self._events.append(event)
