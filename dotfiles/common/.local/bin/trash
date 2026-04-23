@@ -308,7 +308,7 @@ class TrashConfig:
         if not entries:
             return
         print(f"Files in trash ({len(entries)}):")
-        for i, entry in enumerate(entries, 1):
+        for i, entry in enumerate(entries, _LIST_START_INDEX):
             print(f"  {i}. {entry.path}")
             print(f"     timestamp: {entry.timestamp}")
 
@@ -458,6 +458,7 @@ def _setup_parser() -> ArgumentParser:
 
 EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
+_LIST_START_INDEX = 1  # 1-based display numbering for --list output
 
 
 def main() -> int:
