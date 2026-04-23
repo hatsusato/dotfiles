@@ -1279,7 +1279,8 @@ class TestCollisionAvoidance:
         (trash_dir / str(ts)).mkdir()
         (trash_dir / str(ts + 1)).mkdir()
 
-        result = module.get_unique_timestamp(trash_dir)
+        log = module.TrashLog(trash_dir)
+        result = log.get_unique_timestamp()
         assert result >= ts + 2, f"Expected >= {ts + 2}, got {result}"
 
     def test_rapid_fire_trash_creates_separate_entries(

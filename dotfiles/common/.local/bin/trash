@@ -43,18 +43,6 @@ class TrashEvent:
         )
 
 
-def get_unique_timestamp(trash_dir: Path) -> int:
-    """Return first available epoch timestamp in trash_dir.
-
-    Starts at current epoch, increments by 1 until a non-existing
-    name is found in trash_dir. Simple collision avoidance.
-    """
-    timestamp = int(time.time())
-    while (trash_dir / str(timestamp)).exists():
-        timestamp += 1
-    return timestamp
-
-
 class TrashLog:
     """Manages trash-log.jsonl as append-only event log.
 
@@ -62,11 +50,53 @@ class TrashLog:
     Provides find_by_path() for O(n) lookups.
     """
 
-    def __init__(self, metadata_path: Path) -> None:
-        """Load all events from trash-log.jsonl into memory."""
-        self._metadata_path = metadata_path
+    def __init__(self, trash_dir: Path | None = None) -> None:
+        """Initialize TrashLog; defaults to TRASH_DIR env or ~/.trash."""
+        if trash_dir is None:
+            trash_dir = Path(os.getenv("TRASH_DIR", str(Path.home() / ".trash")))
+        self._trash_dir = trash_dir
+        self._metadata_path = trash_dir / "trash-log.jsonl"
         self._events: list[TrashEvent] = []
         self.load()
+
+    def get_unique_timestamp(self) -> int:
+        """Return first available epoch timestamp in self._trash_dir.
+
+        Starts at current epoch, increments by 1 until a non-existing
+        name is found in self._trash_dir. Simple collision avoidance.
+        """
+        timestamp = int(time.time())
+        while (self._trash_dir / str(timestamp)).exists():
+            timestamp += 1
+        return timestamp
+
+    def get_trash_path(self, timestamp: int) -> Path:
+        """Get final trash path for given epoch timestamp.
+
+        Ensures trash directory exists, then returns the
+        path to the trashed item (trash_dir/{timestamp}).
+        """
+        self._trash_dir.mkdir(parents=True, exist_ok=True)
+        return self._trash_dir / str(timestamp)
+
+    def trash_item(self, path: Path) -> int:
+        """Move path to trash and record event in log (atomic operation).
+
+        Generates unique timestamp, moves file to trash directory,
+        records event in metadata. Returns the timestamp used as key.
+
+        Args:
+            path: Path to file/directory to trash
+
+        Returns:
+            int: Epoch timestamp used as trash directory name
+        """
+        timestamp = self.get_unique_timestamp()
+        dest = self.get_trash_path(timestamp)
+        self._trash_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(path), str(dest))
+        self.append(TrashEvent(path=str(path), timestamp=timestamp))
+        return timestamp
 
     def load(self) -> None:
         """Read and parse trash-log.jsonl, rebuild in-memory event list.
@@ -139,14 +169,14 @@ class TrashLog:
         """Append new event with restore=True to create audit trail."""
         restore_event = TrashEvent(
             path=path,
-            timestamp=get_unique_timestamp(self._metadata_path.parent),
+            timestamp=self.get_unique_timestamp(),
             restore=True,
         )
         self.append(restore_event)
 
     def save(self) -> None:
         """Atomically rewrite trash-log.jsonl with current in-memory events."""
-        self._metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        self._trash_dir.mkdir(parents=True, exist_ok=True)
 
         with NamedTemporaryFile(
             mode="w",
@@ -183,7 +213,7 @@ class TrashLog:
 
         For append-only, write directly in append mode then fsync.
         """
-        self._metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        self._trash_dir.mkdir(parents=True, exist_ok=True)
         with open(self._metadata_path, "a") as f:
             json.dump(
                 event.to_dict(),
@@ -271,7 +301,9 @@ class TrashConfig:
 
         Returns epoch timestamp used as storage key.
         """
-        timestamp = get_unique_timestamp(self.trash_dir_path)
+        timestamp = int(time.time())
+        while (self.trash_dir_path / str(timestamp)).exists():
+            timestamp += 1
         shutil.move(str(path), str(self.get_trash_path(timestamp)))
         return timestamp
 
@@ -303,7 +335,7 @@ class TrashConfig:
         Displays numbered list with path and timestamp for each non-restored entry.
         Prints nothing if trash is empty or trash-log.jsonl missing.
         """
-        trash_log = TrashLog(self.metadata_path)
+        trash_log = TrashLog(self.trash_dir_path)
         entries = trash_log.active_events()
         if not entries:
             return
@@ -318,7 +350,7 @@ class TrashConfig:
         Returns True if all files processed successfully, False if any errors occurred
         (unless force flag is set).
         """
-        trash_log = TrashLog(self.metadata_path)
+        trash_log = TrashLog(self.trash_dir_path)
         success = True
         for file_path in file_paths:
             try:
@@ -355,7 +387,7 @@ class TrashConfig:
         then appends a restore audit entry.
         """
         target_path = Path(path).resolve()
-        trash_log = TrashLog(self.metadata_path)
+        trash_log = TrashLog(self.trash_dir_path)
 
         selected_event = trash_log.find_latest_restorable(str(target_path))
         latest_event = trash_log.find_latest(str(target_path))
