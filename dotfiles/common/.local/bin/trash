@@ -286,16 +286,15 @@ class TrashConfig:
         trash_log.append(TrashEvent(path=str(path), timestamp=timestamp))
         return timestamp
 
-    def backup_to_trash(self, path: Path) -> None:
+    def backup_to_trash(self, path: Path, trash_log: TrashLog) -> None:
         """Move existing file/dir/symlink to trash before restoring over it (per D-03).
 
-        Uses the same _trash_and_log pattern as regular trash operation.
+        Accepts the caller's TrashLog so both operations share one consistent log.
         """
         print(
             f"trash: {path} exists; backing up to trash...",
             file=sys.stderr,
         )
-        trash_log = TrashLog(self.metadata_path)
         self._trash_and_log(path, trash_log)
 
     def list_trash(self) -> None:
@@ -386,7 +385,7 @@ class TrashConfig:
             )
 
         if os.path.lexists(target_path):  # D-08: lexists() applied (location 3)
-            self.backup_to_trash(target_path)
+            self.backup_to_trash(target_path, trash_log)  # pass shared log
 
         target_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(trash_path), str(target_path))
