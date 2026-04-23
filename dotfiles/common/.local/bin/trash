@@ -249,6 +249,11 @@ class TrashConfig:
         )
     )
 
+    @property
+    def metadata_path(self) -> Path:
+        """Return path to trash-log.jsonl inside trash_dir (per D-01)."""
+        return self.trash_dir_path / "trash-log.jsonl"
+
     def get_trash_path(self, timestamp: int) -> Path:
         """Get final trash path for given epoch timestamp.
 
@@ -258,7 +263,7 @@ class TrashConfig:
         self.trash_dir_path.mkdir(parents=True, exist_ok=True)
         return self.trash_dir_path / str(timestamp)
 
-    def _move_to_trash(self, path: TrashPath) -> int:
+    def _move_to_trash(self, path: Path) -> int:
         """Move any path type to trash with epoch timestamp name.
 
         Returns epoch timestamp used as storage key.
