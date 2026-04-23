@@ -11,7 +11,7 @@ import shutil
 import sys
 import time
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Self
@@ -266,57 +266,13 @@ class TrashPath(Path):
 class TrashConfig:
     """Configuration for trash operations.
 
-    verbose, force, recursive default to False so TrashConfig can be
-    instantiated with keyword-only args (e.g. TrashConfig(verbose=True)
-    for --list and --restore which do not use force/recursive).
-    trash_dir defaults to reading TRASH_DIR env var at instantiation time.
+    Holds only operational flags (verbose, force, recursive).
+    Trash directory resolution and file operations are handled by TrashLog.
     """
 
     verbose: bool = False
     force: bool = False
     recursive: bool = False
-    # Default: read TRASH_DIR env var or ~/.trash (evaluated per instantiation)
-    trash_dir_path: Path = field(
-        default_factory=lambda: Path(
-            os.getenv("TRASH_DIR", str(Path.home() / ".trash"))
-        )
-    )
-
-    @property
-    def metadata_path(self) -> Path:
-        """Return path to trash-log.jsonl inside trash_dir (per D-01)."""
-        return self.trash_dir_path / "trash-log.jsonl"
-
-    def get_trash_path(self, timestamp: int) -> Path:
-        """Get final trash path for given epoch timestamp.
-
-        Ensures trash directory exists, then returns the
-        path to the trashed item (trash_dir/{timestamp}).
-        """
-        self.trash_dir_path.mkdir(parents=True, exist_ok=True)
-        return self.trash_dir_path / str(timestamp)
-
-    def _move_to_trash(self, path: Path) -> int:
-        """Move any path type to trash with epoch timestamp name.
-
-        Returns epoch timestamp used as storage key.
-        """
-        timestamp = int(time.time())
-        while (self.trash_dir_path / str(timestamp)).exists():
-            timestamp += 1
-        shutil.move(str(path), str(self.get_trash_path(timestamp)))
-        return timestamp
-
-    def _trash_and_log(self, path: Path, trash_log: TrashLog) -> int:
-        """Move path to trash and record event in log (per D-05).
-
-        Combines _move_to_trash + TrashLog.append into a single atomic
-        operation to eliminate the repeated pattern.
-        Returns the epoch timestamp used as the storage key.
-        """
-        timestamp = self._move_to_trash(path)
-        trash_log.append(TrashEvent(path=str(path), timestamp=timestamp))
-        return timestamp
 
     def backup_to_trash(self, path: Path, trash_log: TrashLog) -> None:
         """Move existing file/dir/symlink to trash before restoring over it (per D-03).
@@ -327,15 +283,14 @@ class TrashConfig:
             f"trash: {path} exists; backing up to trash...",
             file=sys.stderr,
         )
-        self._trash_and_log(path, trash_log)
+        trash_log.trash_item(path)
 
-    def list_trash(self) -> None:
+    def list_trash(self, trash_log: TrashLog) -> None:
         """Print trash-log.jsonl contents in human-readable format to stdout.
 
         Displays numbered list with path and timestamp for each non-restored entry.
         Prints nothing if trash is empty or trash-log.jsonl missing.
         """
-        trash_log = TrashLog(self.trash_dir_path)
         entries = trash_log.active_events()
         if not entries:
             return
@@ -344,13 +299,12 @@ class TrashConfig:
             print(f"  {i}. {entry.path}")
             print(f"     timestamp: {entry.timestamp}")
 
-    def process_files(self, file_paths: list[Path]) -> bool:
+    def process_files(self, file_paths: list[Path], trash_log: TrashLog) -> bool:
         """Process multiple files by trashing them and recording metadata (per D-06).
 
         Returns True if all files processed successfully, False if any errors occurred
         (unless force flag is set).
         """
-        trash_log = TrashLog(self.trash_dir_path)
         success = True
         for file_path in file_paths:
             try:
@@ -358,7 +312,7 @@ class TrashConfig:
 
                 if trash_path.is_dir() and not self.recursive:
                     raise ValueError("Cannot trash directory without -r flag")
-                timestamp = self._trash_and_log(trash_path, trash_log)
+                timestamp = trash_log.trash_item(trash_path)
 
                 if self.verbose:
                     print(
@@ -379,7 +333,7 @@ class TrashConfig:
                 success = False
         return success
 
-    def restore_by_path(self, path: str) -> bool:
+    def restore_by_path(self, path: str, trash_log: TrashLog) -> bool:
         """Restore a single item from trash by its original path (per D-07).
 
         Searches trash-log.jsonl for a matching non-restored event,
@@ -387,7 +341,6 @@ class TrashConfig:
         then appends a restore audit entry.
         """
         target_path = Path(path).resolve()
-        trash_log = TrashLog(self.trash_dir_path)
 
         selected_event = trash_log.find_latest_restorable(str(target_path))
         latest_event = trash_log.find_latest(str(target_path))
@@ -409,7 +362,7 @@ class TrashConfig:
                 file=sys.stderr,
             )
 
-        trash_path = self.get_trash_path(selected_event.timestamp)
+        trash_path = trash_log.get_trash_path(selected_event.timestamp)
         if not os.path.lexists(trash_path):  # D-08: lexists() applied (location 2)
             ts = selected_event.timestamp
             raise FileNotFoundError(
@@ -498,10 +451,13 @@ def main() -> int:
     parser = _setup_parser()
     args = parser.parse_args()
 
+    # Create TrashLog exactly once for this session (D-08)
+    trash_log = TrashLog()
+
     # Handle --list (shows all items in trash)
     if args.list:
         config = TrashConfig(verbose=args.verbose)
-        config.list_trash()
+        config.list_trash(trash_log)
         return EXIT_SUCCESS
 
     # Handle --restore (restore files from trash)
@@ -514,7 +470,7 @@ def main() -> int:
         success = True
         for path in args.files:
             try:
-                config.restore_by_path(str(path))
+                config.restore_by_path(str(path), trash_log)
             except (ValueError, FileNotFoundError) as e:
                 print(f"trash: error: {e}", file=sys.stderr)
                 success = False
@@ -534,7 +490,7 @@ def main() -> int:
         force=args.force,
         recursive=args.recursive,
     )
-    if config.process_files(args.files):
+    if config.process_files(args.files, trash_log):
         return EXIT_SUCCESS
     else:
         return EXIT_FAILURE

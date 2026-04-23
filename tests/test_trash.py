@@ -1163,10 +1163,11 @@ class TestTrashLog:
     """
 
     def test_trash_log_init_handles_missing_file(self, tmp_path: Path) -> None:
-        """TrashLog initialized with nonexistent file returns empty event list."""
+        """TrashLog initialized with nonexistent trash_dir returns empty event list."""
         trash = _import_trash_module()
-        jsonl_path = tmp_path / "nonexistent_trash-log.jsonl"
-        log = trash.TrashLog(jsonl_path)
+        trash_dir = tmp_path / ".trash"
+        # trash_dir does not exist yet; TrashLog.load() handles missing metadata file
+        log = trash.TrashLog(trash_dir)
         # find_by_path on empty log returns empty list
         events = log.find_by_path("/any/path")
         assert events == []
@@ -1176,7 +1177,9 @@ class TestTrashLog:
     ) -> None:
         """TrashLog.find_by_path() returns all events matching the given path."""
         trash = _import_trash_module()
-        jsonl_path = tmp_path / "trash-log.jsonl"
+        trash_dir = tmp_path / ".trash"
+        trash_dir.mkdir()
+        jsonl_path = trash_dir / "trash-log.jsonl"
         lines = [
             json.dumps(
                 {
@@ -1204,7 +1207,7 @@ class TestTrashLog:
             ),
         ]
         jsonl_path.write_text("\n".join(lines) + "\n")
-        log = trash.TrashLog(jsonl_path)
+        log = trash.TrashLog(trash_dir)
         events = log.find_by_path("/home/user/target.txt")
         assert len(events) == 2
         assert all(e.path == "/home/user/target.txt" for e in events)
@@ -1212,10 +1215,12 @@ class TestTrashLog:
     def test_trash_log_malformed_json_raises_valueerror(self, tmp_path: Path) -> None:
         """TrashLog.load() raises ValueError on malformed JSON line."""
         trash = _import_trash_module()
-        jsonl_path = tmp_path / "trash-log.jsonl"
+        trash_dir = tmp_path / ".trash"
+        trash_dir.mkdir()
+        jsonl_path = trash_dir / "trash-log.jsonl"
         jsonl_path.write_text("not valid json\n")
         try:
-            trash.TrashLog(jsonl_path)
+            trash.TrashLog(trash_dir)
             pytest.fail("Expected ValueError for malformed JSON")
         except ValueError:
             pass
