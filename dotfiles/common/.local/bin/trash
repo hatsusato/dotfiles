@@ -93,7 +93,6 @@ class TrashLog:
         """
         timestamp = self.get_unique_timestamp()
         dest = self.get_trash_path(timestamp)
-        self._trash_dir.mkdir(parents=True, exist_ok=True)
         shutil.move(str(path), str(dest))
         self.append(TrashEvent(path=str(path), timestamp=timestamp))
         return timestamp
