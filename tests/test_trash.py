@@ -1046,8 +1046,7 @@ class TestTrashEvent:
 # Phase 11: Metadata Layer — TrashLog (RED Phase)
 # ============================================================================
 # D-02: TrashLog manages trash-log.jsonl as an in-memory event list.
-# Methods: load(), find_by_path(), find_by_hash(), append(), remove_by_path(),
-#          remove_by_hash(), mark_restored(), save()
+# Methods: load(), find_by_hash(), append(), remove_by_hash(), mark_restored(), save()
 
 
 class TestTrashLog:
@@ -1062,49 +1061,7 @@ class TestTrashLog:
         trash_dir = tmp_path / ".trash"
         # trash_dir does not exist yet; TrashLog.load() handles missing metadata file
         log = trash.TrashLog(trash_dir)
-        # find_by_path on empty log returns empty list
-        events = log.find_by_path("/any/path")
-        assert events == []
-
-    def test_trash_log_find_by_path_returns_matching_events(
-        self, tmp_path: Path
-    ) -> None:
-        """TrashLog.find_by_path() returns all events matching the given path."""
-        trash = _import_trash_module()
-        trash_dir = tmp_path / ".trash"
-        trash_dir.mkdir()
-        jsonl_path = trash_dir / "trash-log.jsonl"
-        lines = [
-            json.dumps(
-                {
-                    "path": "/home/user/target.txt",
-                    "timestamp": 1700000200,
-                    "restore": False,
-                },
-                separators=(",", ":"),
-            ),
-            json.dumps(
-                {
-                    "path": "/home/user/other.txt",
-                    "timestamp": 1700000201,
-                    "restore": False,
-                },
-                separators=(",", ":"),
-            ),
-            json.dumps(
-                {
-                    "path": "/home/user/target.txt",
-                    "timestamp": 1700000202,
-                    "restore": True,
-                },
-                separators=(",", ":"),
-            ),
-        ]
-        jsonl_path.write_text("\n".join(lines) + "\n")
-        log = trash.TrashLog(trash_dir)
-        events = log.find_by_path("/home/user/target.txt")
-        assert len(events) == 2
-        assert all(e.path == "/home/user/target.txt" for e in events)
+        assert log._events == []
 
     def test_trash_log_malformed_json_raises_valueerror(self, tmp_path: Path) -> None:
         """TrashLog.load() raises ValueError on malformed JSON line."""
