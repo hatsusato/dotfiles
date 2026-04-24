@@ -12,6 +12,7 @@ import sys
 import time
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -74,23 +75,24 @@ class TrashLog:
         """Returns the path to the trashed item (trash_dir/{timestamp})."""
         return self._trash_dir / str(timestamp)
 
-    def trash_item(self, path: Path) -> int:
+    def trash_item(self, path: Path) -> TrashEvent:
         """Move path to trash and record event in log (atomic operation).
 
         Generates unique timestamp, moves file to trash directory,
-        records event in metadata. Returns the timestamp used as key.
+        records event in metadata. Returns the TrashEvent recorded.
 
         Args:
             path: Path to file/directory to trash
 
         Returns:
-            int: Epoch timestamp used as trash directory name
+            TrashEvent: The event recorded (includes path, timestamp, restore flag)
         """
         timestamp = self.get_unique_timestamp()
         dest = self.get_trash_path(timestamp)
         shutil.move(str(path), str(dest))
-        self.append(TrashEvent(path=str(path), timestamp=timestamp))
-        return timestamp
+        event = TrashEvent(path=str(path), timestamp=timestamp)
+        self.append(event)
+        return event
 
     def load(self) -> None:
         """Read and parse trash-log.jsonl, rebuild in-memory event list.
@@ -254,7 +256,10 @@ class TrashConfig:
         print(f"Files in trash ({len(entries)}):")
         for i, entry in enumerate(entries, _LIST_START_INDEX):
             print(f"  {i}. {entry.path}")
-            print(f"     timestamp: {entry.timestamp}")
+            ts_iso = datetime.fromtimestamp(entry.timestamp).isoformat(
+                timespec="seconds"
+            )
+            print(f"     timestamp: {ts_iso}")
 
     def process_files(self, file_paths: list[Path], trash_log: TrashLog) -> bool:
         """Process multiple files by trashing them and recording metadata (per D-06).
@@ -269,11 +274,11 @@ class TrashConfig:
 
                 if trash_path.is_dir() and not self.recursive:
                     raise ValueError("Cannot trash directory without -r flag")
-                timestamp = trash_log.trash_item(trash_path)
+                event = trash_log.trash_item(trash_path)
 
                 if self.verbose:
                     print(
-                        f"Trashed: {file_path} [timestamp: {timestamp}]",
+                        f"Trashed: {file_path} [timestamp: {event.timestamp}]",
                         file=sys.stderr,
                     )
             except FileNotFoundError:
@@ -411,9 +416,15 @@ def main() -> int:
     # Create TrashLog exactly once for this session (D-08)
     trash_log = TrashLog()
 
+    # Create TrashConfig once with all flags (D-13)
+    config = TrashConfig(
+        verbose=args.verbose,
+        force=args.force,
+        recursive=args.recursive,
+    )
+
     # Handle --list (shows all items in trash)
     if args.list:
-        config = TrashConfig(verbose=args.verbose)
         config.list_trash(trash_log)
         return EXIT_SUCCESS
 
@@ -423,7 +434,6 @@ def main() -> int:
             print("Error: provide a path to restore or use --list", file=sys.stderr)
             parser.print_help(sys.stderr)
             return EXIT_FAILURE
-        config = TrashConfig(verbose=args.verbose)
         success = True
         for path in args.files:
             try:
@@ -442,11 +452,6 @@ def main() -> int:
         parser.print_help(sys.stderr)
         return EXIT_FAILURE
 
-    config = TrashConfig(
-        verbose=args.verbose,
-        force=args.force,
-        recursive=args.recursive,
-    )
     if config.process_files(args.files, trash_log):
         return EXIT_SUCCESS
     else:
