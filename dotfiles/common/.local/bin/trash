@@ -14,7 +14,6 @@ from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Self
 
 
 @dataclass
@@ -47,7 +46,7 @@ class TrashLog:
     """Manages trash-log.jsonl as append-only event log.
 
     Loads entire event history into memory at init for fast queries.
-    Provides find_by_path() for O(n) lookups.
+    Provides active_events(), find_latest_restorable(), and find_latest() lookups.
     """
 
     def __init__(self, trash_dir: Path | None = None) -> None:
@@ -57,6 +56,7 @@ class TrashLog:
         self._trash_dir = trash_dir
         self._metadata_path = trash_dir / "trash-log.jsonl"
         self._events: list[TrashEvent] = []
+        self._trash_dir.mkdir(parents=True, exist_ok=True)  # D-07: create once
         self.load()
 
     def get_unique_timestamp(self) -> int:
@@ -71,12 +71,7 @@ class TrashLog:
         return timestamp
 
     def get_trash_path(self, timestamp: int) -> Path:
-        """Get final trash path for given epoch timestamp.
-
-        Ensures trash directory exists, then returns the
-        path to the trashed item (trash_dir/{timestamp}).
-        """
-        self._trash_dir.mkdir(parents=True, exist_ok=True)
+        """Returns the path to the trashed item (trash_dir/{timestamp})."""
         return self._trash_dir / str(timestamp)
 
     def trash_item(self, path: Path) -> int:
@@ -123,10 +118,6 @@ class TrashLog:
                         f"Malformed metadata entry at line {lineno}: {e}"
                     ) from e
 
-    def find_by_path(self, path: str) -> list[TrashEvent]:
-        """Return all events matching this path (original location)."""
-        return [e for e in self._events if e.path == path]
-
     def active_events(self) -> list[TrashEvent]:
         """Return non-restored events (for --list output)."""
         return [e for e in self._events if not e.restore]
@@ -146,24 +137,6 @@ class TrashLog:
         self._events.append(event)
         self._atomic_append_jsonl(event)
 
-    def remove_by_path(self, path: str, timestamp: int) -> bool:
-        """Remove first event matching both path and timestamp.
-
-        Returns True if found and removed, False otherwise.
-        """
-        found = False
-        new_events: list[TrashEvent] = []
-        for event in self._events:
-            if not found and event.path == path and event.timestamp == timestamp:
-                found = True
-                continue
-            new_events.append(event)
-
-        if found:
-            self._events = new_events
-            self.save()
-        return found
-
     def mark_restored(self, path: str) -> None:
         """Append new event with restore=True to create audit trail."""
         restore_event = TrashEvent(
@@ -175,8 +148,6 @@ class TrashLog:
 
     def save(self) -> None:
         """Atomically rewrite trash-log.jsonl with current in-memory events."""
-        self._trash_dir.mkdir(parents=True, exist_ok=True)
-
         with NamedTemporaryFile(
             mode="w",
             dir=self._metadata_path.parent,
@@ -212,7 +183,6 @@ class TrashLog:
 
         For append-only, write directly in append mode then fsync.
         """
-        self._trash_dir.mkdir(parents=True, exist_ok=True)
         with open(self._metadata_path, "a") as f:
             json.dump(
                 event.to_dict(),
@@ -224,41 +194,29 @@ class TrashLog:
             os.fsync(f.fileno())
 
 
-class TrashPath(Path):
-    """Path subclass with type detection and validation.
+def normalize_path(path: Path | str) -> Path:
+    """Validate and normalize path to absolute resolved form.
 
-    Validates path at creation time: checks existence, detects type,
-    prevents dangerous paths. Inherits from Path for transparent API access.
+    Encapsulates path normalization, existence checking, and dangerous path
+    detection. Returns a plain Path (not a subclass).
+
+    Args:
+        path: Relative or absolute file path
+
+    Returns:
+        Path: Absolute, resolved path
+
+    Raises:
+        FileNotFoundError: Path does not exist and is not a symlink
+        ValueError: Path is a dangerous system directory under cwd
     """
-
-    @classmethod
-    def create(cls, path: Path | str) -> Self:
-        """Validate and create TrashPath.
-
-        Encapsulates path normalization, existence checking, and dangerous path
-        detection. All validation logic is centralized here.
-
-        Args:
-            path: Relative or absolute file path
-
-        Returns:
-            TrashPath instance (a Path subclass)
-
-        Raises:
-            FileNotFoundError: Path does not exist and is not a symlink
-            ValueError: Path is a dangerous system directory under cwd
-        """
-        # Normalize path to absolute
-        absolute_path = Path(path).absolute()
-        resolved = absolute_path.parent.resolve() / absolute_path.name
-        # Check existence (symlinks may point to nonexistent targets — use lexists)
-        if not os.path.lexists(resolved):  # D-08: lexists() applied (location 1)
-            raise FileNotFoundError(f"{path}: No such file or directory")
-        # Reject if resolved is ancestor of cwd (system directory)
-        if Path.cwd().is_relative_to(resolved):
-            raise ValueError(f"Cannot trash system directory: {path}")
-        # Create Path instance
-        return cls(resolved)
+    absolute_path = Path(path).absolute()
+    resolved = absolute_path.parent.resolve() / absolute_path.name
+    if not os.path.lexists(resolved):  # D-08: lexists() applied (location 1)
+        raise FileNotFoundError(f"{path}: No such file or directory")
+    if Path.cwd().is_relative_to(resolved):
+        raise ValueError(f"Cannot trash system directory: {path}")
+    return resolved
 
 
 @dataclass
@@ -307,7 +265,7 @@ class TrashConfig:
         success = True
         for file_path in file_paths:
             try:
-                trash_path = TrashPath.create(file_path)
+                trash_path = normalize_path(file_path)
 
                 if trash_path.is_dir() and not self.recursive:
                     raise ValueError("Cannot trash directory without -r flag")
