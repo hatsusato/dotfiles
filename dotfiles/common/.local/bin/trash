@@ -168,7 +168,7 @@ class TrashLog:
         """Append new event with restore=True to create audit trail."""
         restore_event = TrashEvent(
             path=path,
-            timestamp=self.get_unique_timestamp(),
+            timestamp=int(time.time()),
             restore=True,
         )
         self.append(restore_event)
