@@ -1450,3 +1450,222 @@ class TestTrashLogAPI:
         assert "timestamp" not in params, (
             f"'timestamp' param should have been removed from mark_restored: {params}"
         )
+
+
+# ============================================================================
+# Phase 17: Refactor Cleanup Tests
+# ============================================================================
+
+
+class TestNormalizePathFunction:
+    """D-04, D-05, D-06: normalize_path() replaces TrashPath.create()."""
+
+    def test_normalize_path_returns_absolute_path(self, tmp_path: Path) -> None:
+        """normalize_path() returns an absolute Path for an existing file."""
+        module = _import_trash_module()
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        result = module.normalize_path(str(test_file))
+        assert isinstance(result, Path)
+        assert result.is_absolute()
+
+    def test_normalize_path_resolves_relative_path(self, tmp_path: Path) -> None:
+        """normalize_path() resolves relative path to absolute."""
+        import os
+
+        module = _import_trash_module()
+        test_file = tmp_path / "relative.txt"
+        test_file.write_text("content")
+        orig_cwd = os.getcwd()
+        try:
+            os.chdir(tmp_path)
+            result = module.normalize_path("relative.txt")
+            assert result.is_absolute()
+            assert result.name == "relative.txt"
+        finally:
+            os.chdir(orig_cwd)
+
+    def test_normalize_path_nonexistent_raises_filenotfounderror(
+        self, tmp_path: Path
+    ) -> None:
+        """normalize_path() raises FileNotFoundError for nonexistent file."""
+        module = _import_trash_module()
+        with pytest.raises(FileNotFoundError):
+            module.normalize_path(str(tmp_path / "nonexistent.txt"))
+
+    def test_normalize_path_broken_symlink_accepted(self, tmp_path: Path) -> None:
+        """normalize_path() accepts broken symlinks (for trashing)."""
+        module = _import_trash_module()
+        broken_link = tmp_path / "broken.lnk"
+        broken_link.symlink_to(tmp_path / "nonexistent_target.txt")
+        # Should NOT raise; broken symlinks can be trashed
+        result = module.normalize_path(str(broken_link))
+        assert isinstance(result, Path)
+
+    def test_normalize_path_system_directory_raises_valueerror(
+        self, tmp_path: Path
+    ) -> None:
+        """normalize_path() raises ValueError for system directories under cwd."""
+        import os
+
+        module = _import_trash_module()
+        # Create a subdirectory and change into it
+        subdir = tmp_path / "subdir"
+        subdir.mkdir()
+        orig_cwd = os.getcwd()
+        try:
+            os.chdir(subdir)
+            # Trying to trash the parent of cwd should fail
+            with pytest.raises(ValueError, match="Cannot trash system directory"):
+                module.normalize_path(str(tmp_path))
+        finally:
+            os.chdir(orig_cwd)
+
+    def test_trashpath_class_removed(self) -> None:
+        """TrashPath class no longer exists in the trash module (D-04)."""
+        module = _import_trash_module()
+        assert not hasattr(module, "TrashPath"), (
+            "TrashPath class should have been removed in Phase 17"
+        )
+
+
+class TestTrashLogInit:
+    """D-07, D-08: TrashLog.__init__ calls mkdir once; no mkdir in other methods."""
+
+    def test_init_creates_trash_directory(self, tmp_path: Path) -> None:
+        """TrashLog.__init__ creates the trash directory automatically."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        assert not trash_dir.exists(), "Precondition: directory should not exist"
+        _log = module.TrashLog(trash_dir)
+        assert trash_dir.exists(), "TrashLog.__init__ must create the trash directory"
+
+    def test_init_mkdir_idempotent(self, tmp_path: Path) -> None:
+        """Creating TrashLog twice on the same directory does not raise."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        module.TrashLog(trash_dir)
+        # Second initialization should not fail (exist_ok=True)
+        module.TrashLog(trash_dir)
+        assert trash_dir.exists()
+
+    def test_get_trash_path_no_longer_calls_mkdir(self, tmp_path: Path) -> None:
+        """get_trash_path() does not contain mkdir (D-08).
+
+        After __init__ creates the directory, get_trash_path just returns a path.
+        We verify by inspecting the source of get_trash_path.
+        """
+        import inspect
+
+        module = _import_trash_module()
+        source = inspect.getsource(module.TrashLog.get_trash_path)
+        assert "mkdir" not in source, (
+            "get_trash_path() should not call mkdir after Phase 17 (D-08)"
+        )
+
+
+class TestTrashItemReturn:
+    """D-09, D-10: trash_item() returns TrashEvent instead of int."""
+
+    def test_trash_item_returns_trash_event(self, tmp_path: Path) -> None:
+        """TrashLog.trash_item() returns a TrashEvent instance."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        result = log.trash_item(test_file)
+        assert isinstance(result, module.TrashEvent), (
+            f"trash_item() must return TrashEvent, got {type(result)}"
+        )
+
+    def test_trash_item_event_has_integer_timestamp(self, tmp_path: Path) -> None:
+        """The returned TrashEvent has an integer timestamp field."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        event = log.trash_item(test_file)
+        assert isinstance(event.timestamp, int)
+        assert event.timestamp > 0
+
+    def test_trash_item_event_path_matches_original(self, tmp_path: Path) -> None:
+        """The returned TrashEvent.path matches the original file path."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        event = log.trash_item(test_file)
+        assert event.path == str(test_file)
+
+    def test_trash_item_event_matches_log_entry(self, tmp_path: Path) -> None:
+        """The returned TrashEvent matches what was appended to the event log."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        event = log.trash_item(test_file)
+        # The event should be in the in-memory log
+        matching = [e for e in log._events if e.timestamp == event.timestamp]
+        assert len(matching) == 1
+        assert matching[0].path == event.path
+
+
+class TestListTrashTimestampFormat:
+    """D-11, D-12: list_trash() displays ISO 8601 timestamps, not raw epoch ints."""
+
+    def test_list_trash_output_shows_iso_format(self, mock_trash_env: dict) -> None:
+        """trash --list output shows ISO 8601 timestamp (YYYY-MM-DDTHH:MM:SS)."""
+        import re
+
+        home = Path(mock_trash_env["home"])
+        test_file = home / "list_ts_test.txt"
+        test_file.write_text("timestamp display test")
+        run_trash(str(test_file))
+
+        result = run_trash("--list")
+        assert result.returncode == 0
+        combined = result.stdout + result.stderr
+        # Must contain an ISO 8601 date-time string (YYYY-MM-DDTHH:MM:SS)
+        iso_pattern = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
+        assert iso_pattern.search(combined), (
+            f"Expected ISO 8601 timestamp in output, got:\n{combined}"
+        )
+
+    def test_list_trash_output_not_raw_epoch(self, mock_trash_env: dict) -> None:
+        """trash --list output does not show a bare 10-digit epoch integer."""
+        import re
+
+        home = Path(mock_trash_env["home"])
+        test_file = home / "epoch_check.txt"
+        test_file.write_text("epoch test")
+        run_trash(str(test_file))
+
+        result = run_trash("--list")
+        combined = result.stdout + result.stderr
+        # A bare 10-digit number like "1713985484" should NOT appear (replaced by ISO)
+        bare_epoch = re.compile(r"\btimestamp:\s+\d{10}\b")
+        assert not bare_epoch.search(combined), (
+            f"Found raw epoch int in list output (should be ISO 8601):\n{combined}"
+        )
+
+
+class TestUnusedMethodsRemoved:
+    """D-01, D-02: remove_by_path() and find_by_path() deleted from TrashLog."""
+
+    def test_remove_by_path_not_in_trashlog(self) -> None:
+        """TrashLog.remove_by_path() must not exist (D-01)."""
+        module = _import_trash_module()
+        assert not hasattr(module.TrashLog, "remove_by_path"), (
+            "TrashLog.remove_by_path() should have been deleted in Phase 17 (D-01)"
+        )
+
+    def test_find_by_path_not_in_trashlog(self) -> None:
+        """TrashLog.find_by_path() must not exist (D-02)."""
+        module = _import_trash_module()
+        assert not hasattr(module.TrashLog, "find_by_path"), (
+            "TrashLog.find_by_path() should have been deleted in Phase 17 (D-02)"
+        )
