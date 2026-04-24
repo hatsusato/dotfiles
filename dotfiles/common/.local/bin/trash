@@ -475,7 +475,7 @@ def main() -> int:
                 success = False
             except Exception as e:
                 print(f"trash: unexpected error: {e}", file=sys.stderr)
-                success = False
+                raise
         return EXIT_SUCCESS if success else EXIT_FAILURE
 
     # Handle normal trash operation
