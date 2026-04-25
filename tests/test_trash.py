@@ -900,13 +900,11 @@ class TestUIDGIDRemoval:
 
 
 # ============================================================================
-# Phase 11: Metadata Layer — TrashEvent and FileAttributes (RED Phase)
+# Phase 11 (now xfail): TrashEvent legacy contract tests
 # ============================================================================
-# These tests define the contract for Phase 11 metadata layer classes.
-# All tests in this section FAIL initially (classes not yet extracted).
-#
-# D-03: TrashEvent dataclass — hash, path, type, timestamp, restore
-# D-05: FileAttributes dataclass — path, mode (octal int), mtime, timestamp, restore
+# TrashEvent was simplified in Phase 13 to 3 fields {path, timestamp, restore}.
+# These tests check the old 5-field contract (hash, path, type, timestamp, restore)
+# and are marked xfail since that contract no longer applies.
 
 
 def _import_trash_module() -> types.ModuleType:
