@@ -840,21 +840,19 @@ class TestUIDGIDRemoval:
     ) -> None:
         """TEST-11: Metadata has no original_uid or original_gid fields."""
         home = Path(mock_trash_env["home"])
+        trash_dir = Path(mock_trash_env["trash_dir"])
         test_file = home / "test_no_uid_gid_thorough.txt"
         test_file.write_text("uid/gid removal test")
-
         run_trash(str(test_file))
 
-        trash_dir = Path(mock_trash_env["trash_dir"])
-        metadata_files = list(trash_dir.glob("*-attributes.json"))
-
-        for metadata_file in metadata_files:
-            entries = json.loads(metadata_file.read_text())
-            for entry in entries:
-                # Explicitly check all forbidden keys
-                forbidden_keys = ["original_uid", "original_gid"]
-                for key in forbidden_keys:
-                    assert key not in entry, f"{key} should not be in metadata (D-01)"
+        log_path = trash_dir / "trash-log.jsonl"
+        assert log_path.exists(), "trash-log.jsonl must exist after trashing"
+        for line in log_path.read_text().strip().splitlines():
+            if not line:
+                continue
+            entry = json.loads(line)
+            for key in ("original_uid", "original_gid"):
+                assert key not in entry, f"{key} should not be in metadata (D-01)"
 
     def test_12_restore_does_not_call_chown(self, mock_trash_env: dict) -> None:
         """TEST-12: restore_files() does NOT call chown (no ownership change)."""
