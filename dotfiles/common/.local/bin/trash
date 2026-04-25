@@ -229,7 +229,7 @@ class TrashConfig:
     recursive: bool = False
     files: list[Path] = field(default_factory=lambda: [])
     restore: bool = False
-    list: bool = False
+    show_list: bool = False
 
 
 def _setup_parser() -> ArgumentParser:
@@ -266,6 +266,7 @@ def _setup_parser() -> ArgumentParser:
         "--list",
         "-l",
         action="store_true",
+        dest="show_list",
         help="List all items in trash",
     )
     parser.add_argument(
@@ -357,7 +358,7 @@ def main() -> int:
 
     trash_log = TrashLog()
 
-    if config.list:
+    if config.show_list:
         list_items(config, trash_log)
         return EXIT_SUCCESS
 

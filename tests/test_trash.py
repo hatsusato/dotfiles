@@ -1733,7 +1733,7 @@ class TestArgparseNamespace:
         assert config.force is False
         assert config.recursive is False
         assert config.restore is False
-        assert config.list is False
+        assert config.show_list is False
 
 
 class TestTopLevelFunctions:
