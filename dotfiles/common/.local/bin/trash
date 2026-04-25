@@ -205,6 +205,7 @@ class TrashConfig:
 
         Accepts the caller's TrashLog so both operations share one consistent log.
         """
+        # Intentionally shown even without -v: unexpected conflict notification.
         print(
             f"trash: {path} exists; backing up to trash...",
             file=sys.stderr,
