@@ -1644,7 +1644,8 @@ class TestListTrashTimestampFormat:
 
 
 class TestUnusedMethodsRemoved:
-    """D-01, D-02: remove_by_path() and find_by_path() deleted from TrashLog."""
+    """D-01, D-02 (Phase 17): remove_by_path() and find_by_path() deleted.
+    D-05 (Phase 18): find_latest_restorable() and find_latest() deleted."""
 
     def test_remove_by_path_not_in_trashlog(self) -> None:
         """TrashLog.remove_by_path() must not exist (D-01)."""
