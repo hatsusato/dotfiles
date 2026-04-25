@@ -14,7 +14,6 @@ from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 
 @dataclass
@@ -100,7 +99,7 @@ class TrashLog:
         Handles missing file, empty file gracefully.
         Raises ValueError on first malformed JSON line (fail-fast).
 
-        Note: Changes to _events must be persisted via append() or save().
+        Note: Changes to _events must be persisted via append().
         """
         self._events = []
         if not self._metadata_path.exists():
@@ -147,38 +146,6 @@ class TrashLog:
             restore=True,
         )
         self.append(restore_event)
-
-    def save(self) -> None:
-        """Atomically rewrite trash-log.jsonl with current in-memory events."""
-        with NamedTemporaryFile(
-            mode="w",
-            dir=self._metadata_path.parent,
-            delete=False,
-            suffix=".tmp",
-        ) as tmp:
-            temp_path = Path(tmp.name)
-            try:
-                for event in self._events:
-                    json.dump(
-                        event.to_dict(),
-                        tmp,
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                    )
-                    tmp.write("\n")
-                os.fsync(tmp.fileno())
-            except Exception:
-                if temp_path.exists():
-                    os.unlink(temp_path)
-                raise
-
-        # Move os.replace inside a try so cleanup still fires on failure
-        try:
-            os.replace(temp_path, self._metadata_path)
-        except Exception:
-            if temp_path.exists():
-                os.unlink(temp_path)
-            raise
 
     def _atomic_append_jsonl(self, event: TrashEvent) -> None:
         """Safely append single line to trash-log.jsonl.
