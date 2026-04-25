@@ -270,7 +270,9 @@ class TrashConfig:
         moves the item from .trash/{timestamp} back to original path,
         then appends a restore audit entry.
         """
-        target_path = Path(path).resolve()
+        # Use parent.resolve()/name to match normalize_path() symlink-preserving style.
+        abs_path = Path(path).absolute()
+        target_path = abs_path.parent.resolve() / abs_path.name
 
         selected_event = trash_log.find_latest_restorable(str(target_path))
         latest_event = trash_log.find_latest(str(target_path))
