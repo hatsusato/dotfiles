@@ -1467,8 +1467,6 @@ class TestNormalizePathFunction:
 
     def test_normalize_path_resolves_relative_path(self, tmp_path: Path) -> None:
         """normalize_path() resolves relative path to absolute."""
-        import os
-
         module = _import_trash_module()
         test_file = tmp_path / "relative.txt"
         test_file.write_text("content")
@@ -1502,8 +1500,6 @@ class TestNormalizePathFunction:
         self, tmp_path: Path
     ) -> None:
         """normalize_path() raises ValueError for system directories under cwd."""
-        import os
-
         module = _import_trash_module()
         # Create a subdirectory and change into it
         subdir = tmp_path / "subdir"
