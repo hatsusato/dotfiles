@@ -294,7 +294,7 @@ EXIT_FAILURE = 1
 _LIST_START_INDEX = 1  # 1-based display numbering for --list output
 
 
-def list_items(config: "TrashConfig", trash_log: TrashLog) -> None:
+def list_items(_config: "TrashConfig", trash_log: TrashLog) -> None:
     """Print trash-log.jsonl contents in human-readable format to stdout."""
     entries = trash_log.active_events()
     if not entries:
