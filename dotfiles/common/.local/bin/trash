@@ -120,8 +120,12 @@ class TrashLog:
                     ) from e
 
     def active_events(self) -> list[TrashEvent]:
-        """Return non-restored events (for --list output)."""
-        return [e for e in self._events if not e.restore]
+        """Return currently-trashed events (latest per path is not a restore event)."""
+        # Group by path; only include paths whose latest event is a trash (not restore)
+        latest: dict[str, TrashEvent] = {}
+        for e in self._events:
+            latest[e.path] = e  # overwrites with increasingly later events
+        return [e for e in latest.values() if not e.restore]
 
     def find_restorable(self, path: str) -> TrashEvent:
         """Return latest restorable event or raise ValueError.
