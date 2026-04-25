@@ -1132,7 +1132,7 @@ class TestCollisionAvoidance:
         (trash_dir / str(ts + 1)).mkdir()
 
         log = module.TrashLog(trash_dir)
-        result = log.get_unique_timestamp()
+        result = log._get_unique_timestamp()
         assert result >= ts + 2, f"Expected >= {ts + 2}, got {result}"
 
     def test_rapid_fire_trash_creates_separate_entries(
@@ -1546,15 +1546,15 @@ class TestTrashLogInit:
         assert trash_dir.exists()
 
     def test_get_trash_path_no_longer_calls_mkdir(self, tmp_path: Path) -> None:
-        """get_trash_path() does not contain mkdir (D-08).
+        """_get_trash_path() does not contain mkdir (D-08).
 
-        After __init__ creates the directory, get_trash_path just returns a path.
-        We verify by inspecting the source of get_trash_path.
+        After __init__ creates the directory, _get_trash_path just returns a path.
+        We verify by inspecting the source of _get_trash_path.
         """
         module = _import_trash_module()
-        source = inspect.getsource(module.TrashLog.get_trash_path)
+        source = inspect.getsource(module.TrashLog._get_trash_path)
         assert "mkdir" not in source, (
-            "get_trash_path() should not call mkdir after Phase 17 (D-08)"
+            "_get_trash_path() should not call mkdir after Phase 17 (D-08)"
         )
 
 
@@ -1663,3 +1663,170 @@ class TestUnusedMethodsRemoved:
         assert not hasattr(module.TrashLog, "find_by_path"), (
             "TrashLog.find_by_path() should have been deleted in Phase 17 (D-02)"
         )
+
+    def test_find_latest_restorable_removed(self) -> None:
+        """TrashLog.find_latest_restorable() must not exist (Phase 18 D-05)."""
+        module = _import_trash_module()
+        assert not hasattr(module.TrashLog, "find_latest_restorable"), (
+            "TrashLog.find_latest_restorable() should be deleted in Phase 18 (D-05)"
+        )
+
+    def test_find_latest_removed(self) -> None:
+        """TrashLog.find_latest() must not exist (Phase 18 D-05)."""
+        module = _import_trash_module()
+        assert not hasattr(module.TrashLog, "find_latest"), (
+            "TrashLog.find_latest() should be deleted in Phase 18 (D-05)"
+        )
+
+
+# ============================================================================
+# Phase 18: TrashConfig as namespace, top-level functions, TrashLog consolidation
+# ============================================================================
+
+
+class TestTrashConfigDataOnly:
+    """D-02 (Phase 18): TrashConfig is a pure data container with no methods."""
+
+    def test_backup_to_trash_method_removed(self) -> None:
+        """TrashConfig.backup_to_trash() must not exist."""
+        module = _import_trash_module()
+        assert not hasattr(module.TrashConfig, "backup_to_trash"), (
+            "TrashConfig.backup_to_trash() should have been deleted in Phase 18 (D-02)"
+        )
+
+    def test_list_trash_method_removed(self) -> None:
+        """TrashConfig.list_trash() must not exist."""
+        module = _import_trash_module()
+        assert not hasattr(module.TrashConfig, "list_trash"), (
+            "TrashConfig.list_trash() should have been deleted in Phase 18 (D-02)"
+        )
+
+    def test_process_files_method_removed(self) -> None:
+        """TrashConfig.process_files() must not exist."""
+        module = _import_trash_module()
+        assert not hasattr(module.TrashConfig, "process_files"), (
+            "TrashConfig.process_files() should have been deleted in Phase 18 (D-02)"
+        )
+
+    def test_restore_by_path_method_removed(self) -> None:
+        """TrashConfig.restore_by_path() must not exist."""
+        module = _import_trash_module()
+        assert not hasattr(module.TrashConfig, "restore_by_path"), (
+            "TrashConfig.restore_by_path() should have been deleted in Phase 18 (D-02)"
+        )
+
+
+class TestArgparseNamespace:
+    """D-01 (Phase 18): parse_args(namespace=config) populates TrashConfig directly."""
+
+    def test_parse_args_populates_config_verbose(self) -> None:
+        """parse_args(namespace=config) sets config.verbose=True for --verbose."""
+        module = _import_trash_module()
+        parser = module._setup_parser()
+        config = module.TrashConfig()
+        parser.parse_args(["--verbose", "somefile.txt"], namespace=config)
+        assert config.verbose is True
+
+    def test_parse_args_config_defaults_preserved_for_unset_flags(self) -> None:
+        """parse_args with no optional flags leaves TrashConfig defaults intact."""
+        module = _import_trash_module()
+        parser = module._setup_parser()
+        config = module.TrashConfig()
+        parser.parse_args(["somefile.txt"], namespace=config)
+        assert config.verbose is False
+        assert config.force is False
+        assert config.recursive is False
+        assert config.restore is False
+        assert config.list is False
+
+
+class TestTopLevelFunctions:
+    """D-02/D-03 (Phase 18): list_items/trash_item/restore_item are top-level."""
+
+    def test_list_items_is_top_level_function(self) -> None:
+        """list_items() must exist as a module-level function."""
+        module = _import_trash_module()
+        assert hasattr(module, "list_items"), (
+            "list_items() should be a top-level function in Phase 18 (D-02)"
+        )
+
+    def test_trash_item_is_top_level_function(self) -> None:
+        """trash_item() must exist as a module-level function."""
+        module = _import_trash_module()
+        assert hasattr(module, "trash_item"), (
+            "trash_item() should be a top-level function in Phase 18 (D-03)"
+        )
+
+    def test_restore_item_is_top_level_function(self) -> None:
+        """restore_item() must exist as a module-level function."""
+        module = _import_trash_module()
+        assert hasattr(module, "restore_item"), (
+            "restore_item() should be a top-level function in Phase 18 (D-02)"
+        )
+
+
+class TestFindRestorable:
+    """D-05 (Phase 18): TrashLog.find_restorable() raises ValueError instead of None."""
+
+    def test_find_restorable_returns_event_for_trashed_file(
+        self, tmp_path: Path
+    ) -> None:
+        """find_restorable() returns latest non-restored event."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        event = log.trash_item(test_file)
+        found = log.find_restorable(str(test_file))
+        assert found.timestamp == event.timestamp
+
+    def test_find_restorable_raises_for_unknown_path(self, tmp_path: Path) -> None:
+        """find_restorable() raises ValueError when path has no trash entry."""
+        module = _import_trash_module()
+        log = module.TrashLog(tmp_path / ".trash")
+        with pytest.raises(ValueError, match="No trash entry found"):
+            log.find_restorable("/nonexistent/path.txt")
+
+    def test_find_restorable_raises_for_already_restored(self, tmp_path: Path) -> None:
+        """find_restorable() raises ValueError when most recent entry is restored."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        log.trash_item(test_file)
+        log.mark_restored(str(test_file))
+        with pytest.raises(ValueError, match="already restored"):
+            log.find_restorable(str(test_file))
+
+
+class TestTrashLogRestoreItem:
+    """D-06 (Phase 18): TrashLog.restore_item() wraps shutil.move + mark_restored."""
+
+    def test_restore_item_moves_file_back(self, tmp_path: Path) -> None:
+        """TrashLog.restore_item() moves the trashed file back to target_path."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        event = log.trash_item(test_file)
+        assert not test_file.exists()
+        log.restore_item(event, test_file)
+        assert test_file.exists()
+        assert test_file.read_text() == "content"
+
+    def test_restore_item_records_restore_event(self, tmp_path: Path) -> None:
+        """TrashLog.restore_item() appends restore=True event to log."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        event = log.trash_item(test_file)
+        log.restore_item(event, test_file)
+        restore_events = [
+            e for e in log._events if e.path == str(test_file) and e.restore
+        ]
+        assert len(restore_events) == 1
