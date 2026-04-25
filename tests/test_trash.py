@@ -1553,8 +1553,6 @@ class TestTrashLogInit:
         After __init__ creates the directory, get_trash_path just returns a path.
         We verify by inspecting the source of get_trash_path.
         """
-        import inspect
-
         module = _import_trash_module()
         source = inspect.getsource(module.TrashLog.get_trash_path)
         assert "mkdir" not in source, (
