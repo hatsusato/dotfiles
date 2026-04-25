@@ -327,10 +327,14 @@ def trash_item(config: "TrashConfig", path: Path, trash_log: TrashLog) -> bool:
 
 
 def restore_item(config: "TrashConfig", path: str, trash_log: TrashLog) -> bool:
-    """Restore a single item from trash; return True on success."""
+    """Restore a single item from trash; return True on success, False on error."""
     abs_path = Path(path).absolute()
     target_path = abs_path.parent.resolve() / abs_path.name
-    event = trash_log.find_restorable(str(target_path))
+    try:
+        event = trash_log.find_restorable(str(target_path))
+    except (ValueError, FileNotFoundError) as e:
+        print(f"trash: error: {e}", file=sys.stderr)
+        return False
     if config.verbose:
         print(
             f"trash: restoring {target_path} [timestamp: {event.timestamp}]",
@@ -364,14 +368,8 @@ def main() -> int:
             return EXIT_FAILURE
         success = True
         for path in config.files:
-            try:
-                restore_item(config, str(path), trash_log)
-            except (ValueError, FileNotFoundError) as e:
-                print(f"trash: error: {e}", file=sys.stderr)
+            if not restore_item(config, str(path), trash_log):
                 success = False
-            except Exception as e:
-                print(f"trash: unexpected error: {e}", file=sys.stderr)
-                raise
         return EXIT_SUCCESS if success else EXIT_FAILURE
 
     if not config.files:
