@@ -268,7 +268,7 @@ class TrashConfig(Namespace):
     verbose: bool = False
     force: bool = False
     recursive: bool = False
-    files: list[Path] = []
+    files: list[Path] = None  # type: ignore[assignment]  # argparse always sets this
     restore: bool = False
     show_list: bool = False
 
