@@ -126,7 +126,8 @@ class TrashLog:
         """Read and parse trash-log.jsonl, rebuild in-memory event dict.
 
         Handles missing file, empty file gracefully.
-        Raises ValueError on first malformed JSON line (fail-fast).
+        Tolerates a single truncated final line (crash-during-write pattern).
+        Raises ValueError on malformed lines that are not at end-of-file.
 
         Note: Changes to _events must be persisted via append().
         """
@@ -135,18 +136,24 @@ class TrashLog:
             return
 
         with open(self._metadata_path) as f:
-            for lineno, line in enumerate(f, 1):
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry_dict = json.loads(line)
-                    event = TrashEvent.from_dict(entry_dict)
-                    self._events.setdefault(event.path, []).append(event)
-                except (json.JSONDecodeError, KeyError, ValueError) as e:
-                    raise ValueError(
-                        f"Malformed metadata entry at line {lineno}: {e}"
-                    ) from e
+            raw_lines = f.readlines()
+
+        total_lines = len(raw_lines)
+        for lineno, line in enumerate(raw_lines, 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry_dict = json.loads(line)
+                event = TrashEvent.from_dict(entry_dict)
+                self._events.setdefault(event.path, []).append(event)
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                if lineno == total_lines:
+                    # Tolerate a single truncated final line (crash during write)
+                    break
+                raise ValueError(
+                    f"Malformed metadata entry at line {lineno}: {e}"
+                ) from e
 
     def active_events(self) -> list[TrashEvent]:
         """Return currently-trashed events (latest per path is not a restore event).
@@ -184,7 +191,7 @@ class TrashLog:
     def append(self, event: TrashEvent) -> None:
         """Add event to memory and sync to disk immediately."""
         self._events.setdefault(event.path, []).append(event)
-        self._atomic_append_jsonl(event)
+        self._append_jsonl(event)
 
     def mark_restored(self, path: str) -> None:
         """Append new event with restore=True to create audit trail.
@@ -216,10 +223,11 @@ class TrashLog:
         shutil.move(str(trash_path), str(target_path))
         self.mark_restored(event.path)
 
-    def _atomic_append_jsonl(self, event: TrashEvent) -> None:
-        """Safely append single line to trash-log.jsonl.
+    def _append_jsonl(self, event: TrashEvent) -> None:
+        """Append single line to trash-log.jsonl with fsync.
 
-        For append-only, write directly in append mode then fsync.
+        Not atomic: a crash during write may leave a partial final line.
+        load() tolerates such truncation via partial-last-line detection.
         """
         with open(self._metadata_path, "a") as f:
             json.dump(
