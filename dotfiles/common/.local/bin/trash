@@ -75,11 +75,42 @@ class TrashLog:
         """Returns the path to the trashed item (trash_dir/{timestamp})."""
         return self._trash_dir / str(timestamp)
 
+    def make_trash_event(self, path: Path) -> TrashEvent:
+        """Generate TrashEvent with unique timestamp. No file I/O.
+
+        Used in two-stage pattern: generate event, inspect, then execute.
+        Timestamp generation uses _get_unique_timestamp() for collision avoidance.
+
+        Args:
+            path: Path to file/directory to trash
+
+        Returns:
+            TrashEvent: Generated event (not yet persisted or moved)
+        """
+        timestamp = self._get_unique_timestamp()
+        return TrashEvent(path=str(path), timestamp=timestamp)
+
+    def execute_trash(self, event: TrashEvent) -> None:
+        """Execute trash operation: move file to trash + persist event.
+
+        Counterpart to make_trash_event(): performs the actual file I/O.
+        Used in two-stage pattern after event inspection/transformation.
+
+        Args:
+            event: TrashEvent with path and timestamp to execute
+
+        Raises:
+            FileNotFoundError: Source path doesn't exist
+            shutil.Error: File operation fails
+        """
+        dest = self._get_trash_path(event.timestamp)
+        shutil.move(str(event.path), str(dest))
+        self.append(event)
+
     def trash_item(self, path: Path) -> TrashEvent:
         """Move path to trash and record event in log (atomic operation).
 
-        Generates unique timestamp, moves file to trash directory,
-        records event in metadata. Returns the TrashEvent recorded.
+        Delegates to make_trash_event() + execute_trash() two-stage pattern.
 
         Args:
             path: Path to file/directory to trash
@@ -87,11 +118,8 @@ class TrashLog:
         Returns:
             TrashEvent: The event recorded (includes path, timestamp, restore flag)
         """
-        timestamp = self._get_unique_timestamp()
-        dest = self._get_trash_path(timestamp)
-        shutil.move(str(path), str(dest))
-        event = TrashEvent(path=str(path), timestamp=timestamp)
-        self.append(event)
+        event = self.make_trash_event(path)
+        self.execute_trash(event)
         return event
 
     def load(self) -> None:
@@ -126,8 +154,8 @@ class TrashLog:
         Uses timestamp-based filtering (max timestamp per path), independent of
         append order. Each path's latest event is checked for restore=False.
         """
-        result = []
-        for path, events_for_path in self._events.items():
+        result: list[TrashEvent] = []
+        for _path, events_for_path in self._events.items():
             latest = max(events_for_path, key=lambda e: e.timestamp)
             if not latest.restore:
                 result.append(latest)
@@ -159,10 +187,14 @@ class TrashLog:
         self._atomic_append_jsonl(event)
 
     def mark_restored(self, path: str) -> None:
-        """Append new event with restore=True to create audit trail."""
+        """Append new event with restore=True to create audit trail.
+
+        Uses _get_unique_timestamp() to ensure timestamp is strictly greater
+        than the trash event timestamp, so max() lookups work correctly.
+        """
         restore_event = TrashEvent(
             path=path,
-            timestamp=int(time.time()),
+            timestamp=self._get_unique_timestamp(),
             restore=True,
         )
         self.append(restore_event)

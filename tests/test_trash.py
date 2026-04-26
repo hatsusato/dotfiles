@@ -1052,12 +1052,12 @@ class TestTrashLog:
     """
 
     def test_trash_log_init_handles_missing_file(self, tmp_path: Path) -> None:
-        """TrashLog initialized with nonexistent trash_dir returns empty event list."""
+        """TrashLog initialized with nonexistent trash_dir returns empty event dict."""
         trash = _import_trash_module()
         trash_dir = tmp_path / ".trash"
         # trash_dir does not exist yet; TrashLog.load() handles missing metadata file
         log = trash.TrashLog(trash_dir)
-        assert log._events == []
+        assert log._events == {}
 
     def test_trash_log_malformed_json_raises_valueerror(self, tmp_path: Path) -> None:
         """TrashLog.load() raises ValueError on malformed JSON line."""
@@ -1598,8 +1598,9 @@ class TestTrashItemReturn:
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
         event = log.trash_item(test_file)
-        # The event should be in the in-memory log
-        matching = [e for e in log._events if e.timestamp == event.timestamp]
+        # The event should be in the in-memory log (dict keyed by path)
+        events_for_path = log._events.get(event.path, [])
+        matching = [e for e in events_for_path if e.timestamp == event.timestamp]
         assert len(matching) == 1
         assert matching[0].path == event.path
 
@@ -1823,9 +1824,9 @@ class TestTrashLogRestoreItem:
         test_file.write_text("content")
         event = log.trash_item(test_file)
         log.restore_item(event, test_file)
-        restore_events = [
-            e for e in log._events if e.path == str(test_file) and e.restore
-        ]
+        # After restore, _events is a dict keyed by path
+        events_for_path = log._events.get(str(test_file), [])
+        restore_events = [e for e in events_for_path if e.restore]
         assert len(restore_events) == 1
 
 
@@ -2110,8 +2111,9 @@ class TestEventExecution:
         test_file.write_text("content")
         event = log.make_trash_event(test_file)
         log.execute_trash(event)
-        # Event must be in the in-memory log
-        found = [e for e in log._events if e.timestamp == event.timestamp]
+        # Event must be in the in-memory log (dict keyed by path)
+        events_for_path = log._events.get(event.path, [])
+        found = [e for e in events_for_path if e.timestamp == event.timestamp]
         assert len(found) == 1, "execute_trash must append event to _events"
 
     def test_19_16_execute_trash_writes_jsonl(self, tmp_path: Path) -> None:
