@@ -46,6 +46,7 @@ class TrashLog:
     """Manages trash-log.jsonl as append-only event log.
 
     Loads entire event history into memory at init for fast queries.
+    Stores events as dict[str, list[TrashEvent]] keyed by path for O(1) lookup.
     Provides active_events(), find_restorable(), trash_item(), and restore_item().
     """
 
@@ -55,7 +56,7 @@ class TrashLog:
             trash_dir = Path(os.getenv("TRASH_DIR", str(Path.home() / ".trash")))
         self._trash_dir = trash_dir
         self._metadata_path = trash_dir / "trash-log.jsonl"
-        self._events: list[TrashEvent] = []
+        self._events: dict[str, list[TrashEvent]] = {}
         self._trash_dir.mkdir(parents=True, exist_ok=True)  # D-07: create once
         self.load()
 
@@ -94,14 +95,14 @@ class TrashLog:
         return event
 
     def load(self) -> None:
-        """Read and parse trash-log.jsonl, rebuild in-memory event list.
+        """Read and parse trash-log.jsonl, rebuild in-memory event dict.
 
         Handles missing file, empty file gracefully.
         Raises ValueError on first malformed JSON line (fail-fast).
 
         Note: Changes to _events must be persisted via append().
         """
-        self._events = []
+        self._events = {}
         if not self._metadata_path.exists():
             return
 
@@ -113,30 +114,38 @@ class TrashLog:
                 try:
                     entry_dict = json.loads(line)
                     event = TrashEvent.from_dict(entry_dict)
-                    self._events.append(event)
+                    self._events.setdefault(event.path, []).append(event)
                 except (json.JSONDecodeError, KeyError, ValueError) as e:
                     raise ValueError(
                         f"Malformed metadata entry at line {lineno}: {e}"
                     ) from e
 
     def active_events(self) -> list[TrashEvent]:
-        """Return currently-trashed events (latest per path is not a restore event)."""
-        # Group by path; only include paths whose latest event is a trash (not restore)
-        latest: dict[str, TrashEvent] = {}
-        for e in self._events:
-            latest[e.path] = e  # overwrites with increasingly later events
-        return [e for e in latest.values() if not e.restore]
+        """Return currently-trashed events (latest per path is not a restore event).
+
+        Uses timestamp-based filtering (max timestamp per path), independent of
+        append order. Each path's latest event is checked for restore=False.
+        """
+        result = []
+        for path, events_for_path in self._events.items():
+            latest = max(events_for_path, key=lambda e: e.timestamp)
+            if not latest.restore:
+                result.append(latest)
+        return result
 
     def find_restorable(self, path: str) -> TrashEvent:
         """Return latest restorable event or raise ValueError.
 
+        Uses timestamp-based max lookup (not list order) for correct results
+        when events were appended in arbitrary order.
+
         Raises:
             ValueError: No restorable entry found (already restored or never trashed)
         """
-        matches = [e for e in self._events if e.path == path]
-        if not matches:
+        events_for_path = self._events.get(path, [])
+        if not events_for_path:
             raise ValueError(f"No trash entry found for {path}")
-        latest = matches[-1]
+        latest = max(events_for_path, key=lambda e: e.timestamp)
         if latest.restore:
             raise ValueError(
                 f"No restorable entry found for {path}:"
@@ -146,7 +155,7 @@ class TrashLog:
 
     def append(self, event: TrashEvent) -> None:
         """Add event to memory and sync to disk immediately."""
-        self._events.append(event)
+        self._events.setdefault(event.path, []).append(event)
         self._atomic_append_jsonl(event)
 
     def mark_restored(self, path: str) -> None:
