@@ -1827,3 +1827,176 @@ class TestTrashLogRestoreItem:
             e for e in log._events if e.path == str(test_file) and e.restore
         ]
         assert len(restore_events) == 1
+
+
+# ============================================================================
+# Phase 19 Cycle 1: Dictionary-Based _events Storage
+# ============================================================================
+
+
+class TestDictBasedEvents:
+    """D-01 (Phase 19): TrashLog._events changes from list[TrashEvent] to
+    dict[str, list[TrashEvent]] keyed by path string."""
+
+    def test_19_01_events_is_dict_after_init(self, tmp_path: Path) -> None:
+        """_events must be a dict after TrashLog initialization."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        assert isinstance(log._events, dict), (
+            f"_events must be dict, got {type(log._events)}"
+        )
+
+    def test_19_02_events_keys_are_path_strings(self, tmp_path: Path) -> None:
+        """After trashing a file, _events keys must be path strings."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "testfile.txt"
+        test_file.write_text("content")
+        log.trash_item(test_file)
+        keys = list(log._events.keys())
+        assert len(keys) == 1
+        assert isinstance(keys[0], str), (
+            f"_events keys must be str, got {type(keys[0])}"
+        )
+        assert keys[0] == str(test_file)
+
+    def test_19_03_events_values_are_lists_of_trash_events(
+        self, tmp_path: Path
+    ) -> None:
+        """Each value in _events must be a list of TrashEvent instances."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "testfile.txt"
+        test_file.write_text("content")
+        log.trash_item(test_file)
+        for key, value in log._events.items():
+            assert isinstance(value, list), (
+                f"_events[{key!r}] must be list, got {type(value)}"
+            )
+            for item in value:
+                assert isinstance(item, module.TrashEvent), (
+                    f"_events[{key!r}] items must be TrashEvent, got {type(item)}"
+                )
+
+    def test_19_04_append_organizes_by_path(self, tmp_path: Path) -> None:
+        """Appending events with different paths creates separate keys in _events."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        path_a = str(tmp_path / "file_a.txt")
+        path_b = str(tmp_path / "file_b.txt")
+        event_a = module.TrashEvent(path=path_a, timestamp=100)
+        event_b = module.TrashEvent(path=path_b, timestamp=200)
+        log.append(event_a)
+        log.append(event_b)
+        assert len(log._events) == 2
+        assert path_a in log._events
+        assert path_b in log._events
+
+    def test_19_05_same_path_events_are_grouped(self, tmp_path: Path) -> None:
+        """Appending two events with the same path groups them under one key."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        path = str(tmp_path / "file.txt")
+        event1 = module.TrashEvent(path=path, timestamp=100)
+        event2 = module.TrashEvent(path=path, timestamp=200)
+        log.append(event1)
+        log.append(event2)
+        assert len(log._events) == 1
+        assert path in log._events
+        assert len(log._events[path]) == 2
+
+
+class TestTimestampFiltering:
+    """D-02 (Phase 19): active_events/find_restorable use max(timestamp) for latest
+    event determination, not list insertion order."""
+
+    def test_19_06_active_events_uses_max_timestamp_not_list_order(
+        self, tmp_path: Path
+    ) -> None:
+        """active_events() uses max(timestamp) to determine latest event, not order.
+
+        Scenario: events inserted as [ts=200(trash), ts=100(trash), ts=50(restore)].
+        - List-order-based: last inserted = ts=50(restore) → NOT active (wrong)
+        - Max-timestamp-based: max timestamp = 200 (trash) → IS active (correct)
+        """
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        path = str(tmp_path / "file.txt")
+
+        # Insert out of order: large trash, then small trash, then even-smaller restore
+        log.append(module.TrashEvent(path=path, timestamp=200, restore=False))
+        log.append(module.TrashEvent(path=path, timestamp=100, restore=False))
+        log.append(module.TrashEvent(path=path, timestamp=50, restore=True))
+
+        # Max timestamp is 200 (trash), so path must be active
+        active = log.active_events()
+        active_paths = {e.path for e in active}
+        assert path in active_paths, (
+            "Path with max-timestamp trash (ts=200) must be active; "
+            "list-order logic would incorrectly say restored (ts=50 was last)"
+        )
+
+    def test_19_07_find_restorable_uses_max_timestamp(self, tmp_path: Path) -> None:
+        """find_restorable() returns the event with the highest timestamp.
+
+        Scenario: events inserted as [ts=200(trash), ts=100(trash)].
+        - List-order-based logic: last inserted = ts=100 → returns ts=100 (wrong)
+        - Max-timestamp-based logic: max timestamp = 200 → returns ts=200 (correct)
+        """
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        path = str(tmp_path / "file.txt")
+        # Insert in reverse order: large first, then small
+        log.append(module.TrashEvent(path=path, timestamp=200, restore=False))
+        log.append(module.TrashEvent(path=path, timestamp=100, restore=False))
+        found = log.find_restorable(path)
+        assert found.timestamp == 200, (
+            f"find_restorable must return max timestamp (200), got {found.timestamp}"
+        )
+
+    def test_19_08_find_restorable_sees_latest_as_restored(
+        self, tmp_path: Path
+    ) -> None:
+        """find_restorable() raises ValueError when max-timestamp event is restored.
+
+        Scenario: events inserted as [ts=200(restore), ts=100(trash)].
+        - List-order-based: last inserted = ts=100(trash) → returns event (wrong)
+        - Max-timestamp-based: max ts = 200 (restore) → raises ValueError (correct)
+        """
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        path = str(tmp_path / "file.txt")
+        # Insert restore (ts=200) first, then trash (ts=100); restore has higher ts
+        log.append(module.TrashEvent(path=path, timestamp=200, restore=True))
+        log.append(module.TrashEvent(path=path, timestamp=100, restore=False))
+        with pytest.raises(ValueError):
+            log.find_restorable(path)
+
+    def test_19_09_active_events_excludes_restored_paths(self, tmp_path: Path) -> None:
+        """active_events() excludes paths whose max-timestamp event has restore=True.
+
+        Scenario: events inserted as [ts=200(restore), ts=100(trash)].
+        - List-order-based: last inserted = ts=100(trash) → IS active (wrong)
+        - Max-timestamp-based: max timestamp = 200 (restore) → NOT active (correct)
+        """
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        path = str(tmp_path / "file.txt")
+        # Insert restore (ts=200) first, then trash (ts=100)
+        log.append(module.TrashEvent(path=path, timestamp=200, restore=True))
+        log.append(module.TrashEvent(path=path, timestamp=100, restore=False))
+        active = log.active_events()
+        active_paths = {e.path for e in active}
+        assert path not in active_paths, (
+            "Path with max-timestamp restore=True must be excluded; "
+            "list-order logic would incorrectly include it (ts=100 trash was last)"
+        )
