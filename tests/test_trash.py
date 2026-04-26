@@ -2149,3 +2149,130 @@ class TestEventExecution:
         # Event recorded
         restored = log.find_restorable(str(test_file))
         assert restored.timestamp == event.timestamp
+
+
+# ============================================================================
+# Phase 19 Cycle 3: TrashConfig(Namespace) + Hidden Parser
+# ============================================================================
+
+
+class TestTrashConfigNamespace:
+    """D-07 to D-11 (Phase 19): TrashConfig becomes argparse.Namespace subclass.
+
+    TrashConfig inherits from Namespace and provides parse_args() classmethod
+    so callers never need a separate ArgumentParser reference.
+    """
+
+    def test_19_18_trashconfig_is_namespace_subclass(self) -> None:
+        """TrashConfig must be a subclass of argparse.Namespace."""
+        import argparse
+
+        module = _import_trash_module()
+        assert issubclass(module.TrashConfig, argparse.Namespace), (
+            "TrashConfig must inherit from argparse.Namespace (D-07)"
+        )
+
+    def test_19_19_trashconfig_has_parse_args_classmethod(self) -> None:
+        """TrashConfig.parse_args must be a classmethod."""
+        module = _import_trash_module()
+        assert hasattr(module.TrashConfig, "parse_args"), (
+            "TrashConfig must have parse_args classmethod (D-08)"
+        )
+        # Verify it behaves as a classmethod (callable on the class itself)
+        assert callable(module.TrashConfig.parse_args), (
+            "TrashConfig.parse_args must be callable"
+        )
+
+    def test_19_20_parse_args_returns_trashconfig_instance(self) -> None:
+        """TrashConfig.parse_args([]) returns a TrashConfig instance."""
+        module = _import_trash_module()
+        result = module.TrashConfig.parse_args([])
+        assert isinstance(result, module.TrashConfig), (
+            f"parse_args([]) must return TrashConfig, got {type(result)}"
+        )
+
+    def test_19_21_parse_args_populates_fields(self) -> None:
+        """TrashConfig.parse_args(['--verbose']) sets config.verbose == True."""
+        module = _import_trash_module()
+        config = module.TrashConfig.parse_args(["--verbose"])
+        assert config.verbose is True, "parse_args(['--verbose']) must set verbose=True"
+
+    def test_19_22_parse_args_files_argument(self) -> None:
+        """TrashConfig.parse_args(['/tmp/file.txt']) sets config.files."""
+        module = _import_trash_module()
+        config = module.TrashConfig.parse_args(["/tmp/file.txt"])
+        assert len(config.files) == 1, (
+            f"parse_args(['/tmp/file.txt']) must set files, got {config.files!r}"
+        )
+        assert config.files[0] == Path("/tmp/file.txt"), (
+            f"files[0] must be Path('/tmp/file.txt'), got {config.files[0]!r}"
+        )
+
+    def test_19_23_trashconfig_has_print_help(self) -> None:
+        """TrashConfig instance must have print_help() method."""
+        module = _import_trash_module()
+        # Instantiate a basic TrashConfig (may require parse_args or direct init)
+        try:
+            config = module.TrashConfig.parse_args([])
+        except Exception:
+            # Fallback: if parse_args not yet implemented, try direct construction
+            config = module.TrashConfig()
+        assert hasattr(config, "print_help"), (
+            "TrashConfig instance must have print_help() method (D-09)"
+        )
+
+    def test_19_24_print_help_does_not_raise(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
+        """config.print_help() outputs help text without raising."""
+        module = _import_trash_module()
+        try:
+            config = module.TrashConfig.parse_args([])
+        except Exception:
+            config = module.TrashConfig()
+        # Must not raise; help text goes to stdout
+        config.print_help()
+        captured = capsys.readouterr()
+        assert "trash" in captured.out or "usage" in captured.out, (
+            "print_help() must output help text containing 'trash' or 'usage'"
+        )
+
+
+class TestParserHidden:
+    """D-08, D-11 (Phase 19): ArgumentParser hidden inside TrashConfig._build_parser().
+
+    _setup_parser() module-level function is deleted; _build_parser() classmethod
+    takes its place inside TrashConfig.
+    """
+
+    def test_19_25_setup_parser_is_deleted(self) -> None:
+        """_setup_parser() module-level function must not exist after Plan 04."""
+        module = _import_trash_module()
+        assert not hasattr(module, "_setup_parser"), (
+            "_setup_parser() must be deleted in Phase 19 Plan 04 (D-11); "
+            "it currently still exists — this test is RED"
+        )
+
+    def test_19_26_build_parser_is_in_trashconfig(self) -> None:
+        """TrashConfig._build_parser() classmethod must exist."""
+        module = _import_trash_module()
+        assert hasattr(module.TrashConfig, "_build_parser"), (
+            "TrashConfig._build_parser() must exist (D-08); not yet implemented — RED"
+        )
+
+    def test_19_27_main_has_no_parser_variable(self) -> None:
+        """inspect.getsource(main) must not contain 'parser' variable assignment.
+
+        After Plan 04 implementation, main() uses TrashConfig.parse_args()
+        directly, so no local 'parser' variable should appear.
+        """
+        module = _import_trash_module()
+        source = inspect.getsource(module.main)
+        # Check that 'parser =' does not appear (assignment to a parser variable)
+        import re
+
+        parser_assign = re.compile(r"\bparser\s*=")
+        assert not parser_assign.search(source), (
+            "main() must not assign to 'parser' variable (D-11); "
+            "currently 'parser = _setup_parser()' exists — this test is RED"
+        )
