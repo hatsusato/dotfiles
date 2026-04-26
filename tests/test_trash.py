@@ -213,10 +213,10 @@ class TestRecursiveFlag:
         assert d.exists()
         assert result.stderr != ""
 
-    def test_flag_r_002_directory_with_r_compressed_to_tar(
+    def test_flag_r_002_directory_with_r_moved_to_trash(
         self, mock_trash_env: dict
     ) -> None:
-        """FLAG-R-002: directory with -r is compressed to tar and moved to trash."""
+        """FLAG-R-002: directory with -r is moved (not tar'd) to epoch-named dir."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
@@ -235,8 +235,10 @@ class TestRecursiveFlag:
         ]
         assert len(trashed) == 1
 
-    def test_flag_r_003_tar_archive_has_single_hash(self, mock_trash_env: dict) -> None:
-        """FLAG-R-003: tar archive of directory results in single hash entry."""
+    def test_flag_r_003_directory_creates_single_epoch_entry(
+        self, mock_trash_env: dict
+    ) -> None:
+        """FLAG-R-003: directory with -r creates one epoch-named item and log entry."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
 
