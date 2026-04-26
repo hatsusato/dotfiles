@@ -2276,3 +2276,58 @@ class TestParserHidden:
             "main() must not assign to 'parser' variable (D-11); "
             "currently 'parser = _setup_parser()' exists — this test is RED"
         )
+
+
+class TestMainNoParserAccess:
+    """D-11 + integration (Phase 19): main() uses TrashConfig.parse_args().
+
+    After Plan 04 implementation, main() must not hold a direct parser reference;
+    it delegates all arg-parsing and help-printing through TrashConfig.
+    """
+
+    def test_19_28_main_uses_trashconfig_parse_args(self) -> None:
+        """inspect.getsource(main) must contain 'TrashConfig.parse_args'."""
+        module = _import_trash_module()
+        source = inspect.getsource(module.main)
+        assert "TrashConfig.parse_args" in source, (
+            "main() must call TrashConfig.parse_args (D-11); "
+            "currently uses separate parser = _setup_parser() — this test is RED"
+        )
+
+    def test_19_29_main_uses_config_print_help(self) -> None:
+        """inspect.getsource(main) must contain 'config.print_help' or
+        'TrashConfig.print_help'."""
+        module = _import_trash_module()
+        source = inspect.getsource(module.main)
+        has_config_print_help = (
+            "config.print_help" in source or "TrashConfig.print_help" in source
+        )
+        assert has_config_print_help, (
+            "main() must call config.print_help() not parser.print_help() (D-09); "
+            "currently uses parser.print_help(sys.stderr) — this test is RED"
+        )
+
+    def test_19_30_main_no_args_shows_help(self, mock_trash_env: dict) -> None:
+        """run_trash() with no args returns non-zero exit code and output contains help.
+
+        This is a behavioral test that remains valid before and after Plan 04:
+        trash with no arguments shows help and exits with failure.
+        May already PASS with current implementation (behavior unchanged).
+        """
+        result = run_trash()
+        assert result.returncode != 0, "trash with no arguments must exit non-zero"
+        combined = result.stdout + result.stderr
+        assert "usage" in combined or "Error" in combined, (
+            f"No-args output must contain 'usage' or 'Error', got:\n{combined}"
+        )
+
+    def test_19_31_main_restore_no_files_shows_help(self, mock_trash_env: dict) -> None:
+        """run_trash('--restore') with no file paths returns non-zero exit code.
+
+        Behavioral test: --restore without a path shows help and exits with failure.
+        May already PASS with current implementation (behavior unchanged).
+        """
+        result = run_trash("--restore")
+        assert result.returncode != 0, (
+            "trash --restore with no file arguments must exit non-zero"
+        )
