@@ -81,6 +81,11 @@ class TrashLog:
         Used in two-stage pattern: generate event, inspect, then execute.
         Timestamp generation uses _get_unique_timestamp() for collision avoidance.
 
+        Note: The timestamp is not reserved between make_trash_event() and
+        execute_trash(). A concurrent trash invocation could claim the same
+        timestamp in that window. This design assumes single-user (non-concurrent)
+        usage, which is the typical interactive shell scenario.
+
         Args:
             path: Path to file/directory to trash
 
