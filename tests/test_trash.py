@@ -2000,3 +2000,150 @@ class TestTimestampFiltering:
             "Path with max-timestamp restore=True must be excluded; "
             "list-order logic would incorrectly include it (ts=100 trash was last)"
         )
+
+
+# ============================================================================
+# Phase 19 Cycle 2: Two-Stage Event Processing
+# ============================================================================
+
+
+class TestEventGeneration:
+    """D-04 (Phase 19): TrashLog.make_trash_event() creates a TrashEvent with no I/O.
+
+    Separates event creation from execution so callers can inspect/modify
+    before committing to disk and filesystem operations.
+    """
+
+    def test_19_10_make_trash_event_returns_trash_event(self, tmp_path: Path) -> None:
+        """make_trash_event(path) returns a TrashEvent instance."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "testfile.txt"
+        test_file.write_text("content")
+        assert hasattr(log, "make_trash_event"), (
+            "TrashLog must have make_trash_event() method (D-04)"
+        )
+        event = log.make_trash_event(test_file)
+        assert isinstance(event, module.TrashEvent), (
+            f"make_trash_event must return TrashEvent, got {type(event)}"
+        )
+
+    def test_19_11_make_trash_event_has_no_io(self, tmp_path: Path) -> None:
+        """make_trash_event() does not move the file or write to trash-log.jsonl."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "testfile.txt"
+        test_file.write_text("content")
+        log.make_trash_event(test_file)
+        # File must still exist at original location (no I/O)
+        assert test_file.exists(), "make_trash_event must not move the source file"
+        # trash-log.jsonl must not be created/updated
+        assert not (trash_dir / "trash-log.jsonl").exists(), (
+            "make_trash_event must not write to trash-log.jsonl"
+        )
+
+    def test_19_12_make_trash_event_sets_path(self, tmp_path: Path) -> None:
+        """make_trash_event() sets TrashEvent.path to str(path)."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "testfile.txt"
+        test_file.write_text("content")
+        event = log.make_trash_event(test_file)
+        assert event.path == str(test_file), (
+            f"TrashEvent.path must be str(path), got {event.path!r}"
+        )
+
+    def test_19_13_make_trash_event_sets_unique_timestamp(self, tmp_path: Path) -> None:
+        """make_trash_event() sets TrashEvent.timestamp to an int near current epoch."""
+        import time
+
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "testfile.txt"
+        test_file.write_text("content")
+        before = int(time.time()) - 1
+        event = log.make_trash_event(test_file)
+        after = int(time.time()) + 1
+        assert isinstance(event.timestamp, int), (
+            f"TrashEvent.timestamp must be int, got {type(event.timestamp)}"
+        )
+        assert before <= event.timestamp <= after, (
+            f"timestamp {event.timestamp} must be near current epoch [{before},{after}]"
+        )
+
+
+class TestEventExecution:
+    """D-05 (Phase 19): TrashLog.execute_trash() performs file move + append.
+
+    Consumes a pre-built TrashEvent (from make_trash_event) and commits
+    the I/O: moves file to trash directory and records event in log.
+    """
+
+    def test_19_14_execute_trash_moves_file(self, tmp_path: Path) -> None:
+        """execute_trash(event) moves source file to trash directory."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "testfile.txt"
+        test_file.write_text("content")
+        assert hasattr(log, "execute_trash"), (
+            "TrashLog must have execute_trash() method (D-05)"
+        )
+        event = log.make_trash_event(test_file)
+        log.execute_trash(event)
+        # Source file must no longer exist
+        assert not test_file.exists(), "execute_trash must move source file away"
+        # File must be in trash directory under event.timestamp name
+        trash_item = trash_dir / str(event.timestamp)
+        assert trash_item.exists(), f"Trashed file must exist at {trash_item}"
+
+    def test_19_15_execute_trash_appends_event(self, tmp_path: Path) -> None:
+        """execute_trash(event) appends the event to trash_log._events."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "testfile.txt"
+        test_file.write_text("content")
+        event = log.make_trash_event(test_file)
+        log.execute_trash(event)
+        # Event must be in the in-memory log
+        found = [e for e in log._events if e.timestamp == event.timestamp]
+        assert len(found) == 1, "execute_trash must append event to _events"
+
+    def test_19_16_execute_trash_writes_jsonl(self, tmp_path: Path) -> None:
+        """execute_trash(event) persists event to trash-log.jsonl."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "testfile.txt"
+        test_file.write_text("content")
+        event = log.make_trash_event(test_file)
+        log.execute_trash(event)
+        jsonl_path = trash_dir / "trash-log.jsonl"
+        assert jsonl_path.exists(), "execute_trash must create/update trash-log.jsonl"
+        import json
+
+        lines = [ln for ln in jsonl_path.read_text().splitlines() if ln.strip()]
+        assert len(lines) >= 1, "trash-log.jsonl must have at least one entry"
+        entry = json.loads(lines[-1])
+        assert entry["timestamp"] == event.timestamp
+
+    def test_19_17_two_stage_pattern_works(self, tmp_path: Path) -> None:
+        """make_trash_event() + execute_trash() pattern successfully trashes file."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "testfile.txt"
+        test_file.write_text("original content")
+        # Two-stage pattern
+        event = log.make_trash_event(test_file)
+        log.execute_trash(event)
+        # File moved
+        assert not test_file.exists(), "Source file must be gone after execute_trash"
+        # Event recorded
+        restored = log.find_restorable(str(test_file))
+        assert restored.timestamp == event.timestamp
