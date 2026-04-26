@@ -1718,19 +1718,15 @@ class TestArgparseNamespace:
     """D-01 (Phase 18): parse_args(namespace=config) populates TrashConfig directly."""
 
     def test_parse_args_populates_config_verbose(self) -> None:
-        """parse_args(namespace=config) sets config.verbose=True for --verbose."""
+        """TrashConfig.parse_args() sets config.verbose=True for --verbose."""
         module = _import_trash_module()
-        parser = module._setup_parser()
-        config = module.TrashConfig()
-        parser.parse_args(["--verbose", "somefile.txt"], namespace=config)
+        config = module.TrashConfig.parse_args(["--verbose", "somefile.txt"])
         assert config.verbose is True
 
     def test_parse_args_config_defaults_preserved_for_unset_flags(self) -> None:
-        """parse_args with no optional flags leaves TrashConfig defaults intact."""
+        """TrashConfig.parse_args() with no optional flags leaves defaults intact."""
         module = _import_trash_module()
-        parser = module._setup_parser()
-        config = module.TrashConfig()
-        parser.parse_args(["somefile.txt"], namespace=config)
+        config = module.TrashConfig.parse_args(["somefile.txt"])
         assert config.verbose is False
         assert config.force is False
         assert config.recursive is False
