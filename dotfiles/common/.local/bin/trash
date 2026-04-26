@@ -214,7 +214,7 @@ class TrashLog:
             )
         target_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(trash_path), str(target_path))
-        self.mark_restored(str(target_path))
+        self.mark_restored(event.path)
 
     def _atomic_append_jsonl(self, event: TrashEvent) -> None:
         """Safely append single line to trash-log.jsonl.
