@@ -368,7 +368,8 @@ def list_items(_config: "TrashConfig", trash_log: TrashLog) -> None:
     print(f"Files in trash ({len(entries)}):")
     for i, entry in enumerate(entries, _LIST_START_INDEX):
         print(f"  {i}. {entry.path}")
-        ts_iso = datetime.fromtimestamp(entry.timestamp).isoformat(timespec="seconds")
+        dt_local = datetime.fromtimestamp(entry.timestamp).astimezone()
+        ts_iso = dt_local.isoformat(timespec="seconds")
         print(f"     timestamp: {ts_iso}")
 
 
