@@ -10,8 +10,8 @@ import os
 import shutil
 import sys
 import time
-from argparse import ArgumentParser, RawDescriptionHelpFormatter
-from dataclasses import dataclass, field
+from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -257,78 +257,94 @@ def normalize_path(path: Path | str) -> Path:
     return resolved
 
 
-@dataclass
-class TrashConfig:
-    """Configuration for trash operations — pure data container, no methods.
+class TrashConfig(Namespace):
+    """Configuration for trash operations — argparse Namespace subclass.
 
-    Serves as argparse namespace: parser.parse_args(namespace=config)
-    populates fields directly from CLI arguments.
+    Hides ArgumentParser as internal state. External callers use only:
+    - TrashConfig.parse_args(args=None) -> TrashConfig
+    - config.print_help()
     """
 
     verbose: bool = False
     force: bool = False
     recursive: bool = False
-    files: list[Path] = field(default_factory=lambda: [])
+    files: list[Path] = []
     restore: bool = False
     show_list: bool = False
 
+    @classmethod
+    def _build_parser(cls) -> ArgumentParser:
+        """Internal: construct and return ArgumentParser.
 
-def _setup_parser() -> ArgumentParser:
-    """Set up and parse command-line arguments.
+        Contains all parser configuration for the trash command.
+        Must not be called directly from outside TrashConfig.
+        """
+        epilog = [
+            "Examples:",
+            "  trash file1.txt",
+            "  trash file1 file2 directory/",
+            "  trash -r important_dir/",
+            "  trash -v -r backup.tar.gz",
+            "  trash -f old_nonexistent_file",
+            "  trash --restore /path/to/file",
+            "  trash --list",
+            "",
+            "Note: Files are moved to ~/.trash for recovery.",
+        ]
+        parser = ArgumentParser(
+            prog="trash",
+            description="Safe deletion and recovery via backup location (~/.trash)",
+            epilog=("\n".join(epilog)),
+            formatter_class=RawDescriptionHelpFormatter,
+            add_help=True,
+        )
+        parser.add_argument(
+            "--restore",
+            action="store_true",
+            help="Restore file(s) from trash by their original path",
+        )
+        parser.add_argument(
+            "--list",
+            "-l",
+            action="store_true",
+            dest="show_list",
+            help="List all items in trash",
+        )
+        parser.add_argument(
+            "-r",
+            "--recursive",
+            action="store_true",
+            help="Required for directories",
+        )
+        parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="Show timestamps for trashed items",
+        )
+        parser.add_argument(
+            "-f", "--force", action="store_true", help="Ignore nonexistent files"
+        )
+        parser.add_argument(
+            "files",
+            nargs="*",
+            type=Path,
+            help="Files or directories to trash (or paths to restore with --restore)",
+        )
+        return parser
 
-    Returns:
-        ArgumentParser instance with configured arguments and help text
-    """
-    epilog = [
-        "Examples:",
-        "  trash file1.txt",
-        "  trash file1 file2 directory/",
-        "  trash -r important_dir/",
-        "  trash -v -r backup.tar.gz",
-        "  trash -f old_nonexistent_file",
-        "  trash --restore /path/to/file",
-        "  trash --list",
-        "",
-        "Note: Files are moved to ~/.trash for recovery.",
-    ]
-    parser = ArgumentParser(
-        prog="trash",
-        description="Safe deletion and recovery via backup location (~/.trash)",
-        epilog=("\n".join(epilog)),
-        formatter_class=RawDescriptionHelpFormatter,
-        add_help=True,
-    )
-    parser.add_argument(
-        "--restore",
-        action="store_true",
-        help="Restore file(s) from trash by their original path",
-    )
-    parser.add_argument(
-        "--list",
-        "-l",
-        action="store_true",
-        dest="show_list",
-        help="List all items in trash",
-    )
-    parser.add_argument(
-        "-r",
-        "--recursive",
-        action="store_true",
-        help="Required for directories",
-    )
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Show timestamps for trashed items"
-    )
-    parser.add_argument(
-        "-f", "--force", action="store_true", help="Ignore nonexistent files"
-    )
-    parser.add_argument(
-        "files",
-        nargs="*",
-        type=Path,
-        help="Files or directories to trash (or paths to restore with --restore)",
-    )
-    return parser
+    @classmethod
+    def parse_args(cls, args: list[str] | None = None) -> "TrashConfig":
+        """Parse CLI arguments into TrashConfig instance.
+
+        Hides ArgumentParser internals. Returns populated TrashConfig.
+        """
+        parser = cls._build_parser()
+        return parser.parse_args(args, namespace=cls())
+
+    def print_help(self) -> None:
+        """Print help text to stdout."""
+        self._build_parser().print_help()
 
 
 EXIT_SUCCESS = 0
@@ -393,9 +409,7 @@ def restore_item(config: "TrashConfig", path: str, trash_log: TrashLog) -> bool:
 
 def main() -> int:
     """Main entry point: orchestrate trash, restore, or list operations."""
-    parser = _setup_parser()
-    config = TrashConfig()
-    parser.parse_args(namespace=config)
+    config = TrashConfig.parse_args()
 
     trash_log = TrashLog()
 
@@ -406,7 +420,7 @@ def main() -> int:
     if config.restore:
         if not config.files:
             print("Error: provide a path to restore or use --list", file=sys.stderr)
-            parser.print_help(sys.stderr)
+            config.print_help()
             return EXIT_FAILURE
         success = True
         for path in config.files:
@@ -416,7 +430,7 @@ def main() -> int:
 
     if not config.files:
         print("Error: Missing file arguments", file=sys.stderr)
-        parser.print_help(sys.stderr)
+        config.print_help()
         return EXIT_FAILURE
 
     success = True
