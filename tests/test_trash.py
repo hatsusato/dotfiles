@@ -350,18 +350,23 @@ class TestHelpFlag:
 
 class TestErrorHandling:
     def test_error_001_permission_denied_continues(self, mock_trash_env: dict) -> None:
-        """ERROR-001: permission denied error is handled and processing continues."""
+        """ERROR-001: permission denied on move is handled; other files still trashed.
+
+        Uses a 0o555 directory so files inside cannot be renamed out, exercising
+        the PermissionError path in execute_trash().
+        """
         home = Path(mock_trash_env["home"])
 
         f1 = home / "file1.txt"
         f1.write_text("content1")
         readonly_dir = home / "readonly_dir"
         readonly_dir.mkdir()
-        (readonly_dir / "file2.txt").write_text("content2")
-        readonly_dir.chmod(0o000)
+        protected_file = readonly_dir / "file2.txt"
+        protected_file.write_text("content2")
+        readonly_dir.chmod(0o555)  # readable but files inside cannot be renamed out
 
         try:
-            result = run_trash(str(f1), str(readonly_dir))
+            result = run_trash("-r", str(f1), str(protected_file))
             assert result.returncode != 0
             assert not f1.exists()
         finally:
