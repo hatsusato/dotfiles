@@ -460,7 +460,12 @@ def main() -> int:
             success = False
     # Phase 2: execute all trash events
     for event in events:
-        trash_log.execute_trash(event)
+        try:
+            trash_log.execute_trash(event)
+        except (FileNotFoundError, shutil.Error, OSError) as e:
+            print(f"Error trashing {event.path}: {e}", file=sys.stderr)
+            success = False
+            continue
         if config.verbose:
             print(
                 f"Trashed: {event.path} [timestamp: {event.timestamp}]",
