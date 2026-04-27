@@ -2329,3 +2329,102 @@ class TestMainNoParserAccess:
         assert result.returncode != 0, (
             "trash --restore with no file arguments must exit non-zero"
         )
+
+
+# ============================================================================
+# Phase 20: Two-Phase Pattern Verification
+# ============================================================================
+
+
+class TestTwoPhasePattern:
+    """Phase 20: Verify that main() separates event generation from execution.
+
+    D-08: Write RED tests first to verify two-phase semantics:
+    - Phase 1: generate all TrashEvents for all files
+    - Phase 2: execute all events consecutively
+    """
+
+    def test_20_01_trash_generates_all_events_before_executing(self) -> None:
+        """main() source must contain two-phase pattern markers.
+
+        Verifies that main() uses an events list to collect all TrashEvents
+        before executing any. Source inspection approach works for subprocess-based
+        trash invocations.
+        Currently RED: implementation calls trash_item() per file without events list.
+        """
+        module = _import_trash_module()
+        source = inspect.getsource(module.main)
+        assert "events = []" in source, (
+            "main() must collect events in a list ('events = []') "
+            "for two-phase pattern; currently calls trash_item() per file "
+            "without gathering all events first — RED until Phase 20"
+        )
+        assert "events.append(event)" in source, (
+            "main() must append each event to events list ('events.append(event)') "
+            "for Phase 1 of two-phase pattern; currently absent — RED"
+        )
+        assert "for event in events:" in source, (
+            "main() must iterate over all events ('for event in events:') "
+            "for Phase 2 of two-phase pattern; currently absent — RED"
+        )
+
+    def test_20_02_make_trash_event_has_restore_parameter(self) -> None:
+        """make_trash_event() must accept a 'restore' keyword parameter.
+
+        Verifies that TrashLog.make_trash_event() signature includes 'restore: bool'
+        parameter as required by D-05.
+        Currently RED: signature is make_trash_event(self, path: Path)
+        with no restore param.
+        """
+        module = _import_trash_module()
+        import inspect as _inspect
+
+        sig = _inspect.signature(module.TrashLog.make_trash_event)
+        assert "restore" in sig.parameters, (
+            "TrashLog.make_trash_event() must have a 'restore' parameter (D-05); "
+            "currently signature is make_trash_event(self, path: Path) "
+            "with no restore — RED"
+        )
+        source = _inspect.getsource(module.TrashLog.make_trash_event)
+        assert "restore" in source, (
+            "make_trash_event() source must reference 'restore' parameter; "
+            "currently absent — RED"
+        )
+
+    def test_20_03_error_in_phase_1_skips_file_but_executes_others(
+        self, mock_trash_env: dict[str, str]
+    ) -> None:
+        """Phase 1 errors skip failed files; Phase 2 executes remaining events.
+
+        Two real files + one nonexistent path: the two real files must end up in
+        trash (Phase 2 ran for them) and returncode must be non-zero (one failure).
+        Additionally verifies two-phase source pattern is present in main().
+        Currently RED for the source-pattern assertion; the behavioral part may
+        already pass with the current per-file implementation.
+        """
+        home = Path(mock_trash_env["home"])
+        f1 = home / "real_file_a.txt"
+        f2 = home / "real_file_b.txt"
+        f1.write_text("content a")
+        f2.write_text("content b")
+        nonexistent = str(home / "does_not_exist.txt")
+
+        result = run_trash(str(f1), nonexistent, str(f2))
+
+        assert result.returncode != 0, (
+            "trash with a nonexistent path must return non-zero exit code"
+        )
+        assert not f1.exists(), f"real file {f1} must have been trashed"
+        assert not f2.exists(), f"real file {f2} must have been trashed"
+        assert "error" in result.stderr.lower() or "Error" in result.stderr, (
+            "stderr must contain error message for nonexistent path; "
+            f"got: {result.stderr!r}"
+        )
+
+        # Source-level assertion: two-phase pattern must be present in main()
+        module = _import_trash_module()
+        source = inspect.getsource(module.main)
+        assert "events = []" in source, (
+            "main() must use two-phase pattern ('events = []') to collect all events "
+            "before executing; currently absent — this assertion is RED"
+        )
