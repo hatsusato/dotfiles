@@ -1737,7 +1737,12 @@ class TestArgparseNamespace:
 
 
 class TestTopLevelFunctions:
-    """D-02/D-03 (Phase 18): list_items/trash_item/restore_item are top-level."""
+    """D-02/D-03 (Phase 18 → 20): list_items is top-level; trash_item/restore_item
+    deleted.
+
+    Phase 20 removed trash_item() and restore_item() top-level functions; their
+    logic was inlined into main() as the two-phase pattern.
+    """
 
     def test_list_items_is_top_level_function(self) -> None:
         """list_items() must exist as a module-level function."""
@@ -1746,46 +1751,52 @@ class TestTopLevelFunctions:
             "list_items() should be a top-level function in Phase 18 (D-02)"
         )
 
-    def test_trash_item_is_top_level_function(self) -> None:
-        """trash_item() must exist as a module-level function."""
+    def test_trash_item_top_level_removed(self) -> None:
+        """trash_item() top-level function must be removed in Phase 20 (D-03)."""
         module = _import_trash_module()
-        assert hasattr(module, "trash_item"), (
-            "trash_item() should be a top-level function in Phase 18 (D-03)"
+        assert not hasattr(module, "trash_item"), (
+            "trash_item() top-level function must be deleted in Phase 20 (D-03)"
         )
 
-    def test_restore_item_is_top_level_function(self) -> None:
-        """restore_item() must exist as a module-level function."""
+    def test_restore_item_top_level_removed(self) -> None:
+        """restore_item() top-level function must be removed in Phase 20 (D-04)."""
         module = _import_trash_module()
-        assert hasattr(module, "restore_item"), (
-            "restore_item() should be a top-level function in Phase 18 (D-02)"
+        assert not hasattr(module, "restore_item"), (
+            "restore_item() top-level function must be deleted in Phase 20 (D-04)"
         )
 
 
 class TestFindRestorable:
-    """D-05 (Phase 18): TrashLog.find_restorable() raises ValueError instead of None."""
+    """D-05 (Phase 18 → 20): make_trash_event(restore=True) finds restorable event.
+
+    Phase 20 replaced find_restorable() with make_trash_event(path, restore=True).
+    These tests verify the equivalent behavior via the new API.
+    """
 
     def test_find_restorable_returns_event_for_trashed_file(
         self, tmp_path: Path
     ) -> None:
-        """find_restorable() returns latest non-restored event."""
+        """make_trash_event(restore=True) returns latest non-restored event."""
         module = _import_trash_module()
         trash_dir = tmp_path / ".trash"
         log = module.TrashLog(trash_dir)
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
         event = log.trash_item(test_file)
-        found = log.find_restorable(str(test_file))
+        found = log.make_trash_event(test_file, restore=True)
         assert found.timestamp == event.timestamp
 
     def test_find_restorable_raises_for_unknown_path(self, tmp_path: Path) -> None:
-        """find_restorable() raises ValueError when path has no trash entry."""
+        """make_trash_event(restore=True) raises ValueError for unknown path."""
         module = _import_trash_module()
         log = module.TrashLog(tmp_path / ".trash")
+        from pathlib import Path as P
+
         with pytest.raises(ValueError, match="No trash entry found"):
-            log.find_restorable("/nonexistent/path.txt")
+            log.make_trash_event(P("/nonexistent/path.txt"), restore=True)
 
     def test_find_restorable_raises_for_already_restored(self, tmp_path: Path) -> None:
-        """find_restorable() raises ValueError when most recent entry is restored."""
+        """make_trash_event(restore=True) raises ValueError when already restored."""
         module = _import_trash_module()
         trash_dir = tmp_path / ".trash"
         log = module.TrashLog(trash_dir)
@@ -1794,34 +1805,40 @@ class TestFindRestorable:
         log.trash_item(test_file)
         log.mark_restored(str(test_file))
         with pytest.raises(ValueError, match="already restored"):
-            log.find_restorable(str(test_file))
+            log.make_trash_event(test_file, restore=True)
 
 
 class TestTrashLogRestoreItem:
-    """D-06 (Phase 18): TrashLog.restore_item() wraps shutil.move + mark_restored."""
+    """D-06 (Phase 18 → 20): execute_trash(event) handles restore.
+
+    Phase 20 removed TrashLog.restore_item() instance method; its logic was
+    merged into execute_trash() which now dispatches on event.restore flag.
+    """
 
     def test_restore_item_moves_file_back(self, tmp_path: Path) -> None:
-        """TrashLog.restore_item() moves the trashed file back to target_path."""
+        """execute_trash(event) with restore event moves the trashed file back."""
         module = _import_trash_module()
         trash_dir = tmp_path / ".trash"
         log = module.TrashLog(trash_dir)
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
-        event = log.trash_item(test_file)
+        log.trash_item(test_file)
         assert not test_file.exists()
-        log.restore_item(event, test_file)
+        restore_event = log.make_trash_event(test_file, restore=True)
+        log.execute_trash(restore_event)
         assert test_file.exists()
         assert test_file.read_text() == "content"
 
     def test_restore_item_records_restore_event(self, tmp_path: Path) -> None:
-        """TrashLog.restore_item() appends restore=True event to log."""
+        """execute_trash(event) with restore=True appends restore=True event to log."""
         module = _import_trash_module()
         trash_dir = tmp_path / ".trash"
         log = module.TrashLog(trash_dir)
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
-        event = log.trash_item(test_file)
-        log.restore_item(event, test_file)
+        log.trash_item(test_file)
+        restore_event = log.make_trash_event(test_file, restore=True)
+        log.execute_trash(restore_event)
         # After restore, _events is a dict keyed by path
         events_for_path = log._events.get(str(test_file), [])
         restore_events = [e for e in events_for_path if e.restore]
@@ -1911,8 +1928,8 @@ class TestDictBasedEvents:
 
 
 class TestTimestampFiltering:
-    """D-02 (Phase 19): active_events/find_restorable use max(timestamp) for latest
-    event determination, not list insertion order."""
+    """D-02 (Phase 19 → 20): active_events/make_trash_event(restore=True) use
+    max(timestamp) for latest event determination, not list insertion order."""
 
     def test_19_06_active_events_uses_max_timestamp_not_list_order(
         self, tmp_path: Path
@@ -1942,7 +1959,7 @@ class TestTimestampFiltering:
         )
 
     def test_19_07_find_restorable_uses_max_timestamp(self, tmp_path: Path) -> None:
-        """find_restorable() returns the event with the highest timestamp.
+        """make_trash_event(restore=True) returns the event with the highest timestamp.
 
         Scenario: events inserted as [ts=200(trash), ts=100(trash)].
         - List-order-based logic: last inserted = ts=100 → returns ts=100 (wrong)
@@ -1955,19 +1972,20 @@ class TestTimestampFiltering:
         # Insert in reverse order: large first, then small
         log.append(module.TrashEvent(path=path, timestamp=200, restore=False))
         log.append(module.TrashEvent(path=path, timestamp=100, restore=False))
-        found = log.find_restorable(path)
+        found = log.make_trash_event(Path(path), restore=True)
         assert found.timestamp == 200, (
-            f"find_restorable must return max timestamp (200), got {found.timestamp}"
+            "make_trash_event(restore=True) must return max timestamp (200),"
+            f" got {found.timestamp}"
         )
 
     def test_19_08_find_restorable_sees_latest_as_restored(
         self, tmp_path: Path
     ) -> None:
-        """find_restorable() raises ValueError when max-timestamp event is restored.
+        """make_trash_event(restore=True) raises ValueError for max-timestamp restored.
 
         Scenario: events inserted as [ts=200(restore), ts=100(trash)].
         - List-order-based: last inserted = ts=100(trash) → returns event (wrong)
-        - Max-timestamp-based: max ts = 200 (restore) → raises ValueError (correct)
+        - Max-timestamp-based: max ts=200 (restore) → raises ValueError (correct)
         """
         module = _import_trash_module()
         trash_dir = tmp_path / ".trash"
@@ -1977,7 +1995,7 @@ class TestTimestampFiltering:
         log.append(module.TrashEvent(path=path, timestamp=200, restore=True))
         log.append(module.TrashEvent(path=path, timestamp=100, restore=False))
         with pytest.raises(ValueError):
-            log.find_restorable(path)
+            log.make_trash_event(Path(path), restore=True)
 
     def test_19_09_active_events_excludes_restored_paths(self, tmp_path: Path) -> None:
         """active_events() excludes paths whose max-timestamp event has restore=True.
@@ -2144,8 +2162,9 @@ class TestEventExecution:
         log.execute_trash(event)
         # File moved
         assert not test_file.exists(), "Source file must be gone after execute_trash"
-        # Event recorded
-        restored = log.find_restorable(str(test_file))
+        # Event recorded — use make_trash_event(restore=True) instead of removed
+        # find_restorable()
+        restored = log.make_trash_event(test_file, restore=True)
         assert restored.timestamp == event.timestamp
 
 
