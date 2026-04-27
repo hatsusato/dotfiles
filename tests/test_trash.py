@@ -630,7 +630,12 @@ class TestRestore:
     # -------------------------------------------------------------------------
 
     def test_restore_list_basic(self, mock_trash_env: dict) -> None:
-        """TOOL-01: restore --list displays trash contents in text format."""
+        """TOOL-01: --list displays trash contents in text format.
+
+        Note: --list takes precedence over --restore in main(), so
+        run_restore("--list") and run_trash("--list") are equivalent.
+        This test uses run_trash("--list") directly for clarity.
+        """
         home = Path(mock_trash_env["home"])
 
         # Trash a file first using trash command
@@ -638,13 +643,18 @@ class TestRestore:
         test_file.write_text("test content")
         run_trash(str(test_file))
 
-        result = run_restore("--list")
+        result = run_trash("--list")
         assert result.returncode == 0
         assert "testfile.txt" in result.stdout or "testfile.txt" in result.stderr
 
     def test_restore_list_empty(self, mock_trash_env: dict) -> None:
-        """TOOL-14: restore --list on empty trash shows empty list or empty message."""
-        result = run_restore("--list")
+        """TOOL-14: --list on empty trash shows empty list or empty message.
+
+        Note: --list takes precedence over --restore in main(), so
+        run_restore("--list") and run_trash("--list") are equivalent.
+        This test uses run_trash("--list") directly for clarity.
+        """
+        result = run_trash("--list")
         assert result.returncode == 0
         output = result.stdout + result.stderr
         # Either empty output or explicit "empty" message
