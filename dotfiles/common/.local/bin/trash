@@ -413,7 +413,7 @@ def main() -> int:
             try:
                 event = trash_log.make_trash_event(target_path, restore=True)
                 events.append(event)
-            except (ValueError, FileNotFoundError) as e:
+            except ValueError as e:
                 print(f"trash: error: {e}", file=sys.stderr)
                 success = False
         # Phase 2: execute all restore events
