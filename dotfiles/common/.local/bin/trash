@@ -242,6 +242,15 @@ class TrashLog:
             os.fsync(f.fileno())
 
 
+def _normalize_for_restore(path: Path | str) -> Path:
+    """Normalize a restore target path. Does not require the path to exist."""
+    absolute_path = Path(path).absolute()
+    resolved = absolute_path.parent.resolve() / absolute_path.name
+    if Path.cwd().is_relative_to(resolved):
+        raise ValueError(f"Cannot restore to system directory: {path}")
+    return resolved
+
+
 def normalize_path(path: Path | str) -> Path:
     """Validate and normalize path to absolute resolved form.
 
