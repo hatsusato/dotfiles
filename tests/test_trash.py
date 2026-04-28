@@ -2650,3 +2650,165 @@ class TestMakeTrashEvents:
         assert "files: list[Path] = None" not in source, (
             "TrashConfig.files must not have default value (D-06)"
         )
+
+
+# ============================================================================
+# Phase 22: make_restore_events() separation + normalize_path() inlining
+# ============================================================================
+
+
+class TestMakeRestoreEvents:
+    """Phase 22: TrashLog.make_restore_events() new method verification.
+
+    Verifies D-01 through D-07 from Phase 22 CONTEXT.md:
+    - D-01: normalize_path() inlined into make_trash_events()
+    - D-02: normalize_path() and _normalize_for_restore() deleted
+    - D-03: make_restore_events() created as separate method
+    - D-04: make_trash_events() restore parameter removed
+    All tests in this class are RED until Phase 22 Plan 02 runs.
+    """
+
+    def test_22_01_make_restore_events_exists(self, tmp_path: Path) -> None:
+        """TrashLog must have make_restore_events() method (D-03)."""
+        module = _import_trash_module()
+        assert hasattr(module.TrashLog, "make_restore_events"), (
+            "TrashLog.make_restore_events() must exist (Phase 22 D-03)"
+        )
+
+    def test_22_02_make_restore_events_signature(self) -> None:
+        """make_restore_events() must have 'paths' but no 'restore' parameter."""
+        import inspect as _inspect
+
+        module = _import_trash_module()
+        assert hasattr(module.TrashLog, "make_restore_events"), (
+            "make_restore_events() not found — skip signature check"
+        )
+        sig = _inspect.signature(module.TrashLog.make_restore_events)
+        assert "paths" in sig.parameters, (
+            "make_restore_events() must have 'paths' parameter (Phase 22 D-03)"
+        )
+        assert "restore" not in sig.parameters, (
+            "make_restore_events() must not have 'restore' parameter"
+            " (distinct from make_trash_events)"
+        )
+
+    def test_22_03_make_restore_events_returns_tuple(self, tmp_path: Path) -> None:
+        """make_restore_events([path]) return value must be a 2-element tuple."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        log.trash_item(test_file)
+        result = log.make_restore_events([test_file])
+        assert isinstance(result, tuple), (
+            f"make_restore_events() must return tuple, got {type(result)}"
+        )
+        assert len(result) == 2, (
+            f"make_restore_events() must return 2-element tuple, got len={len(result)}"
+        )
+
+    def test_22_04_make_restore_events_success_case(self, tmp_path: Path) -> None:
+        """make_restore_events() returns (events, errors) for a trashed file."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        trash_event = log.trash_item(test_file)
+        events, errors = log.make_restore_events([test_file])
+        assert len(events) == 1, (
+            "make_restore_events() must return 1 event for 1 trashed file;"
+            f" got {events}"
+        )
+        assert len(errors) == 0, (
+            f"make_restore_events() must have no errors for valid file; got {errors}"
+        )
+        assert events[0].restore is True, (
+            "Returned event must have restore=True (Phase 22 D-03)"
+        )
+        assert events[0].timestamp == trash_event.timestamp, (
+            "Returned event timestamp must match original trash timestamp"
+        )
+
+    def test_22_05_make_restore_events_unknown_path(self, tmp_path: Path) -> None:
+        """make_restore_events() returns errors for unknown path."""
+        module = _import_trash_module()
+        log = module.TrashLog(tmp_path / ".trash")
+        unknown = tmp_path / "does_not_exist.txt"
+        events, errors = log.make_restore_events([unknown])
+        assert len(events) == 0, (
+            "make_restore_events() must return no events for unknown path;"
+            f" got {events}"
+        )
+        assert len(errors) == 1, (
+            f"make_restore_events() must return 1 error for unknown path; got {errors}"
+        )
+        assert "No trash entry" in str(errors[0][1]), (
+            f"Error message must contain 'No trash entry'; got {errors[0][1]!r}"
+        )
+
+    def test_22_06_make_restore_events_already_restored(self, tmp_path: Path) -> None:
+        """make_restore_events() returns errors for already-restored file."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        log.trash_item(test_file)
+        # Restore the file once
+        restore_event = log.make_restore_events([test_file])[0][0]
+        log.execute_trash(restore_event)
+        # Second attempt must produce an error
+        events, errors = log.make_restore_events([test_file])
+        assert len(events) == 0, (
+            "make_restore_events() must return no events for already-restored file"
+        )
+        assert len(errors) == 1, (
+            "make_restore_events() must return 1 error for already-restored file"
+        )
+        assert "already restored" in str(errors[0][1]), (
+            f"Error must mention 'already restored'; got {errors[0][1]!r}"
+        )
+
+    def test_22_07_make_restore_events_mixed_paths(self, tmp_path: Path) -> None:
+        """make_restore_events() handles mixed valid/invalid paths in one call."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        valid_file = tmp_path / "valid.txt"
+        valid_file.write_text("content")
+        log.trash_item(valid_file)
+        unknown_file = tmp_path / "unknown.txt"
+        events, errors = log.make_restore_events([valid_file, unknown_file])
+        assert len(events) == 1, (
+            f"make_restore_events() must return 1 event for 1 valid path; got {events}"
+        )
+        assert len(errors) == 1, (
+            "make_restore_events() must return 1 error for 1 unknown path;"
+            f" got {errors}"
+        )
+
+    def test_22_08_normalize_path_deleted(self) -> None:
+        """normalize_path() module-level function must be deleted (Phase 22 D-02)."""
+        module = _import_trash_module()
+        assert not hasattr(module, "normalize_path"), (
+            "normalize_path() must be deleted after Phase 22 D-02 inlining"
+        )
+
+    def test_22_09_normalize_for_restore_deleted(self) -> None:
+        """_normalize_for_restore() module-level function must be deleted (D-02)."""
+        module = _import_trash_module()
+        assert not hasattr(module, "_normalize_for_restore"), (
+            "_normalize_for_restore() must be deleted after Phase 22 D-02 inlining"
+        )
+
+    def test_22_10_make_trash_events_no_restore_param(self) -> None:
+        """make_trash_events() must not have 'restore' parameter (Phase 22 D-04)."""
+        import inspect as _inspect
+
+        module = _import_trash_module()
+        sig = _inspect.signature(module.TrashLog.make_trash_events)
+        assert "restore" not in sig.parameters, (
+            "make_trash_events() must NOT have 'restore' parameter (Phase 22 D-04)"
+        )
