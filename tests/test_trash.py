@@ -1137,7 +1137,13 @@ class TestCollisionAvoidance:
     """D-02: Collision avoidance increments epoch until free slot found."""
 
     def test_collision_avoided_by_increment(self, mock_trash_env: dict) -> None:
-        """get_unique_timestamp() returns ts+N when existing names occupy ts."""
+        """make_trash_events() assigns unique timestamps when slots are pre-occupied.
+
+        Verifies that batch make_trash_events([f1, f2]) produces events with timestamps
+        >= ts+2 when ts and ts+1 are already occupied in trash_dir.
+        Uses make_trash_events() instead of _get_unique_timestamp() directly,
+        since _get_unique_timestamp() is deleted in Phase 21 (D-04).
+        """
         import time
 
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -1149,8 +1155,19 @@ class TestCollisionAvoidance:
         (trash_dir / str(ts + 1)).mkdir()
 
         log = module.TrashLog(trash_dir)
-        result = log._get_unique_timestamp()
-        assert result >= ts + 2, f"Expected >= {ts + 2}, got {result}"
+        # make_trash_events() does not perform I/O on the source files
+        f1 = Path(mock_trash_env["home"]) / "file1.txt"
+        f2 = Path(mock_trash_env["home"]) / "file2.txt"
+        events = log.make_trash_events([f1, f2])
+        assert len(events) == 2
+        for event in events:
+            assert event.timestamp >= ts + 2, (
+                f"Expected timestamp >= {ts + 2}, got {event.timestamp}"
+            )
+        timestamps = {e.timestamp for e in events}
+        assert len(timestamps) == len(events), (
+            f"All events must have unique timestamps; got duplicates in {timestamps}"
+        )
 
     def test_rapid_fire_trash_creates_separate_entries(
         self, mock_trash_env: dict
@@ -1453,15 +1470,11 @@ class TestTrashLogAPI:
             "TrashLog.remove_by_hash() still exists"
         )
 
-    def test_mark_restored_signature_uses_timestamp(self) -> None:
-        """TrashLog.mark_restored(path: str) — timestamp arg removed in Phase 14."""
+    def test_mark_restored_is_removed(self) -> None:
+        """TrashLog.mark_restored() must not exist after Phase 21 (D-05)."""
         module = _import_trash_module()
-        sig = inspect.signature(module.TrashLog.mark_restored)
-        params = list(sig.parameters.keys())
-        # Expected: ['self', 'path']
-        assert params == ["self", "path"], f"mark_restored signature mismatch: {params}"
-        assert "timestamp" not in params, (
-            f"'timestamp' param should have been removed from mark_restored: {params}"
+        assert not hasattr(module.TrashLog, "mark_restored"), (
+            "TrashLog.mark_restored() must be deleted in Phase 21 (D-05)"
         )
 
 
