@@ -445,6 +445,15 @@ def main() -> int:
                     success = False
                 continue
             abs_path = Path(path).absolute()
+            normalized = abs_path.parent.resolve() / abs_path.name
+            if Path.cwd().is_relative_to(normalized):
+                print(
+                    f"trash: error trashing {path}:"
+                    f" Cannot trash system directory: {path}",
+                    file=sys.stderr,
+                )
+                success = False
+                continue
             if abs_path.is_dir() and not config.recursive:
                 print(
                     f"trash: error trashing {path}:"
