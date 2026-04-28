@@ -577,7 +577,7 @@ class TestCombinedFlags:
 
         result = run_trash("-f", "-v", str(f1), str(home / "nonexistent.txt"))
         assert result.returncode == 0
-        assert "Trashed:" in result.stderr
+        assert "trash: trashed" in result.stderr
         assert "file1.txt" in result.stderr
 
 

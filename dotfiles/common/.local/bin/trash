@@ -483,7 +483,7 @@ def main() -> int:
             continue
         if config.verbose:
             print(
-                f"Trashed: {event.path} [timestamp: {event.timestamp}]",
+                f"trash: trashed {event.path} [timestamp: {event.timestamp}]",
                 file=sys.stderr,
             )
     return EXIT_SUCCESS if success else EXIT_FAILURE
