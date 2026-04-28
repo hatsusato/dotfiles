@@ -1089,6 +1089,18 @@ class TestTrashLog:
         except ValueError:
             pass
 
+    def test_trash_log_tolerates_truncated_final_line(self, tmp_path: Path) -> None:
+        """TrashLog.load() silently ignores a truncated final line (crash-recovery)."""
+        trash = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        trash_dir.mkdir()
+        jsonl_path = trash_dir / "trash-log.jsonl"
+        good_line = '{"path":"/tmp/f","timestamp":1000,"restore":false}\n'
+        bad_partial = '{"path":"/tmp/g","timestamp'  # no newline, truncated
+        jsonl_path.write_text(good_line + bad_partial)
+        log = trash.TrashLog(trash_dir)  # must not raise
+        assert len(log._events) == 1
+
 
 # ============================================================================
 # Phase 13 Wave 0 (RED): D-01 to D-16
