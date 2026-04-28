@@ -120,27 +120,10 @@ class TrashLog:
 
         return events
 
-    def make_trash_event(self, path: Path, restore: bool = False) -> TrashEvent:
-        """Generate or find TrashEvent for a single path. No file I/O.
-
-        Delegates to make_trash_events([path], restore=restore)[0].
-
-        Args:
-            path: Path to file/directory to trash or restore
-            restore: If True, find existing restorable event; if False, create new
-
-        Returns:
-            TrashEvent: Generated or found event (not yet executed)
-
-        Raises:
-            ValueError: If restore=True and no restorable entry exists for path
-        """
-        return self.make_trash_events([path], restore=restore)[0]
-
     def execute_trash(self, event: TrashEvent) -> None:
         """Execute trash or restore operation based on event.restore flag.
 
-        Counterpart to make_trash_event(): performs the actual file I/O.
+        Counterpart to make_trash_events(): performs the actual file I/O.
         Used in two-stage pattern after event inspection/transformation.
 
         Args:
@@ -166,7 +149,7 @@ class TrashLog:
                 )
                 self.trash_item(target_path)
             shutil.move(str(trash_path), str(target_path))
-            # D-05: Append restore event directly; mark_restored() is removed.
+            # D-05: Append restore event directly via append().
             self.append(event)
         else:
             dest = self._get_trash_path(event.timestamp)
