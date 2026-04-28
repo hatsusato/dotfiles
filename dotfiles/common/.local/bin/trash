@@ -445,12 +445,12 @@ def main() -> int:
         except FileNotFoundError:
             if not config.force:
                 print(
-                    f"Error trashing {path}: No such file or directory",
+                    f"trash: error trashing {path}: No such file or directory",
                     file=sys.stderr,
                 )
                 success = False
         except (ValueError, RuntimeError) as e:
-            print(f"Error trashing {path}: {e}", file=sys.stderr)
+            print(f"trash: error trashing {path}: {e}", file=sys.stderr)
             success = False
     if trash_paths:
         events = trash_log.make_trash_events(trash_paths)
@@ -459,7 +459,7 @@ def main() -> int:
         try:
             trash_log.execute_trash(event)
         except (FileNotFoundError, shutil.Error, OSError) as e:
-            print(f"Error trashing {event.path}: {e}", file=sys.stderr)
+            print(f"trash: error trashing {event.path}: {e}", file=sys.stderr)
             success = False
             continue
         if config.verbose:
