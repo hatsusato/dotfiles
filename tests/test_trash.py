@@ -1824,14 +1824,21 @@ class TestFindRestorable:
             log.make_trash_event(P("/nonexistent/path.txt"), restore=True)
 
     def test_find_restorable_raises_for_already_restored(self, tmp_path: Path) -> None:
-        """make_trash_event(restore=True) raises ValueError when already restored."""
+        """make_trash_event(restore=True) raises ValueError when already restored.
+
+        Phase 21 (D-05): mark_restored() deleted; simulate restored state by
+        executing a restore event via execute_trash(), which appends event with
+        restore=True and a higher timestamp.
+        """
         module = _import_trash_module()
         trash_dir = tmp_path / ".trash"
         log = module.TrashLog(trash_dir)
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
         log.trash_item(test_file)
-        log.mark_restored(str(test_file))
+        # Simulate restore by executing a restore event (replaces mark_restored())
+        restore_event = log.make_trash_event(test_file, restore=True)
+        log.execute_trash(restore_event)
         with pytest.raises(ValueError, match="already restored"):
             log.make_trash_event(test_file, restore=True)
 
@@ -2394,21 +2401,16 @@ class TestTwoPhasePattern:
     def test_20_01_trash_generates_all_events_before_executing(self) -> None:
         """main() source must contain two-phase pattern markers.
 
-        Verifies that main() uses an events list to collect all TrashEvents
-        before executing any. Source inspection approach works for subprocess-based
-        trash invocations.
-        Currently RED: implementation calls trash_item() per file without events list.
+        Verifies that main() uses batch event generation before execution.
+        Phase 21 update: make_trash_events() replaces the loop-with-append pattern;
+        events list is assigned from make_trash_events() call, then executed via
+        'for event in events:' loop.
         """
         module = _import_trash_module()
         source = inspect.getsource(module.main)
-        assert "events = []" in source, (
-            "main() must collect events in a list ('events = []') "
-            "for two-phase pattern; currently calls trash_item() per file "
-            "without gathering all events first — RED until Phase 20"
-        )
-        assert "events.append(event)" in source, (
-            "main() must append each event to events list ('events.append(event)') "
-            "for Phase 1 of two-phase pattern; currently absent — RED"
+        assert "make_trash_events(" in source, (
+            "main() must call make_trash_events() for Phase 1 batch generation; "
+            "currently absent from main() source"
         )
         assert "for event in events:" in source, (
             "main() must iterate over all events ('for event in events:') "

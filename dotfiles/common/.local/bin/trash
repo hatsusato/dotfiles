@@ -292,12 +292,12 @@ class TrashConfig(Namespace):
     - config.print_help()
     """
 
-    verbose: bool = False
-    force: bool = False
-    recursive: bool = False
-    files: list[Path] = None  # type: ignore[assignment]  # argparse always sets this
-    restore: bool = False
-    show_list: bool = False
+    verbose: bool
+    force: bool
+    recursive: bool
+    files: list[Path]
+    restore: bool
+    show_list: bool
 
     @classmethod
     def _build_parser(cls) -> ArgumentParser:
@@ -406,18 +406,18 @@ def main() -> int:
             print("Error: provide a path to restore or use --list", file=sys.stderr)
             config.print_help()
             return EXIT_FAILURE
-        # Phase 1: generate all restore events
-        events: list[TrashEvent] = []
+        # Phase 1: normalize all paths and generate restore events in one batch call
+        normalized_paths: list[Path] = []
         success = True
         for path in config.files:
             abs_path = Path(str(path)).absolute()
-            target_path = abs_path.parent.resolve() / abs_path.name
-            try:
-                event = trash_log.make_trash_event(target_path, restore=True)
-                events.append(event)
-            except ValueError as e:
-                print(f"trash: error: {e}", file=sys.stderr)
-                success = False
+            normalized_paths.append(abs_path.parent.resolve() / abs_path.name)
+        events: list[TrashEvent] = []
+        try:
+            events = trash_log.make_trash_events(normalized_paths, restore=True)
+        except ValueError as e:
+            print(f"trash: error: {e}", file=sys.stderr)
+            success = False
         # Phase 2: execute all restore events
         for event in events:
             try:
@@ -438,7 +438,8 @@ def main() -> int:
         config.print_help()
         return EXIT_FAILURE
 
-    # Phase 1: generate all trash events
+    # Phase 1: validate paths and generate all trash events in one batch call
+    trash_paths: list[Path] = []
     events = []
     success = True
     for path in config.files:
@@ -446,12 +447,9 @@ def main() -> int:
             trash_path = normalize_path(path)
             if trash_path.is_dir() and not config.recursive:
                 raise ValueError("Cannot trash directory without -r flag")
-            event = trash_log.make_trash_event(trash_path)
-            events.append(event)
+            trash_paths.append(trash_path)
         except FileNotFoundError:
-            if config.force:
-                pass
-            else:
+            if not config.force:
                 print(
                     f"Error trashing {path}: No such file or directory",
                     file=sys.stderr,
@@ -460,6 +458,8 @@ def main() -> int:
         except (ValueError, RuntimeError) as e:
             print(f"Error trashing {path}: {e}", file=sys.stderr)
             success = False
+    if trash_paths:
+        events = trash_log.make_trash_events(trash_paths)
     # Phase 2: execute all trash events
     for event in events:
         try:
