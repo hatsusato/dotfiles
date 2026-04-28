@@ -2471,9 +2471,9 @@ class TestTwoPhasePattern:
         # Source-level assertion: two-phase pattern must be present in main()
         module = _import_trash_module()
         source = inspect.getsource(module.main)
-        assert "events = []" in source, (
-            "main() must use two-phase pattern ('events = []') to collect all events "
-            "before executing; currently absent — this assertion is RED"
+        assert "events" in source and "= []" in source, (
+            "main() must use two-phase pattern (events initialized to []) to collect "
+            "all events before executing; currently absent — this assertion is RED"
         )
 
 

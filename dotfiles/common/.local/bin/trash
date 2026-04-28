@@ -434,7 +434,7 @@ def main() -> int:
 
     # Phase 1: validate paths and generate all trash events in one batch call
     trash_paths: list[Path] = []
-    events = []
+    events: list[TrashEvent] = []
     success = True
     for path in config.files:
         try:
