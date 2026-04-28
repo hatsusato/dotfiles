@@ -55,11 +55,7 @@ class TestSingleFileDeletion:
         assert result.returncode == 0
         assert not test_file.exists()
 
-        trashed = [
-            f
-            for f in trash_dir.iterdir()
-            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
-        ]
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 1
 
 
@@ -86,11 +82,7 @@ class TestMultipleFileArguments:
         assert not f1.exists()
         assert not f2.exists()
 
-        trashed = [
-            f
-            for f in trash_dir.iterdir()
-            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
-        ]
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 2
 
     def test_tool_02_002_trash_multiple_files_and_directory_with_r(
@@ -114,11 +106,7 @@ class TestMultipleFileArguments:
         assert not f2.exists()
         assert not d.exists()
 
-        trashed = [
-            f
-            for f in trash_dir.iterdir()
-            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
-        ]
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 3
 
     def test_tool_02_003_mix_existent_nonexistent_without_f_continues(
@@ -228,11 +216,7 @@ class TestRecursiveFlag:
         assert result.returncode == 0
         assert not d.exists()
 
-        trashed = [
-            f
-            for f in trash_dir.iterdir()
-            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
-        ]
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 1
 
     def test_flag_r_003_directory_creates_single_epoch_entry(
@@ -250,11 +234,7 @@ class TestRecursiveFlag:
         result = run_trash("-r", str(d))
         assert result.returncode == 0
 
-        trashed = [
-            f
-            for f in trash_dir.iterdir()
-            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
-        ]
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 1
 
         metadata_lines = (
@@ -411,11 +391,7 @@ class TestEdgeCases:
         assert result.returncode == 0
         assert not test_file.exists()
 
-        trashed = [
-            f
-            for f in trash_dir.iterdir()
-            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
-        ]
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 1
 
     def test_edge_002_filename_with_quotes(self, mock_trash_env: dict) -> None:
@@ -430,11 +406,7 @@ class TestEdgeCases:
         assert result.returncode == 0
         assert not test_file.exists()
 
-        trashed = [
-            f
-            for f in trash_dir.iterdir()
-            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
-        ]
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 1
 
     def test_edge_003_refuse_to_trash_dot(self, mock_trash_env: dict) -> None:
