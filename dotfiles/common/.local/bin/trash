@@ -48,8 +48,7 @@ class TrashLog:
 
     Loads entire event history into memory at init for fast queries.
     Stores events as dict[str, list[TrashEvent]] keyed by path for O(1) lookup.
-    Provides active_events(), make_trash_event(), execute_trash(), trash_item(),
-    and restore_item().
+    Provides active_events(), make_trash_events(), execute_trash(), trash_item().
     """
 
     def __init__(self, trash_dir: Path | None = None) -> None:
@@ -59,44 +58,72 @@ class TrashLog:
         self._trash_dir = trash_dir
         self._metadata_path = trash_dir / "trash-log.jsonl"
         self._events: dict[str, list[TrashEvent]] = {}
-        self._reserved_timestamps: set[int] = set()
         self._trash_dir.mkdir(parents=True, exist_ok=True)  # D-07: create once
         self.load()
-
-    def _get_unique_timestamp(self) -> int:
-        """Return first available epoch timestamp in self._trash_dir.
-
-        Starts at current epoch, increments by 1 until a non-existing
-        name is found in self._trash_dir and the timestamp is not already
-        reserved by a pending make_trash_event() call. This ensures that
-        batch make_trash_event() calls in Phase 1 of the two-phase pattern
-        each receive a distinct timestamp before any execute_trash() runs.
-        """
-        timestamp = int(time.time())
-        while (
-            self._trash_dir / str(timestamp)
-        ).exists() or timestamp in self._reserved_timestamps:
-            timestamp += 1
-        self._reserved_timestamps.add(timestamp)
-        return timestamp
 
     def _get_trash_path(self, timestamp: int) -> Path:
         """Returns the path to the trashed item (trash_dir/{timestamp})."""
         return self._trash_dir / str(timestamp)
 
+    def make_trash_events(
+        self, paths: list[Path], restore: bool = False
+    ) -> list[TrashEvent]:
+        """Generate or find TrashEvents for a batch of paths. No file I/O.
+
+        For trash (restore=False): creates new events with unique timestamps.
+        Uses a local reserved set to guarantee uniqueness within the batch (D-04).
+
+        For restore (restore=True): finds the latest restorable event for each path.
+        Uses (timestamp, restore) tuple key for tiebreaking (D-02).
+
+        Note: Timestamps are not reserved after this call returns. A concurrent
+        trash invocation could claim the same timestamp between make_trash_events()
+        and execute_trash(). This design assumes single-user (non-concurrent) usage.
+
+        Args:
+            paths: Paths to file/directories to trash or restore
+            restore: If True, find existing restorable events; if False, create new
+
+        Returns:
+            list[TrashEvent]: Generated or found events (not yet executed)
+
+        Raises:
+            ValueError: If restore=True and no restorable entry exists for a path
+        """
+        events: list[TrashEvent] = []
+        reserved: set[int] = set()  # D-04: local variable for this batch
+
+        if restore:
+            for path in paths:
+                events_for_path = self._events.get(str(path), [])
+                if not events_for_path:
+                    raise ValueError(f"No trash entry found for {path}")
+                # D-02: Use (timestamp, restore) tiebreaker
+                latest = max(events_for_path, key=lambda e: (e.timestamp, e.restore))
+                if latest.restore:
+                    raise ValueError(
+                        f"No restorable entry found for {path}:"
+                        " most recent entry is already restored"
+                    )
+                # Return a restore-flagged copy so execute_trash() dispatches correctly.
+                events.append(dataclass_replace(latest, restore=True))
+        else:
+            for path in paths:
+                timestamp = int(time.time())
+                # D-04: Check against local reserved set, not instance attribute
+                while (
+                    self._trash_dir / str(timestamp)
+                ).exists() or timestamp in reserved:
+                    timestamp += 1
+                reserved.add(timestamp)
+                events.append(TrashEvent(path=str(path), timestamp=timestamp))
+
+        return events
+
     def make_trash_event(self, path: Path, restore: bool = False) -> TrashEvent:
-        """Generate or find TrashEvent. No file I/O.
+        """Generate or find TrashEvent for a single path. No file I/O.
 
-        For trash (restore=False): creates new event with unique timestamp.
-        For restore (restore=True): finds latest restorable event in log.
-
-        Used in two-stage pattern: generate event, inspect, then execute.
-        Timestamp generation uses _get_unique_timestamp() for collision avoidance.
-
-        Note: The timestamp is not reserved between make_trash_event() and
-        execute_trash(). A concurrent trash invocation could claim the same
-        timestamp in that window. This design assumes single-user (non-concurrent)
-        usage, which is the typical interactive shell scenario.
+        Delegates to make_trash_events([path], restore=restore)[0].
 
         Args:
             path: Path to file/directory to trash or restore
@@ -108,21 +135,7 @@ class TrashLog:
         Raises:
             ValueError: If restore=True and no restorable entry exists for path
         """
-        if restore:
-            events_for_path = self._events.get(str(path), [])
-            if not events_for_path:
-                raise ValueError(f"No trash entry found for {path}")
-            latest = max(events_for_path, key=lambda e: e.timestamp)
-            if latest.restore:
-                raise ValueError(
-                    f"No restorable entry found for {path}:"
-                    " most recent entry is already restored"
-                )
-            # Return a restore-flagged copy of the trash event so that
-            # execute_trash() can dispatch correctly on event.restore.
-            return dataclass_replace(latest, restore=True)
-        timestamp = self._get_unique_timestamp()
-        return TrashEvent(path=str(path), timestamp=timestamp)
+        return self.make_trash_events([path], restore=restore)[0]
 
     def execute_trash(self, event: TrashEvent) -> None:
         """Execute trash or restore operation based on event.restore flag.
@@ -153,17 +166,17 @@ class TrashLog:
                 )
                 self.trash_item(target_path)
             shutil.move(str(trash_path), str(target_path))
-            self.mark_restored(event.path)
+            # D-05: Append restore event directly; mark_restored() is removed.
+            self.append(event)
         else:
             dest = self._get_trash_path(event.timestamp)
             shutil.move(str(event.path), str(dest))
-            self._reserved_timestamps.discard(event.timestamp)
             self.append(event)
 
     def trash_item(self, path: Path) -> TrashEvent:
         """Move path to trash and record event in log (atomic operation).
 
-        Delegates to make_trash_event() + execute_trash() two-stage pattern.
+        Delegates to make_trash_events([path]) + execute_trash() two-stage pattern.
 
         Args:
             path: Path to file/directory to trash
@@ -171,7 +184,7 @@ class TrashLog:
         Returns:
             TrashEvent: The event recorded (includes path, timestamp, restore flag)
         """
-        event = self.make_trash_event(path)
+        event = self.make_trash_events([path])[0]
         self.execute_trash(event)
         return event
 
@@ -217,7 +230,9 @@ class TrashLog:
         """
         result: list[TrashEvent] = []
         for _path, events_for_path in self._events.items():
-            latest = max(events_for_path, key=lambda e: e.timestamp)
+            # D-01: Use (timestamp, restore) tiebreaker so restore events (1) beat
+            # trash events (0) when timestamps are equal.
+            latest = max(events_for_path, key=lambda e: (e.timestamp, e.restore))
             if not latest.restore:
                 result.append(latest)
         return result
@@ -226,19 +241,6 @@ class TrashLog:
         """Add event to memory and sync to disk immediately."""
         self._events.setdefault(event.path, []).append(event)
         self._append_jsonl(event)
-
-    def mark_restored(self, path: str) -> None:
-        """Append new event with restore=True to create audit trail.
-
-        Uses _get_unique_timestamp() to ensure timestamp is strictly greater
-        than the trash event timestamp, so max() lookups work correctly.
-        """
-        restore_event = TrashEvent(
-            path=path,
-            timestamp=self._get_unique_timestamp(),
-            restore=True,
-        )
-        self.append(restore_event)
 
     def _append_jsonl(self, event: TrashEvent) -> None:
         """Append single line to trash-log.jsonl with fsync.
