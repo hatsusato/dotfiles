@@ -413,7 +413,7 @@ def main() -> int:
         for event in events:
             try:
                 trash_log.execute_trash(event)
-            except (FileNotFoundError, shutil.Error, OSError) as e:
+            except (shutil.Error, OSError) as e:
                 print(f"trash: error restoring {event.path}: {e}", file=sys.stderr)
                 success = False
                 continue
@@ -445,6 +445,15 @@ def main() -> int:
                     success = False
                 continue
             abs_path = Path(path).absolute()
+            normalized = abs_path.parent.resolve() / abs_path.name
+            if Path.cwd().is_relative_to(normalized):
+                print(
+                    f"trash: error trashing {path}:"
+                    f" Cannot trash system directory: {path}",
+                    file=sys.stderr,
+                )
+                success = False
+                continue
             if abs_path.is_dir() and not config.recursive:
                 print(
                     f"trash: error trashing {path}:"
@@ -468,13 +477,13 @@ def main() -> int:
     for event in events:
         try:
             trash_log.execute_trash(event)
-        except (FileNotFoundError, shutil.Error, OSError) as e:
+        except (shutil.Error, OSError) as e:
             print(f"trash: error trashing {event.path}: {e}", file=sys.stderr)
             success = False
             continue
         if config.verbose:
             print(
-                f"Trashed: {event.path} [timestamp: {event.timestamp}]",
+                f"trash: trashed {event.path} [timestamp: {event.timestamp}]",
                 file=sys.stderr,
             )
     return EXIT_SUCCESS if success else EXIT_FAILURE

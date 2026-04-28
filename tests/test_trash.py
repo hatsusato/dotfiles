@@ -55,11 +55,7 @@ class TestSingleFileDeletion:
         assert result.returncode == 0
         assert not test_file.exists()
 
-        trashed = [
-            f
-            for f in trash_dir.iterdir()
-            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
-        ]
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 1
 
 
@@ -86,11 +82,7 @@ class TestMultipleFileArguments:
         assert not f1.exists()
         assert not f2.exists()
 
-        trashed = [
-            f
-            for f in trash_dir.iterdir()
-            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
-        ]
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 2
 
     def test_tool_02_002_trash_multiple_files_and_directory_with_r(
@@ -114,11 +106,7 @@ class TestMultipleFileArguments:
         assert not f2.exists()
         assert not d.exists()
 
-        trashed = [
-            f
-            for f in trash_dir.iterdir()
-            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
-        ]
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 3
 
     def test_tool_02_003_mix_existent_nonexistent_without_f_continues(
@@ -228,11 +216,7 @@ class TestRecursiveFlag:
         assert result.returncode == 0
         assert not d.exists()
 
-        trashed = [
-            f
-            for f in trash_dir.iterdir()
-            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
-        ]
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 1
 
     def test_flag_r_003_directory_creates_single_epoch_entry(
@@ -250,11 +234,7 @@ class TestRecursiveFlag:
         result = run_trash("-r", str(d))
         assert result.returncode == 0
 
-        trashed = [
-            f
-            for f in trash_dir.iterdir()
-            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
-        ]
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 1
 
         metadata_lines = (
@@ -411,11 +391,7 @@ class TestEdgeCases:
         assert result.returncode == 0
         assert not test_file.exists()
 
-        trashed = [
-            f
-            for f in trash_dir.iterdir()
-            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
-        ]
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 1
 
     def test_edge_002_filename_with_quotes(self, mock_trash_env: dict) -> None:
@@ -430,19 +406,21 @@ class TestEdgeCases:
         assert result.returncode == 0
         assert not test_file.exists()
 
-        trashed = [
-            f
-            for f in trash_dir.iterdir()
-            if f.name != "trash-log.jsonl" and not f.name.endswith("-attributes.json")
-        ]
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 1
 
-    def test_edge_003_refuse_to_trash_dot(self, mock_trash_env: dict) -> None:
-        """EDGE-003: refuse to trash '.' with error."""
-        home = Path(mock_trash_env["home"])
-        dot_path = home / "."
+    def test_edge_003_refuse_to_trash_directory_without_r(
+        self, mock_trash_env: dict
+    ) -> None:
+        """EDGE-003: refuse to trash a directory without -r flag with error.
 
-        result = run_trash(str(dot_path))
+        Note: Path(home) / "." normalises to home itself (pathlib strips trailing
+        dot), so this test exercises "directory without -r" rather than the
+        cwd-ancestor guard specifically.
+        """
+        home = Path(mock_trash_env["home"])
+
+        result = run_trash(str(home))
         assert result.returncode != 0
         assert result.stderr != ""
 
@@ -577,7 +555,7 @@ class TestCombinedFlags:
 
         result = run_trash("-f", "-v", str(f1), str(home / "nonexistent.txt"))
         assert result.returncode == 0
-        assert "Trashed:" in result.stderr
+        assert "trash: trashed" in result.stderr
         assert "file1.txt" in result.stderr
 
 
@@ -1088,6 +1066,18 @@ class TestTrashLog:
             pytest.fail("Expected ValueError for malformed JSON")
         except ValueError:
             pass
+
+    def test_trash_log_tolerates_truncated_final_line(self, tmp_path: Path) -> None:
+        """TrashLog.load() silently ignores a truncated final line (crash-recovery)."""
+        trash = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        trash_dir.mkdir()
+        jsonl_path = trash_dir / "trash-log.jsonl"
+        good_line = '{"path":"/tmp/f","timestamp":1000,"restore":false}\n'
+        bad_partial = '{"path":"/tmp/g","timestamp'  # no newline, truncated
+        jsonl_path.write_text(good_line + bad_partial)
+        log = trash.TrashLog(trash_dir)  # must not raise
+        assert len(log._events) == 1
 
 
 # ============================================================================
