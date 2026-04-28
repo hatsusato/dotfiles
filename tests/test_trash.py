@@ -2475,3 +2475,178 @@ class TestTwoPhasePattern:
             "main() must use two-phase pattern ('events = []') to collect all events "
             "before executing; currently absent — this assertion is RED"
         )
+
+
+# ============================================================================
+# Phase 21: make_trash_events() batch method + D-01 through D-06 verification
+# ============================================================================
+
+
+class TestMakeTrashEvents:
+    """Phase 21: TrashLog.make_trash_events() batch method verification.
+
+    Verifies D-01 through D-06 from Phase 21 CONTEXT.md.
+    All tests in this class are RED until Phase 21 Plan 02 (implementation) runs.
+    """
+
+    def test_21_01_make_trash_events_exists(self, tmp_path: Path) -> None:
+        """make_trash_events() method must exist on TrashLog (D-03)."""
+        module = _import_trash_module()
+        assert hasattr(module.TrashLog, "make_trash_events"), (
+            "TrashLog.make_trash_events() must exist (D-03); "
+            "currently absent — RED until Phase 21 Plan 02"
+        )
+
+    def test_21_02_make_trash_events_signature(self) -> None:
+        """make_trash_events() must have 'paths' and 'restore' parameters (D-03)."""
+        import inspect as _inspect
+
+        module = _import_trash_module()
+        assert hasattr(module.TrashLog, "make_trash_events"), (
+            "make_trash_events() not found — skip signature check"
+        )
+        sig = _inspect.signature(module.TrashLog.make_trash_events)
+        assert "paths" in sig.parameters, (
+            "make_trash_events() must have 'paths' parameter (D-03)"
+        )
+        assert "restore" in sig.parameters, (
+            "make_trash_events() must have 'restore' parameter (D-03)"
+        )
+
+    def test_21_03_make_trash_events_returns_list(self, tmp_path: Path) -> None:
+        """make_trash_events([f]) returns a list of TrashEvent (D-03)."""
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        result = log.make_trash_events([test_file])
+        assert isinstance(result, list), (
+            f"make_trash_events() must return list, got {type(result)}"
+        )
+        assert len(result) == 1
+        assert isinstance(result[0], module.TrashEvent)
+
+    def test_21_04_make_trash_events_unique_timestamps(self, tmp_path: Path) -> None:
+        """make_trash_events([f1, f2, f3]) ensures all events have unique timestamps.
+
+        The local reserved set prevents timestamp collisions within a single
+        batch (D-04).
+        """
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        files = [tmp_path / f"file{i}.txt" for i in range(3)]
+        for f in files:
+            f.write_text(f"content {f.name}")
+        events = log.make_trash_events(files)
+        assert len(events) == 3
+        timestamps = {e.timestamp for e in events}
+        assert len(timestamps) == 3, (
+            f"All events must have unique timestamps; got duplicates in {timestamps}"
+        )
+
+    def test_21_05_active_events_tiebreaker_same_timestamp(
+        self, tmp_path: Path
+    ) -> None:
+        """active_events() uses (timestamp, restore) tiebreaker (D-01).
+
+        Scenario: trash event and restore event share the same timestamp.
+        Old key=lambda e: e.timestamp gives undefined behavior.
+        New key=lambda e: (e.timestamp, e.restore) picks restore (1 > 0) as latest.
+        So active_events() must return [] (path is considered restored).
+        """
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        path = str(tmp_path / "file.txt")
+        ts = 1000000
+        # Same timestamp: one trash, one restore
+        log.append(module.TrashEvent(path=path, timestamp=ts, restore=False))
+        log.append(module.TrashEvent(path=path, timestamp=ts, restore=True))
+        active = log.active_events()
+        active_paths = {e.path for e in active}
+        assert path not in active_paths, (
+            "Same-timestamp trash+restore: restore event (restore=1 > trash=0) "
+            "must win tiebreaker, so path must NOT be active (D-01)"
+        )
+
+    def test_21_06_make_trash_events_restore_tiebreaker(self, tmp_path: Path) -> None:
+        """make_trash_events(restore=True) uses (timestamp, restore) tiebreaker (D-02).
+
+        Scenario: trash and restore events share the same timestamp.
+        restore event has restore=True (1 > 0), so it is treated as latest=already
+        restored. make_trash_events(restore=True) must raise ValueError.
+        """
+        module = _import_trash_module()
+        trash_dir = tmp_path / ".trash"
+        log = module.TrashLog(trash_dir)
+        path = str(tmp_path / "file.txt")
+        ts = 1000000
+        log.append(module.TrashEvent(path=path, timestamp=ts, restore=False))
+        log.append(module.TrashEvent(path=path, timestamp=ts, restore=True))
+        with pytest.raises(ValueError, match="already restored"):
+            log.make_trash_events([Path(path)], restore=True)
+
+    def test_21_07_reserved_timestamps_not_in_instance(self, tmp_path: Path) -> None:
+        """TrashLog instance must not have _reserved_timestamps attribute (D-04)."""
+        module = _import_trash_module()
+        log = module.TrashLog(tmp_path / ".trash")
+        assert not hasattr(log, "_reserved_timestamps"), (
+            "TrashLog._reserved_timestamps must be deleted from __init__ (D-04); "
+            "currently still exists — RED until Phase 21 Plan 02"
+        )
+
+    def test_21_08_get_unique_timestamp_method_removed(self) -> None:
+        """TrashLog._get_unique_timestamp() must not exist (D-04)."""
+        module = _import_trash_module()
+        assert not hasattr(module.TrashLog, "_get_unique_timestamp"), (
+            "TrashLog._get_unique_timestamp() must be deleted (D-04); "
+            "currently still exists — RED until Phase 21 Plan 02"
+        )
+
+    def test_21_09_main_uses_make_trash_events(self) -> None:
+        """main() must call make_trash_events(), not make_trash_event() (D-03)."""
+        import inspect as _inspect
+
+        module = _import_trash_module()
+        source = _inspect.getsource(module.main)
+        assert "make_trash_events" in source, (
+            "main() must call make_trash_events() (D-03); "
+            "currently calls make_trash_event() in loop — RED until Phase 21 Plan 02"
+        )
+        # Verify old single-path call no longer present
+        assert "make_trash_event(" not in source, (
+            "main() must not call make_trash_event() (D-03); "
+            "only make_trash_events() allowed after Phase 21"
+        )
+
+    def test_21_10_trashconfig_fields_no_defaults(self) -> None:
+        """TrashConfig fields must have no default values (D-06).
+
+        All fields should be type-annotation-only after Phase 21.
+        argparse (via parse_args()) sets all values; class-level defaults redundant.
+        """
+        import inspect as _inspect
+
+        module = _import_trash_module()
+        source = _inspect.getsource(module.TrashConfig)
+        # No field should have = False or = None as class-level default
+        assert "verbose: bool = False" not in source, (
+            "TrashConfig.verbose must not have default value (D-06)"
+        )
+        assert "force: bool = False" not in source, (
+            "TrashConfig.force must not have default value (D-06)"
+        )
+        assert "recursive: bool = False" not in source, (
+            "TrashConfig.recursive must not have default value (D-06)"
+        )
+        assert "restore: bool = False" not in source, (
+            "TrashConfig.restore must not have default value (D-06)"
+        )
+        assert "show_list: bool = False" not in source, (
+            "TrashConfig.show_list must not have default value (D-06)"
+        )
+        assert "files: list[Path] = None" not in source, (
+            "TrashConfig.files must not have default value (D-06)"
+        )
