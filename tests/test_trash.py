@@ -634,7 +634,6 @@ class TestRestore:
 
         Note: --list takes precedence over --restore in main(), so
         run_restore("--list") and run_trash("--list") are equivalent.
-        This test uses run_trash("--list") directly for clarity.
         """
         home = Path(mock_trash_env["home"])
 
@@ -643,7 +642,8 @@ class TestRestore:
         test_file.write_text("test content")
         run_trash(str(test_file))
 
-        result = run_trash("--list")
+        # --list takes precedence over --restore; both helpers are equivalent
+        result = run_restore("--list")
         assert result.returncode == 0
         assert "testfile.txt" in result.stdout or "testfile.txt" in result.stderr
 
@@ -652,9 +652,9 @@ class TestRestore:
 
         Note: --list takes precedence over --restore in main(), so
         run_restore("--list") and run_trash("--list") are equivalent.
-        This test uses run_trash("--list") directly for clarity.
         """
-        result = run_trash("--list")
+        # --list takes precedence over --restore; both helpers are equivalent
+        result = run_restore("--list")
         assert result.returncode == 0
         output = result.stdout + result.stderr
         # Either empty output or explicit "empty" message
