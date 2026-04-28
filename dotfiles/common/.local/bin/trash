@@ -277,40 +277,6 @@ class TrashLog:
             os.fsync(f.fileno())
 
 
-def _normalize_for_restore(path: Path | str) -> Path:
-    """Normalize a restore target path. Does not require the path to exist."""
-    absolute_path = Path(path).absolute()
-    resolved = absolute_path.parent.resolve() / absolute_path.name
-    if Path.cwd().is_relative_to(resolved):
-        raise ValueError(f"Cannot restore to system directory: {path}")
-    return resolved
-
-
-def normalize_path(path: Path | str) -> Path:
-    """Validate and normalize path to absolute resolved form.
-
-    Encapsulates path normalization, existence checking, and dangerous path
-    detection. Returns a plain Path (not a subclass).
-
-    Args:
-        path: Relative or absolute file path
-
-    Returns:
-        Path: Absolute, resolved path
-
-    Raises:
-        FileNotFoundError: Path does not exist and is not a symlink
-        ValueError: Path is a dangerous system directory under cwd
-    """
-    absolute_path = Path(path).absolute()
-    resolved = absolute_path.parent.resolve() / absolute_path.name
-    if not os.path.lexists(resolved):  # D-08: lexists() applied (location 1)
-        raise FileNotFoundError(f"{path}: No such file or directory")
-    if Path.cwd().is_relative_to(resolved):
-        raise ValueError(f"Cannot trash system directory: {path}")
-    return resolved
-
-
 class TrashConfig(Namespace):
     """Configuration for trash operations — argparse Namespace subclass.
 
@@ -433,20 +399,16 @@ def main() -> int:
             print("Error: provide a path to restore or use --list", file=sys.stderr)
             config.print_help()
             return EXIT_FAILURE
-        # Phase 1: validate each path individually; skip invalid paths with error
+
+        # D-03: Single call returns both success events and per-path errors
+        events, path_errors = trash_log.make_restore_events(config.files)
+
+        # Report per-path errors
         success = True
-        restorable_paths: list[Path] = []
-        for path in config.files:
-            norm_path = _normalize_for_restore(path)
-            try:
-                trash_log.make_trash_events([norm_path], restore=True)
-                restorable_paths.append(norm_path)
-            except ValueError as e:
-                print(f"trash: error: {e}", file=sys.stderr)
-                success = False
-        events: list[TrashEvent] = []
-        if restorable_paths:
-            events = trash_log.make_trash_events(restorable_paths, restore=True)
+        for _path, error in path_errors:
+            print(f"trash: error: {error}", file=sys.stderr)
+            success = False
+
         # Phase 2: execute all restore events
         for event in events:
             try:
@@ -467,28 +429,41 @@ def main() -> int:
         config.print_help()
         return EXIT_FAILURE
 
-    # Phase 1: validate paths and generate all trash events in one batch call
+    # Phase 1: validate paths (D-06: pre-filter loop in main)
     trash_paths: list[Path] = []
     events: list[TrashEvent] = []
     success = True
     for path in config.files:
         try:
-            trash_path = normalize_path(path)
-            if trash_path.is_dir() and not config.recursive:
-                raise ValueError("Cannot trash directory without -r flag")
-            trash_paths.append(trash_path)
-        except FileNotFoundError:
-            if not config.force:
+            # D-06: Check existence and recursive flag here (pre-filter)
+            if not os.path.lexists(path):
+                if not config.force:
+                    print(
+                        f"trash: error trashing {path}: No such file or directory",
+                        file=sys.stderr,
+                    )
+                    success = False
+                continue
+            abs_path = Path(path).absolute()
+            if abs_path.is_dir() and not config.recursive:
                 print(
-                    f"trash: error trashing {path}: No such file or directory",
+                    f"trash: error trashing {path}:"
+                    " Cannot trash directory without -r flag",
                     file=sys.stderr,
                 )
                 success = False
+                continue
+            trash_paths.append(path)
         except (ValueError, RuntimeError) as e:
             print(f"trash: error trashing {path}: {e}", file=sys.stderr)
             success = False
     if trash_paths:
-        events = trash_log.make_trash_events(trash_paths)
+        try:
+            events = trash_log.make_trash_events(trash_paths)
+        except (FileNotFoundError, ValueError) as e:
+            # Defensive: pre-filter should prevent this, but catch for safety
+            print(f"trash: error: {e}", file=sys.stderr)
+            success = False
     # Phase 2: execute all trash events
     for event in events:
         try:

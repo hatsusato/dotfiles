@@ -1155,9 +1155,11 @@ class TestCollisionAvoidance:
         (trash_dir / str(ts + 1)).mkdir()
 
         log = module.TrashLog(trash_dir)
-        # make_trash_events() does not perform I/O on the source files
+        # Phase 22: make_trash_events() now checks file existence (D-01 inlining)
         f1 = Path(mock_trash_env["home"]) / "file1.txt"
         f2 = Path(mock_trash_env["home"]) / "file2.txt"
+        f1.write_text("content1")
+        f2.write_text("content2")
         events = log.make_trash_events([f1, f2])
         assert len(events) == 2
         for event in events:
@@ -1484,52 +1486,62 @@ class TestTrashLogAPI:
 
 
 class TestNormalizePathFunction:
-    """D-04, D-05, D-06: normalize_path() replaces TrashPath.create()."""
+    """D-04, D-05, D-06: Path normalization logic (inlined in make_trash_events()).
+
+    Phase 22 (D-02): normalize_path() deleted; logic inlined into make_trash_events().
+    Tests verify equivalent behavior via make_trash_events() instead.
+    """
 
     def test_normalize_path_returns_absolute_path(self, tmp_path: Path) -> None:
-        """normalize_path() returns an absolute Path for an existing file."""
+        """make_trash_events() stores absolute path for an existing file."""
         module = _import_trash_module()
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
-        result = module.normalize_path(str(test_file))
-        assert isinstance(result, Path)
-        assert result.is_absolute()
+        log = module.TrashLog(tmp_path / ".trash")
+        events = log.make_trash_events([test_file])
+        assert len(events) == 1
+        assert Path(events[0].path).is_absolute()
 
     def test_normalize_path_resolves_relative_path(self, tmp_path: Path) -> None:
-        """normalize_path() resolves relative path to absolute."""
+        """make_trash_events() resolves relative path to absolute in stored event."""
         module = _import_trash_module()
         test_file = tmp_path / "relative.txt"
         test_file.write_text("content")
         orig_cwd = os.getcwd()
         try:
             os.chdir(tmp_path)
-            result = module.normalize_path("relative.txt")
-            assert result.is_absolute()
-            assert result.name == "relative.txt"
+            log = module.TrashLog(tmp_path / ".trash")
+            events = log.make_trash_events([Path("relative.txt")])
+            assert len(events) == 1
+            assert Path(events[0].path).is_absolute()
+            assert Path(events[0].path).name == "relative.txt"
         finally:
             os.chdir(orig_cwd)
 
     def test_normalize_path_nonexistent_raises_filenotfounderror(
         self, tmp_path: Path
     ) -> None:
-        """normalize_path() raises FileNotFoundError for nonexistent file."""
+        """make_trash_events() raises FileNotFoundError for nonexistent file."""
         module = _import_trash_module()
+        log = module.TrashLog(tmp_path / ".trash")
         with pytest.raises(FileNotFoundError):
-            module.normalize_path(str(tmp_path / "nonexistent.txt"))
+            log.make_trash_events([tmp_path / "nonexistent.txt"])
 
     def test_normalize_path_broken_symlink_accepted(self, tmp_path: Path) -> None:
-        """normalize_path() accepts broken symlinks (for trashing)."""
+        """make_trash_events() accepts broken symlinks (for trashing)."""
         module = _import_trash_module()
         broken_link = tmp_path / "broken.lnk"
         broken_link.symlink_to(tmp_path / "nonexistent_target.txt")
+        log = module.TrashLog(tmp_path / ".trash")
         # Should NOT raise; broken symlinks can be trashed
-        result = module.normalize_path(str(broken_link))
-        assert isinstance(result, Path)
+        events = log.make_trash_events([broken_link])
+        assert len(events) == 1
+        assert Path(events[0].path).is_absolute()
 
     def test_normalize_path_system_directory_raises_valueerror(
         self, tmp_path: Path
     ) -> None:
-        """normalize_path() raises ValueError for system directories under cwd."""
+        """make_trash_events() raises ValueError for system directories under cwd."""
         module = _import_trash_module()
         # Create a subdirectory and change into it
         subdir = tmp_path / "subdir"
@@ -1537,9 +1549,10 @@ class TestNormalizePathFunction:
         orig_cwd = os.getcwd()
         try:
             os.chdir(subdir)
+            log = module.TrashLog(tmp_path / ".trash2")
             # Trying to trash the parent of cwd should fail
             with pytest.raises(ValueError, match="Cannot trash system directory"):
-                module.normalize_path(str(tmp_path))
+                log.make_trash_events([tmp_path])
         finally:
             os.chdir(orig_cwd)
 
