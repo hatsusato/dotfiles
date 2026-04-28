@@ -65,37 +65,81 @@ class TrashLog:
         """Returns the path to the trashed item (trash_dir/{timestamp})."""
         return self._trash_dir / str(timestamp)
 
-    def make_trash_events(
-        self, paths: list[Path], restore: bool = False
-    ) -> list[TrashEvent]:
-        """Generate or find TrashEvents for a batch of paths. No file I/O.
+    def make_trash_events(self, paths: list[Path]) -> list[TrashEvent]:
+        """Generate TrashEvents for a batch of paths (trash only). No file I/O.
 
-        For trash (restore=False): creates new events with unique timestamps.
+        Creates new events with unique timestamps.
+        Inlines normalize_path() validation: absolute path resolution,
+        existence check, and dangerous-path prevention. (D-01)
+
         Uses a local reserved set to guarantee uniqueness within the batch (D-04).
-
-        For restore (restore=True): finds the latest restorable event for each path.
-        Uses (timestamp, restore) tuple key for tiebreaking (D-02).
 
         Note: Timestamps are not reserved after this call returns. A concurrent
         trash invocation could claim the same timestamp between make_trash_events()
         and execute_trash(). This design assumes single-user (non-concurrent) usage.
 
         Args:
-            paths: Paths to file/directories to trash or restore
-            restore: If True, find existing restorable events; if False, create new
+            paths: Paths to files/directories to trash
 
         Returns:
-            list[TrashEvent]: Generated or found events (not yet executed)
+            list[TrashEvent]: Generated events (not yet executed)
 
         Raises:
-            ValueError: If restore=True and no restorable entry exists for a path
+            FileNotFoundError: Path does not exist (unless force=True in main())
+            ValueError: Path is a dangerous system directory
         """
         events: list[TrashEvent] = []
         reserved: set[int] = set()  # D-04: local variable for this batch
 
-        if restore:
-            for path in paths:
-                events_for_path = self._events.get(str(path), [])
+        for path in paths:
+            # Inline normalize_path() logic (D-01): absolute + resolve + cwd check
+            absolute_path = Path(path).absolute()
+            normalized = absolute_path.parent.resolve() / absolute_path.name
+            if not os.path.lexists(normalized):
+                raise FileNotFoundError(f"{path}: No such file or directory")
+            if Path.cwd().is_relative_to(normalized):
+                raise ValueError(f"Cannot trash system directory: {path}")
+
+            timestamp = int(time.time())
+            # D-04: Check against local reserved set, not instance attribute
+            while (self._trash_dir / str(timestamp)).exists() or timestamp in reserved:
+                timestamp += 1
+            reserved.add(timestamp)
+            events.append(TrashEvent(path=str(normalized), timestamp=timestamp))
+
+        return events
+
+    def make_restore_events(
+        self, paths: list[Path]
+    ) -> tuple[list[TrashEvent], list[tuple[Path, Exception]]]:
+        """Generate restore events; collect per-path errors without raising.
+
+        Separated from make_trash_events() to handle restore-specific logic.
+        Inlines _normalize_for_restore() logic (D-01): no existence check required
+        since target paths are specified as original filesystem locations, not trash
+        locations.
+
+        Args:
+            paths: Original paths to restore from trash
+
+        Returns:
+            tuple[list[TrashEvent], list[tuple[Path, Exception]]]:
+                - list[TrashEvent]: Events ready to execute (restore=True)
+                - list[tuple[Path, Exception]]: (path, error) for failed paths
+        """
+        success_events: list[TrashEvent] = []
+        errors: list[tuple[Path, Exception]] = []
+
+        for path in paths:
+            try:
+                # Inline _normalize_for_restore() logic (D-01):
+                # no existence check (restore target may not exist yet)
+                absolute_path = Path(path).absolute()
+                normalized = absolute_path.parent.resolve() / absolute_path.name
+                if Path.cwd().is_relative_to(normalized):
+                    raise ValueError(f"Cannot restore to system directory: {path}")
+
+                events_for_path = self._events.get(str(normalized), [])
                 if not events_for_path:
                     raise ValueError(f"No trash entry found for {path}")
                 # D-02: Use (timestamp, restore) tiebreaker
@@ -105,20 +149,11 @@ class TrashLog:
                         f"No restorable entry found for {path}:"
                         " most recent entry is already restored"
                     )
-                # Return a restore-flagged copy so execute_trash() dispatches correctly.
-                events.append(dataclass_replace(latest, restore=True))
-        else:
-            for path in paths:
-                timestamp = int(time.time())
-                # D-04: Check against local reserved set, not instance attribute
-                while (
-                    self._trash_dir / str(timestamp)
-                ).exists() or timestamp in reserved:
-                    timestamp += 1
-                reserved.add(timestamp)
-                events.append(TrashEvent(path=str(path), timestamp=timestamp))
+                success_events.append(dataclass_replace(latest, restore=True))
+            except (ValueError, KeyError) as e:
+                errors.append((Path(path), e))
 
-        return events
+        return success_events, errors
 
     def execute_trash(self, event: TrashEvent) -> None:
         """Execute trash or restore operation based on event.restore flag.
