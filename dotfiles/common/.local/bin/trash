@@ -398,18 +398,20 @@ def main() -> int:
             print("Error: provide a path to restore or use --list", file=sys.stderr)
             config.print_help()
             return EXIT_FAILURE
-        # Phase 1: normalize all paths and generate restore events in one batch call
-        normalized_paths: list[Path] = []
+        # Phase 1: validate each path individually; skip invalid paths with error
         success = True
+        restorable_paths: list[Path] = []
         for path in config.files:
-            abs_path = Path(str(path)).absolute()
-            normalized_paths.append(abs_path.parent.resolve() / abs_path.name)
+            norm_path = _normalize_for_restore(path)
+            try:
+                trash_log.make_trash_events([norm_path], restore=True)
+                restorable_paths.append(norm_path)
+            except ValueError as e:
+                print(f"trash: error: {e}", file=sys.stderr)
+                success = False
         events: list[TrashEvent] = []
-        try:
-            events = trash_log.make_trash_events(normalized_paths, restore=True)
-        except ValueError as e:
-            print(f"trash: error: {e}", file=sys.stderr)
-            success = False
+        if restorable_paths:
+            events = trash_log.make_trash_events(restorable_paths, restore=True)
         # Phase 2: execute all restore events
         for event in events:
             try:
