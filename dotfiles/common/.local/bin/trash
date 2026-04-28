@@ -413,7 +413,7 @@ def main() -> int:
         for event in events:
             try:
                 trash_log.execute_trash(event)
-            except (FileNotFoundError, shutil.Error, OSError) as e:
+            except (shutil.Error, OSError) as e:
                 print(f"trash: error restoring {event.path}: {e}", file=sys.stderr)
                 success = False
                 continue
@@ -477,7 +477,7 @@ def main() -> int:
     for event in events:
         try:
             trash_log.execute_trash(event)
-        except (FileNotFoundError, shutil.Error, OSError) as e:
+        except (shutil.Error, OSError) as e:
             print(f"trash: error trashing {event.path}: {e}", file=sys.stderr)
             success = False
             continue
