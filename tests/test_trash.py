@@ -409,12 +409,18 @@ class TestEdgeCases:
         trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 1
 
-    def test_edge_003_refuse_to_trash_dot(self, mock_trash_env: dict) -> None:
-        """EDGE-003: refuse to trash '.' with error."""
-        home = Path(mock_trash_env["home"])
-        dot_path = home / "."
+    def test_edge_003_refuse_to_trash_directory_without_r(
+        self, mock_trash_env: dict
+    ) -> None:
+        """EDGE-003: refuse to trash a directory without -r flag with error.
 
-        result = run_trash(str(dot_path))
+        Note: Path(home) / "." normalises to home itself (pathlib strips trailing
+        dot), so this test exercises "directory without -r" rather than the
+        cwd-ancestor guard specifically.
+        """
+        home = Path(mock_trash_env["home"])
+
+        result = run_trash(str(home))
         assert result.returncode != 0
         assert result.stderr != ""
 
