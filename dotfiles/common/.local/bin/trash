@@ -88,7 +88,11 @@ class TrashLog:
         return dataclass_replace(latest, restore=True)
 
     def get_trash_path(self, event: TrashEvent) -> Path:
-        """Return unique path in trash_dir for event; set event.timestamp.
+        """Return unique path in trash_dir for event; mutates event.timestamp.
+
+        Side effect: event.timestamp is updated to the selected timestamp value.
+        Callers must read event.timestamp after this call to get the final value
+        (e.g., for verbose output).
 
         For trash events: increments timestamp until a free slot is found.
         For restore events: returns the path of the already-trashed item.
