@@ -1696,3 +1696,227 @@ class TestMainNoParserAccess:
         assert result.returncode != 0, (
             "trash --restore with no file arguments must exit non-zero"
         )
+
+
+# ============================================================================
+# Phase 23: New API tests (D-01, D-02, D-03)
+# ============================================================================
+
+
+class TestMakeRestoreEvent:
+    """D-02 API verification: TrashLog.make_restore_event(path) single-item restore."""
+
+    def test_make_restore_event_returns_trash_event_for_trashed_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """make_restore_event(path) returns a TrashEvent with restore=True."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        log = module.TrashLog()
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        event = module.TrashEvent(path=str(test_file), timestamp=0)
+        log.execute_trash(event, recursive=False)
+        restore_event = log.make_restore_event(test_file)
+        assert isinstance(restore_event, module.TrashEvent)
+        assert restore_event.restore is True
+
+    def test_make_restore_event_timestamp_matches_original(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Returned TrashEvent.timestamp matches the original trash timestamp."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        log = module.TrashLog()
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        trash_event = module.TrashEvent(path=str(test_file), timestamp=0)
+        log.execute_trash(trash_event, recursive=False)
+        restore_event = log.make_restore_event(test_file)
+        assert restore_event.timestamp == trash_event.timestamp
+
+    def test_make_restore_event_raises_for_nonexistent_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """make_restore_event(path) raises ValueError with 'No trash entry found'."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        log = module.TrashLog()
+        with pytest.raises(ValueError, match="No trash entry found"):
+            log.make_restore_event(tmp_path / "nonexistent.txt")
+
+    def test_make_restore_event_raises_for_already_restored(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """make_restore_event(path) raises ValueError with 'already restored'."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        log = module.TrashLog()
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        trash_event = module.TrashEvent(path=str(test_file), timestamp=0)
+        log.execute_trash(trash_event, recursive=False)
+        # Restore once
+        restore_event = log.make_restore_event(test_file)
+        log.execute_trash(restore_event, recursive=False)
+        # Second restore attempt must raise
+        with pytest.raises(ValueError, match="already restored"):
+            log.make_restore_event(test_file)
+
+
+class TestGetTrashPath:
+    """D-01 fix verification: get_trash_path uses epoch seconds and updates trash_path.
+
+    Verifies that get_trash_path() uses int(time.time()) (seconds, not nanoseconds)
+    and that the while loop correctly updates trash_path on each iteration.
+    """
+
+    def test_get_trash_path_uses_epoch_seconds(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_trash_path sets event.timestamp to int(time.time()) range."""
+        import time
+
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        log = module.TrashLog()
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        before = int(time.time())
+        event = module.TrashEvent(path=str(test_file), timestamp=0)
+        log.get_trash_path(event)
+        after = int(time.time()) + 1
+        assert before <= event.timestamp <= after, (
+            f"timestamp {event.timestamp} must be in epoch-seconds range"
+            f" [{before},{after}]"
+        )
+
+    def test_get_trash_path_collision_avoidance(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_trash_path increments timestamp when a slot is already occupied."""
+        import time
+
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        log = module.TrashLog()
+        # Pre-occupy current epoch slot
+        ts = int(time.time())
+        (trash_dir / str(ts)).mkdir()
+        event = module.TrashEvent(path=str(tmp_path / "f.txt"), timestamp=0)
+        log.get_trash_path(event)
+        assert event.timestamp > ts, (
+            f"timestamp must be incremented past {ts}, got {event.timestamp}"
+        )
+
+    def test_get_trash_path_updates_event_timestamp(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_trash_path sets event.timestamp as a side effect."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        log = module.TrashLog()
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        event = module.TrashEvent(path=str(test_file), timestamp=0)
+        assert event.timestamp == 0
+        log.get_trash_path(event)
+        assert event.timestamp > 0, "get_trash_path must set event.timestamp"
+
+    def test_get_trash_path_source_has_no_mkdir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_trash_path source code does not contain mkdir (D-01 fix)."""
+        import inspect
+
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        source = inspect.getsource(module.TrashLog.get_trash_path)
+        assert "mkdir" not in source, (
+            "get_trash_path() must not call mkdir after D-01 fix"
+        )
+
+
+class TestNewTrashLogAPI:
+    """New API integration tests: TrashLog() + TRASH_DIR env var (D-01, D-02, D-03)."""
+
+    def test_trashlog_uses_trash_dir_env_var(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """TrashLog() with no args reads TRASH_DIR env var for trash directory."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        log = module.TrashLog()
+        assert str(log._trash_dir) == str(trash_dir)
+
+    def test_execute_trash_moves_file_to_trash(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """TrashEvent + execute_trash moves file to trash directory."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        log = module.TrashLog()
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        event = module.TrashEvent(path=str(test_file), timestamp=0)
+        log.execute_trash(event, recursive=False)
+        assert not test_file.exists(), "File must be moved out of original location"
+        trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
+        assert len(trashed) == 1, "Exactly one item must appear in trash_dir"
+
+    def test_execute_trash_sets_positive_timestamp(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """execute_trash sets event.timestamp to positive int (D-01 fix)."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        log = module.TrashLog()
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        event = module.TrashEvent(path=str(test_file), timestamp=0)
+        log.execute_trash(event, recursive=False)
+        assert isinstance(event.timestamp, int) and event.timestamp > 0, (
+            f"event.timestamp must be a positive int after execute_trash,"
+            f" got {event.timestamp!r}"
+        )
+
+    def test_trash_then_restore_returns_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """trash -> make_restore_event -> execute_trash restores file to its origin."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        log = module.TrashLog()
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("original content")
+        trash_event = module.TrashEvent(path=str(test_file), timestamp=0)
+        log.execute_trash(trash_event, recursive=False)
+        assert not test_file.exists()
+        restore_event = log.make_restore_event(test_file)
+        log.execute_trash(restore_event, recursive=False)
+        assert test_file.exists(), "File must be restored to original path"
+        assert test_file.read_text() == "original content"
+
+    def test_trashlog_events_is_dict(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """TrashLog._events is a dict (dict-based storage structure check)."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        log = module.TrashLog()
+        assert isinstance(log._events, dict), (
+            f"TrashLog._events must be a dict, got {type(log._events)}"
+        )
