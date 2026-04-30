@@ -334,7 +334,7 @@ def main() -> int:
             msg = "Missing file arguments"
         print(f"Error: {msg}", file=sys.stderr)
         config.print_help()
-        success = EXIT_FAILURE
+        return EXIT_FAILURE
     for path in config.files:
         try:
             if config.restore:
