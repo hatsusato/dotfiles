@@ -137,6 +137,10 @@ class TrashLog:
             self.execute_trash(backup_event, recursive)
         if event.restore:
             source_path = self.get_trash_path(event)
+            if not os.path.lexists(source_path):
+                raise FileNotFoundError(
+                    f"Trash item missing (log/filesystem desync): {source_path}"
+                )
             target_path = Path(event.path)
         else:
             source_path = Path(event.path)
@@ -353,7 +357,8 @@ def main() -> int:
         except (shutil.Error, OSError, ValueError) as e:
             if config.force:
                 continue
-            print(f"trash: error trashing {path}: {e}", file=sys.stderr)
+            op = "restoring" if config.restore else "trashing"
+            print(f"trash: error {op} {path}: {e}", file=sys.stderr)
             success = EXIT_FAILURE
     return success
 
