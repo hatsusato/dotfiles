@@ -48,118 +48,64 @@ class TrashLog:
 
     Loads entire event history into memory at init for fast queries.
     Stores events as dict[str, list[TrashEvent]] keyed by path for O(1) lookup.
-    Provides active_events(), make_trash_events(), execute_trash(), trash_item().
+    Provides active_events(), make_restore_event(), get_trash_path(), execute_trash(),
+    and append().
     """
 
-    def __init__(self, trash_dir: Path | None = None) -> None:
+    def __init__(self) -> None:
         """Initialize TrashLog; defaults to TRASH_DIR env or ~/.trash."""
-        if trash_dir is None:
-            trash_dir = Path(os.getenv("TRASH_DIR", str(Path.home() / ".trash")))
-        self._trash_dir = trash_dir
-        self._metadata_path = trash_dir / "trash-log.jsonl"
+        self._trash_dir = Path(os.getenv("TRASH_DIR", Path.home() / ".trash"))
+        self._metadata_path = self._trash_dir / "trash-log.jsonl"
         self._events: dict[str, list[TrashEvent]] = {}
-        self._trash_dir.mkdir(parents=True, exist_ok=True)  # D-07: create once
         self.load()
 
-    def _get_trash_path(self, timestamp: int) -> Path:
-        """Returns the path to the trashed item (trash_dir/{timestamp})."""
-        return self._trash_dir / str(timestamp)
+    def get_latest_event(self, path: Path) -> TrashEvent | None:
+        """Get the latest TrashEvent for a given path, or None if no events exist."""
+        events_for_path = self._events.get(str(path), [])
+        if not events_for_path:
+            return None
+        # D-01: Use (timestamp, restore) tiebreaker so restore events (1) beat
+        # trash events (0) when timestamps are equal.
+        return max(events_for_path, key=lambda e: (e.timestamp, e.restore))
 
-    def make_trash_events(self, paths: list[Path]) -> list[TrashEvent]:
-        """Generate TrashEvents for a batch of paths (trash only). No file I/O.
+    def make_restore_event(self, path: Path) -> TrashEvent:
+        """Create a restore TrashEvent for the latest trashable entry at path.
 
-        Creates new events with unique timestamps.
-        Inlines normalize_path() validation: absolute path resolution,
-        existence check, and dangerous-path prevention. (D-01)
-
-        Uses a local reserved set to guarantee uniqueness within the batch (D-04).
-
-        Note: Timestamps are not reserved after this call returns. A concurrent
-        trash invocation could claim the same timestamp between make_trash_events()
-        and execute_trash(). This design assumes single-user (non-concurrent) usage.
-
-        Args:
-            paths: Paths to files/directories to trash
-
-        Returns:
-            list[TrashEvent]: Generated events (not yet executed)
+        Looks up the most recent non-restored event for path.
+        Returns a new TrashEvent with restore=True and the same timestamp.
 
         Raises:
-            FileNotFoundError: Path does not exist (unless force=True in main())
-            ValueError: Path is a dangerous system directory
+            ValueError: No trash entry found, or most recent entry is already restored.
         """
-        events: list[TrashEvent] = []
-        reserved: set[int] = set()  # D-04: local variable for this batch
+        latest = self.get_latest_event(path)
+        if latest is None:
+            raise ValueError(f"No trash entry found for {path}")
+        if latest.restore:
+            raise ValueError(
+                f"No restorable entry found for {path}:"
+                " most recent entry is already restored"
+            )
+        return dataclass_replace(latest, restore=True)
 
-        for path in paths:
-            # Inline normalize_path() logic (D-01): absolute + resolve + cwd check
-            absolute_path = Path(path).absolute()
-            normalized = absolute_path.parent.resolve() / absolute_path.name
-            if not os.path.lexists(normalized):
-                raise FileNotFoundError(f"{path}: No such file or directory")
-            if Path.cwd().is_relative_to(normalized):
-                raise ValueError(f"Cannot trash system directory: {path}")
+    def get_trash_path(self, event: TrashEvent) -> Path:
+        """Return unique path in trash_dir for event; set event.timestamp.
 
-            timestamp = int(time.time())
-            # D-04: Check against local reserved set, not instance attribute
-            while (self._trash_dir / str(timestamp)).exists() or timestamp in reserved:
-                timestamp += 1
-            reserved.add(timestamp)
-            events.append(TrashEvent(path=str(normalized), timestamp=timestamp))
-
-        return events
-
-    def make_restore_events(
-        self, paths: list[Path]
-    ) -> tuple[list[TrashEvent], list[tuple[Path, Exception]]]:
-        """Generate restore events; collect per-path errors without raising.
-
-        Separated from make_trash_events() to handle restore-specific logic.
-        Inlines _normalize_for_restore() logic (D-01): no existence check required
-        since target paths are specified as original filesystem locations, not trash
-        locations.
-
-        Args:
-            paths: Original paths to restore from trash
-
-        Returns:
-            tuple[list[TrashEvent], list[tuple[Path, Exception]]]:
-                - list[TrashEvent]: Events ready to execute (restore=True)
-                - list[tuple[Path, Exception]]: (path, error) for failed paths
+        For trash events: increments timestamp until a free slot is found.
+        For restore events: returns the path of the already-trashed item.
         """
-        success_events: list[TrashEvent] = []
-        errors: list[tuple[Path, Exception]] = []
+        timestamp = event.timestamp or int(time.time())
+        trash_path = self._trash_dir / str(timestamp)
+        while not event.restore and os.path.lexists(trash_path):
+            timestamp += 1
+            trash_path = self._trash_dir / str(timestamp)
+        event.timestamp = timestamp
+        return trash_path
 
-        for path in paths:
-            try:
-                # Inline _normalize_for_restore() logic (D-01):
-                # no existence check (restore target may not exist yet)
-                absolute_path = Path(path).absolute()
-                normalized = absolute_path.parent.resolve() / absolute_path.name
-                if Path.cwd().is_relative_to(normalized):
-                    raise ValueError(f"Cannot restore to system directory: {path}")
-
-                events_for_path = self._events.get(str(normalized), [])
-                if not events_for_path:
-                    raise ValueError(f"No trash entry found for {path}")
-                # D-02: Use (timestamp, restore) tiebreaker
-                latest = max(events_for_path, key=lambda e: (e.timestamp, e.restore))
-                if latest.restore:
-                    raise ValueError(
-                        f"No restorable entry found for {path}:"
-                        " most recent entry is already restored"
-                    )
-                success_events.append(dataclass_replace(latest, restore=True))
-            except (ValueError, KeyError) as e:
-                errors.append((Path(path), e))
-
-        return success_events, errors
-
-    def execute_trash(self, event: TrashEvent) -> None:
+    def execute_trash(self, event: TrashEvent, recursive: bool) -> None:
         """Execute trash or restore operation based on event.restore flag.
 
-        Counterpart to make_trash_events(): performs the actual file I/O.
-        Used in two-stage pattern after event inspection/transformation.
+        Takes a pre-built TrashEvent (created by caller or make_restore_event())
+        and performs the actual file I/O.
 
         Args:
             event: TrashEvent controlling operation type via event.restore flag
@@ -169,42 +115,31 @@ class TrashLog:
                 missing (restore)
             shutil.Error: File operation fails
         """
+        if not event.restore:
+            if not os.path.lexists(event.path):
+                raise FileNotFoundError(f"No such file or directory: {event.path}")
+            if Path.cwd().is_relative_to(event.path):
+                raise ValueError(f"Cannot trash parent directory: {event.path}")
+            if Path(event.path).is_dir() and not recursive:
+                raise ValueError(
+                    f"Cannot trash directory without -r flag: {event.path}"
+                )
+        elif os.path.lexists(event.path):
+            print(
+                f"trash: {event.path} exists; backing up to trash...",
+                file=sys.stderr,
+            )
+            backup_event = TrashEvent(path=event.path, timestamp=0)
+            self.execute_trash(backup_event, recursive)
         if event.restore:
+            source_path = self.get_trash_path(event)
             target_path = Path(event.path)
-            trash_path = self._get_trash_path(event.timestamp)
-            if not os.path.lexists(trash_path):
-                raise FileNotFoundError(
-                    f"Trash item missing: {trash_path} (timestamp: {event.timestamp})"
-                )
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-            if os.path.lexists(target_path):
-                print(
-                    f"trash: {target_path} exists; backing up to trash...",
-                    file=sys.stderr,
-                )
-                self.trash_item(target_path)
-            shutil.move(str(trash_path), str(target_path))
-            # D-05: Append restore event directly via append().
-            self.append(event)
         else:
-            dest = self._get_trash_path(event.timestamp)
-            shutil.move(str(event.path), str(dest))
-            self.append(event)
-
-    def trash_item(self, path: Path) -> TrashEvent:
-        """Move path to trash and record event in log (atomic operation).
-
-        Delegates to make_trash_events([path]) + execute_trash() two-stage pattern.
-
-        Args:
-            path: Path to file/directory to trash
-
-        Returns:
-            TrashEvent: The event recorded (includes path, timestamp, restore flag)
-        """
-        event = self.make_trash_events([path])[0]
-        self.execute_trash(event)
-        return event
+            source_path = Path(event.path)
+            target_path = self.get_trash_path(event)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(source_path, target_path)
+        self.append(event)
 
     def load(self) -> None:
         """Read and parse trash-log.jsonl, rebuild in-memory event dict.
@@ -216,12 +151,11 @@ class TrashLog:
         Note: Changes to _events must be persisted via append().
         """
         self._events = {}
+        self._trash_dir.mkdir(parents=True, exist_ok=True)
         if not self._metadata_path.exists():
             return
-
         with open(self._metadata_path) as f:
             raw_lines = f.readlines()
-
         total_lines = len(raw_lines)
         for lineno, line in enumerate(raw_lines, 1):
             line = line.strip()
@@ -247,34 +181,22 @@ class TrashLog:
         append order. Each path's latest event is checked for restore=False.
         """
         result: list[TrashEvent] = []
-        for _path, events_for_path in self._events.items():
+        for path in self._events:
             # D-01: Use (timestamp, restore) tiebreaker so restore events (1) beat
             # trash events (0) when timestamps are equal.
-            latest = max(events_for_path, key=lambda e: (e.timestamp, e.restore))
-            if not latest.restore:
-                result.append(latest)
+            latest_event = self.get_latest_event(Path(path))
+            if latest_event is None or latest_event.restore:
+                continue
+            result.append(latest_event)
         return result
 
     def append(self, event: TrashEvent) -> None:
         """Add event to memory and sync to disk immediately."""
-        self._events.setdefault(event.path, []).append(event)
-        self._append_jsonl(event)
-
-    def _append_jsonl(self, event: TrashEvent) -> None:
-        """Append single line to trash-log.jsonl with fsync.
-
-        Not atomic: a crash during write may leave a partial final line.
-        load() tolerates such truncation via partial-last-line detection.
-        """
         with open(self._metadata_path, "a") as f:
-            json.dump(
-                event.to_dict(),
-                f,
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
+            json.dump(event.to_dict(), f, ensure_ascii=False, separators=(",", ":"))
             f.write("\n")
             os.fsync(f.fileno())
+        self._events.setdefault(event.path, []).append(event)
 
 
 class TrashConfig(Namespace):
@@ -372,7 +294,7 @@ EXIT_FAILURE = 1
 _LIST_START_INDEX = 1  # 1-based display numbering for --list output
 
 
-def list_items(_config: "TrashConfig", trash_log: TrashLog) -> None:
+def list_items(trash_log: TrashLog) -> None:
     """Print trash-log.jsonl contents in human-readable format to stdout."""
     entries = trash_log.active_events()
     if not entries:
@@ -386,107 +308,50 @@ def list_items(_config: "TrashConfig", trash_log: TrashLog) -> None:
 
 
 def main() -> int:
-    """Main entry point: orchestrate trash, restore, or list operations."""
+    """Main entry point: orchestrate trash, restore, or list operations.
+
+    Uses make_restore_event() for restore operations (raises ValueError if not found).
+    Catches ValueError alongside shutil.Error and OSError.
+    """
     config = TrashConfig.parse_args()
     trash_log = TrashLog()
-
+    success = EXIT_SUCCESS
     if config.show_list:
-        list_items(config, trash_log)
+        list_items(trash_log)
         return EXIT_SUCCESS
-
-    if config.restore:
-        if not config.files:
-            print("Error: provide a path to restore or use --list", file=sys.stderr)
-            config.print_help()
-            return EXIT_FAILURE
-
-        # D-03: Single call returns both success events and per-path errors
-        events, path_errors = trash_log.make_restore_events(config.files)
-
-        # Report per-path errors
-        success = True
-        for _path, error in path_errors:
-            print(f"trash: error: {error}", file=sys.stderr)
-            success = False
-
-        # Phase 2: execute all restore events
-        for event in events:
-            try:
-                trash_log.execute_trash(event)
-            except (shutil.Error, OSError) as e:
-                print(f"trash: error restoring {event.path}: {e}", file=sys.stderr)
-                success = False
-                continue
-            if config.verbose:
-                print(
-                    f"trash: restored {event.path} [timestamp: {event.timestamp}]",
-                    file=sys.stderr,
-                )
-        return EXIT_SUCCESS if success else EXIT_FAILURE
-
     if not config.files:
-        print("Error: Missing file arguments", file=sys.stderr)
+        if config.restore:
+            msg = "provide a path to restore or use --list"
+        else:
+            msg = "Missing file arguments"
+        print(f"Error: {msg}", file=sys.stderr)
         config.print_help()
-        return EXIT_FAILURE
-
-    # Phase 1: validate paths (D-06: pre-filter loop in main)
-    trash_paths: list[Path] = []
-    events: list[TrashEvent] = []
-    success = True
+        success = EXIT_FAILURE
     for path in config.files:
         try:
-            # D-06: Check existence and recursive flag here (pre-filter)
-            if not os.path.lexists(path):
-                if not config.force:
-                    print(
-                        f"trash: error trashing {path}: No such file or directory",
-                        file=sys.stderr,
-                    )
-                    success = False
+            if config.restore:
+                event = trash_log.make_restore_event(path)
+            else:
+                event = TrashEvent(path=str(path), timestamp=0)
+            trash_log.execute_trash(event, config.recursive)
+            if not config.verbose:
                 continue
-            abs_path = Path(path).absolute()
-            normalized = abs_path.parent.resolve() / abs_path.name
-            if Path.cwd().is_relative_to(normalized):
+            if config.restore:
                 print(
-                    f"trash: error trashing {path}:"
-                    f" Cannot trash system directory: {path}",
+                    f"trash: restored {path} [timestamp: {event.timestamp}]",
                     file=sys.stderr,
                 )
-                success = False
-                continue
-            if abs_path.is_dir() and not config.recursive:
+            else:
                 print(
-                    f"trash: error trashing {path}:"
-                    " Cannot trash directory without -r flag",
+                    f"trash: trashed {path} [timestamp: {event.timestamp}]",
                     file=sys.stderr,
                 )
-                success = False
+        except (shutil.Error, OSError, ValueError) as e:
+            if config.force:
                 continue
-            trash_paths.append(path)
-        except (ValueError, RuntimeError) as e:
             print(f"trash: error trashing {path}: {e}", file=sys.stderr)
-            success = False
-    if trash_paths:
-        try:
-            events = trash_log.make_trash_events(trash_paths)
-        except (FileNotFoundError, ValueError) as e:
-            # Defensive: pre-filter should prevent this, but catch for safety
-            print(f"trash: error: {e}", file=sys.stderr)
-            success = False
-    # Phase 2: execute all trash events
-    for event in events:
-        try:
-            trash_log.execute_trash(event)
-        except (shutil.Error, OSError) as e:
-            print(f"trash: error trashing {event.path}: {e}", file=sys.stderr)
-            success = False
-            continue
-        if config.verbose:
-            print(
-                f"trash: trashed {event.path} [timestamp: {event.timestamp}]",
-                file=sys.stderr,
-            )
-    return EXIT_SUCCESS if success else EXIT_FAILURE
+            success = EXIT_FAILURE
+    return success
 
 
 if __name__ == "__main__":
