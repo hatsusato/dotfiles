@@ -16,6 +16,7 @@ import types
 from pathlib import Path
 
 import pytest
+from conftest import MockTrashEnv
 
 # Absolute path to the trash script under test
 TRASH_SCRIPT = Path(__file__).parent.parent / "dotfiles/common/.local/bin/trash"
@@ -42,7 +43,7 @@ def run_trash(*args: str) -> "subprocess.CompletedProcess[str]":
 
 class TestSingleFileDeletion:
     def test_tool_01_001_removes_from_source_and_places_in_trash(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """TOOL-01-001: trash single file removes it and places it in trash."""
         home = Path(mock_trash_env["home"])
@@ -66,7 +67,7 @@ class TestSingleFileDeletion:
 
 class TestMultipleFileArguments:
     def test_tool_02_001_trash_two_files_removes_both(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """TOOL-02-001: trash 2 files removes both from source and places in trash."""
         home = Path(mock_trash_env["home"])
@@ -86,7 +87,7 @@ class TestMultipleFileArguments:
         assert len(trashed) == 2
 
     def test_tool_02_002_trash_multiple_files_and_directory_with_r(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """TOOL-02-002: trash multiple files and directory with -r handles all."""
         home = Path(mock_trash_env["home"])
@@ -110,7 +111,7 @@ class TestMultipleFileArguments:
         assert len(trashed) == 3
 
     def test_tool_02_003_mix_existent_nonexistent_without_f_continues(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """TOOL-02-003: mix of existent/nonexistent without -f continues on error."""
         home = Path(mock_trash_env["home"])
@@ -141,7 +142,7 @@ class TestMultipleFileArguments:
 
 class TestForceFlag:
     def test_flag_f_001_f_with_nonexistent_exits_0_no_error(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """FLAG-F-001: -f with nonexistent file exits 0 with no error message."""
         home = Path(mock_trash_env["home"])
@@ -151,7 +152,7 @@ class TestForceFlag:
         assert result.stderr == ""
 
     def test_flag_f_002_without_f_nonexistent_exits_1_with_error(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """FLAG-F-002: without -f, nonexistent file exits 1 with error message."""
         home = Path(mock_trash_env["home"])
@@ -161,7 +162,7 @@ class TestForceFlag:
         assert result.stderr != ""
 
     def test_flag_f_003_f_multiple_files_one_missing_trashes_others(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """FLAG-F-003: -f with multiple files, one missing, trashes others, exits 0."""
         home = Path(mock_trash_env["home"])
@@ -188,7 +189,9 @@ class TestForceFlag:
 
 
 class TestRecursiveFlag:
-    def test_flag_r_001_directory_without_r_exits_1(self, mock_trash_env: dict) -> None:
+    def test_flag_r_001_directory_without_r_exits_1(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """FLAG-R-001: directory without -r flag exits 1 with error."""
         home = Path(mock_trash_env["home"])
 
@@ -202,7 +205,7 @@ class TestRecursiveFlag:
         assert result.stderr != ""
 
     def test_flag_r_002_directory_with_r_moved_to_trash(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """FLAG-R-002: directory with -r is moved (not tar'd) to epoch-named dir."""
         home = Path(mock_trash_env["home"])
@@ -220,7 +223,7 @@ class TestRecursiveFlag:
         assert len(trashed) == 1
 
     def test_flag_r_003_directory_creates_single_epoch_entry(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """FLAG-R-003: directory with -r creates one epoch-named item and log entry."""
         home = Path(mock_trash_env["home"])
@@ -243,7 +246,7 @@ class TestRecursiveFlag:
         assert len(metadata_lines) == 1
 
     def test_flag_r_006_original_path_preserved_in_metadata(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """FLAG-R-006: original directory path is preserved in metadata."""
         home = Path(mock_trash_env["home"])
@@ -266,7 +269,9 @@ class TestRecursiveFlag:
 
 
 class TestVerboseFlag:
-    def test_flag_v_003_without_v_no_verbose_output(self, mock_trash_env: dict) -> None:
+    def test_flag_v_003_without_v_no_verbose_output(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """FLAG-V-003: without -v, no verbose output is produced."""
         home = Path(mock_trash_env["home"])
 
@@ -278,7 +283,7 @@ class TestVerboseFlag:
         assert result.stderr == ""
 
     def test_flag_v_004_verbose_handles_spaces_in_filename(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """FLAG-V-004: verbose output handles spaces and special characters safely."""
         home = Path(mock_trash_env["home"])
@@ -297,27 +302,33 @@ class TestVerboseFlag:
 
 
 class TestHelpFlag:
-    def test_flag_h_001_h_displays_usage_line(self, mock_trash_env: dict) -> None:
+    def test_flag_h_001_h_displays_usage_line(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """FLAG-H-001: -h displays usage line."""
         result = run_trash("-h")
         assert result.returncode == 0
         assert "usage:" in result.stdout
         assert "trash" in result.stdout
 
-    def test_flag_h_002_h_displays_examples(self, mock_trash_env: dict) -> None:
+    def test_flag_h_002_h_displays_examples(self, mock_trash_env: MockTrashEnv) -> None:
         """FLAG-H-002: -h displays examples including -r flag."""
         result = run_trash("-h")
         assert result.returncode == 0
         assert "trash" in result.stdout
         assert "-r" in result.stdout
 
-    def test_flag_h_003_h_includes_recovery_note(self, mock_trash_env: dict) -> None:
+    def test_flag_h_003_h_includes_recovery_note(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """FLAG-H-003: -h includes recovery note mentioning .trash."""
         result = run_trash("-h")
         assert result.returncode == 0
         assert ".trash" in result.stdout
 
-    def test_flag_h_004_help_exits_with_code_0(self, mock_trash_env: dict) -> None:
+    def test_flag_h_004_help_exits_with_code_0(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """FLAG-H-004: help text exits with success code 0."""
         result = run_trash("-h")
         assert result.returncode == 0
@@ -329,7 +340,9 @@ class TestHelpFlag:
 
 
 class TestErrorHandling:
-    def test_error_001_permission_denied_continues(self, mock_trash_env: dict) -> None:
+    def test_error_001_permission_denied_continues(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """ERROR-001: permission denied on move is handled; other files still trashed.
 
         Uses a 0o555 directory so files inside cannot be renamed out, exercising
@@ -353,7 +366,7 @@ class TestErrorHandling:
             readonly_dir.chmod(0o755)
 
     def test_error_002_error_message_includes_file_path(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """ERROR-002: error message format includes the file path."""
         home = Path(mock_trash_env["home"])
@@ -362,7 +375,9 @@ class TestErrorHandling:
         assert result.returncode != 0
         assert "nonexistent.txt" in result.stderr
 
-    def test_error_003_baseline_successful_trash(self, mock_trash_env: dict) -> None:
+    def test_error_003_baseline_successful_trash(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """ERROR-003: baseline check — successful trash returns exit code 0."""
         home = Path(mock_trash_env["home"])
 
@@ -379,7 +394,7 @@ class TestErrorHandling:
 
 
 class TestEdgeCases:
-    def test_edge_001_filename_with_spaces(self, mock_trash_env: dict) -> None:
+    def test_edge_001_filename_with_spaces(self, mock_trash_env: MockTrashEnv) -> None:
         """EDGE-001: filename with spaces is trashed correctly."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -394,7 +409,7 @@ class TestEdgeCases:
         trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 1
 
-    def test_edge_002_filename_with_quotes(self, mock_trash_env: dict) -> None:
+    def test_edge_002_filename_with_quotes(self, mock_trash_env: MockTrashEnv) -> None:
         """EDGE-002: filename with single quotes is trashed correctly."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -410,7 +425,7 @@ class TestEdgeCases:
         assert len(trashed) == 1
 
     def test_edge_003_refuse_to_trash_directory_without_r(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """EDGE-003: refuse to trash a directory without -r flag with error.
 
@@ -424,7 +439,7 @@ class TestEdgeCases:
         assert result.returncode != 0
         assert result.stderr != ""
 
-    def test_edge_004_refuse_to_trash_root(self, mock_trash_env: dict) -> None:
+    def test_edge_004_refuse_to_trash_root(self, mock_trash_env: MockTrashEnv) -> None:
         """EDGE-004: refuse to trash '/' with error."""
         result = run_trash("/")
         assert result.returncode != 0
@@ -438,7 +453,7 @@ class TestEdgeCases:
 
 class TestMetadataFormat:
     def test_meta_001_metadata_is_json_lines_one_entry_per_line(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """META-001: metadata is in JSON Lines format (one entry per line)."""
         home = Path(mock_trash_env["home"])
@@ -458,7 +473,9 @@ class TestMetadataFormat:
         for line in lines:
             json.loads(line)
 
-    def test_meta_003_timestamp_is_epoch_int(self, mock_trash_env: dict) -> None:
+    def test_meta_003_timestamp_is_epoch_int(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """META-003: timestamp in metadata is a Unix epoch integer."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -474,7 +491,9 @@ class TestMetadataFormat:
         )
         assert entry["timestamp"] > 0, "timestamp must be a positive epoch value"
 
-    def test_meta_004_path_in_metadata_is_absolute(self, mock_trash_env: dict) -> None:
+    def test_meta_004_path_in_metadata_is_absolute(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """META-004: path in metadata is an absolute path."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -496,7 +515,9 @@ class TestMetadataFormat:
 
 
 class TestExitCodes:
-    def test_exit_001_successful_trash_returns_0(self, mock_trash_env: dict) -> None:
+    def test_exit_001_successful_trash_returns_0(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """EXIT-001: successful trash with no errors returns exit code 0."""
         home = Path(mock_trash_env["home"])
 
@@ -506,7 +527,7 @@ class TestExitCodes:
         result = run_trash(str(test_file))
         assert result.returncode == 0
 
-    def test_exit_002_write_error_returns_1(self, mock_trash_env: dict) -> None:
+    def test_exit_002_write_error_returns_1(self, mock_trash_env: MockTrashEnv) -> None:
         """EXIT-002: write error (readonly trash dir) returns exit code 1."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -522,7 +543,7 @@ class TestExitCodes:
             trash_dir.chmod(0o755)
 
     def test_exit_003_nonexistent_without_f_returns_1(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """EXIT-003: error on nonexistent file without -f returns exit code 1."""
         home = Path(mock_trash_env["home"])
@@ -530,7 +551,9 @@ class TestExitCodes:
         result = run_trash(str(home / "nonexistent.txt"))
         assert result.returncode == 1
 
-    def test_exit_004_f_with_nonexistent_returns_0(self, mock_trash_env: dict) -> None:
+    def test_exit_004_f_with_nonexistent_returns_0(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """EXIT-004: -f flag with nonexistent file succeeds with exit code 0."""
         home = Path(mock_trash_env["home"])
 
@@ -545,7 +568,7 @@ class TestExitCodes:
 
 class TestCombinedFlags:
     def test_combined_002_f_v_together_shows_verbose_for_existing_files(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """COMBINED-002: -f -v together shows verbose output for existing files."""
         home = Path(mock_trash_env["home"])
@@ -607,7 +630,7 @@ class TestRestore:
     # restore --list (TOOL-01, TOOL-02, TOOL-14)
     # -------------------------------------------------------------------------
 
-    def test_restore_list_basic(self, mock_trash_env: dict) -> None:
+    def test_restore_list_basic(self, mock_trash_env: MockTrashEnv) -> None:
         """TOOL-01: --list displays trash contents in text format.
 
         Note: --list takes precedence over --restore in main(), so
@@ -625,7 +648,7 @@ class TestRestore:
         assert result.returncode == 0
         assert "testfile.txt" in result.stdout or "testfile.txt" in result.stderr
 
-    def test_restore_list_empty(self, mock_trash_env: dict) -> None:
+    def test_restore_list_empty(self, mock_trash_env: MockTrashEnv) -> None:
         """TOOL-14: --list on empty trash shows empty list or empty message.
 
         Note: --list takes precedence over --restore in main(), so
@@ -642,7 +665,7 @@ class TestRestore:
     # restore /path (TOOL-03 through TOOL-07)
     # -------------------------------------------------------------------------
 
-    def test_restore_file_basic(self, mock_trash_env: dict) -> None:
+    def test_restore_file_basic(self, mock_trash_env: MockTrashEnv) -> None:
         """TOOL-03: restore file to original path after trashing it."""
         home = Path(mock_trash_env["home"])
 
@@ -658,7 +681,7 @@ class TestRestore:
         assert test_file.exists()
         assert test_file.read_text() == "original content"
 
-    def test_restore_not_found(self, mock_trash_env: dict) -> None:
+    def test_restore_not_found(self, mock_trash_env: MockTrashEnv) -> None:
         """TOOL-04: restore with nonexistent-in-trash path reports error."""
         home = Path(mock_trash_env["home"])
 
@@ -666,7 +689,7 @@ class TestRestore:
         assert result.returncode != 0
         assert result.stderr != ""
 
-    def test_restore_relative_path(self, mock_trash_env: dict) -> None:
+    def test_restore_relative_path(self, mock_trash_env: MockTrashEnv) -> None:
         """TOOL-05: restore with relative path resolves to absolute (cwd-aware)."""
         home = Path(mock_trash_env["home"])
         test_file = home / "relative_test.txt"
@@ -685,7 +708,7 @@ class TestRestore:
         assert result.returncode == 0
         assert test_file.exists()
 
-    def test_restore_absolute_path(self, mock_trash_env: dict) -> None:
+    def test_restore_absolute_path(self, mock_trash_env: MockTrashEnv) -> None:
         """TOOL-06: restore with absolute path works correctly."""
         home = Path(mock_trash_env["home"])
 
@@ -701,7 +724,7 @@ class TestRestore:
         assert test_file.exists()
         assert test_file.read_text() == "absolute path content"
 
-    def test_restore_special_chars(self, mock_trash_env: dict) -> None:
+    def test_restore_special_chars(self, mock_trash_env: MockTrashEnv) -> None:
         """TOOL-07: restore path with special characters (spaces, brackets) works."""
         home = Path(mock_trash_env["home"])
 
@@ -720,7 +743,7 @@ class TestRestore:
     # Conflict handling (TOOL-08, TOOL-09)
     # -------------------------------------------------------------------------
 
-    def test_restore_conflict_backup(self, mock_trash_env: dict) -> None:
+    def test_restore_conflict_backup(self, mock_trash_env: MockTrashEnv) -> None:
         """TOOL-08: restore with existing file at target auto-backs-up to trash."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -745,7 +768,7 @@ class TestRestore:
             # The newer file should be backed up to trash (at least 1 entry)
             assert len(lines) >= 1
 
-    def test_restore_conflict_result(self, mock_trash_env: dict) -> None:
+    def test_restore_conflict_result(self, mock_trash_env: MockTrashEnv) -> None:
         """TOOL-09: after conflict backup, restored file has original content."""
         home = Path(mock_trash_env["home"])
 
@@ -767,7 +790,7 @@ class TestRestore:
     # Metadata restoration (TOOL-10, TOOL-11, TOOL-12, TOOL-13)
     # -------------------------------------------------------------------------
 
-    def test_restore_permissions(self, mock_trash_env: dict) -> None:
+    def test_restore_permissions(self, mock_trash_env: MockTrashEnv) -> None:
         """TOOL-10: file permissions (mode) are preserved through trash and restore."""
         home = Path(mock_trash_env["home"])
 
@@ -788,7 +811,7 @@ class TestRestore:
         restored_mode = test_file.stat().st_mode & 0o777
         assert restored_mode == original_mode
 
-    def test_restore_directory(self, mock_trash_env: dict) -> None:
+    def test_restore_directory(self, mock_trash_env: MockTrashEnv) -> None:
         """TOOL-11: directory is restored from tar archive with full contents."""
         home = Path(mock_trash_env["home"])
 
@@ -808,7 +831,7 @@ class TestRestore:
         assert (test_dir / "file1.txt").read_text() == "file1 content"
         assert (test_dir / "subdir" / "file2.txt").read_text() == "file2 content"
 
-    def test_restore_symlink(self, mock_trash_env: dict) -> None:
+    def test_restore_symlink(self, mock_trash_env: MockTrashEnv) -> None:
         """TOOL-12: symlink is restored from trash pointing to original target."""
         home = Path(mock_trash_env["home"])
 
@@ -831,7 +854,7 @@ class TestUIDGIDRemoval:
     """TEST-11, TEST-12, TEST-13: Validate uid/gid removal and mode restoration."""
 
     def test_11_metadata_has_no_uid_gid_fields_validation(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """TEST-11: Metadata has no original_uid or original_gid fields."""
         home = Path(mock_trash_env["home"])
@@ -849,7 +872,7 @@ class TestUIDGIDRemoval:
             for key in ("original_uid", "original_gid"):
                 assert key not in entry, f"{key} should not be in metadata (D-01)"
 
-    def test_12_restore_does_not_call_chown(self, mock_trash_env: dict) -> None:
+    def test_12_restore_does_not_call_chown(self, mock_trash_env: MockTrashEnv) -> None:
         """TEST-12: restore_files() does NOT call chown (no ownership change)."""
         home = Path(mock_trash_env["home"])
         test_file = home / "test_no_chown.txt"
@@ -868,7 +891,7 @@ class TestUIDGIDRemoval:
         # The key point: if --restore tries to chown a non-root file, it would fail
         # We just verify it doesn't crash
 
-    def test_13_file_mode_is_restored(self, mock_trash_env: dict) -> None:
+    def test_13_file_mode_is_restored(self, mock_trash_env: MockTrashEnv) -> None:
         """TEST-13: File mode (permissions) IS restored via chmod."""
         home = Path(mock_trash_env["home"])
         test_file = home / "test_mode_restore.txt"
@@ -1041,7 +1064,9 @@ class TestTrashEvent:
 class TestEpochNaming:
     """D-01: All items use epoch integer naming in .trash/"""
 
-    def test_file_uses_epoch_timestamp_naming(self, mock_trash_env: dict) -> None:
+    def test_file_uses_epoch_timestamp_naming(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """Trashing a file creates .trash/{digits} (not a hash)."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -1057,7 +1082,9 @@ class TestEpochNaming:
         name = trashed[0].name
         assert name.isdigit(), f"Expected epoch digits, got: {name}"
 
-    def test_dir_uses_epoch_timestamp_naming(self, mock_trash_env: dict) -> None:
+    def test_dir_uses_epoch_timestamp_naming(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """Trashing a directory creates .trash/{digits} as a directory (not a tar)."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -1080,7 +1107,7 @@ class TestNoTar:
     """D-03: No tar archives created; import tarfile removed."""
 
     def test_no_tar_archives_in_trash_after_dir_trash(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """Trashing a directory produces no .tar files in .trash/"""
         home = Path(mock_trash_env["home"])
@@ -1112,7 +1139,9 @@ class TestTrashEventFields:
             f"Expected {{path, timestamp, restore}}, got: {fields}"
         )
 
-    def test_trash_log_entry_has_no_hash_field(self, mock_trash_env: dict) -> None:
+    def test_trash_log_entry_has_no_hash_field(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """trash-log.jsonl entries must not contain 'hash' key."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -1125,7 +1154,9 @@ class TestTrashEventFields:
         entry = json.loads(log.read_text().strip().splitlines()[0])
         assert "hash" not in entry, f"Found 'hash' in entry: {entry}"
 
-    def test_trash_log_entry_has_no_type_field(self, mock_trash_env: dict) -> None:
+    def test_trash_log_entry_has_no_type_field(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """trash-log.jsonl entries must not contain 'type' key."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -1142,7 +1173,9 @@ class TestTrashEventFields:
 class TestMetadataFiles:
     """D-09: No {timestamp}-attributes.json or {hash}-attributes.json created."""
 
-    def test_no_attributes_json_created_for_file(self, mock_trash_env: dict) -> None:
+    def test_no_attributes_json_created_for_file(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """Trashing a file creates no *-attributes.json file."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -1154,7 +1187,9 @@ class TestMetadataFiles:
         attrs = list(trash_dir.glob("*-attributes.json"))
         assert len(attrs) == 0, f"Found unexpected attributes files: {attrs}"
 
-    def test_no_attributes_json_created_for_dir(self, mock_trash_env: dict) -> None:
+    def test_no_attributes_json_created_for_dir(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """Trashing a directory creates no *-attributes.json file."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -1172,7 +1207,7 @@ class TestNoDeduplicate:
     """D-10: Content-based deduplication removed; same content = 2 separate entries."""
 
     def test_same_file_trashed_twice_creates_two_entries(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """Trashing identical content twice creates 2 separate .trash/ items."""
         home = Path(mock_trash_env["home"])
@@ -1193,7 +1228,7 @@ class TestNoDeduplicate:
 class TestGCRemoved:
     """D-11: --gc flag and garbage_collect() function removed."""
 
-    def test_gc_flag_not_recognized(self, mock_trash_env: dict) -> None:
+    def test_gc_flag_not_recognized(self, mock_trash_env: MockTrashEnv) -> None:
         """trash --gc returns non-zero exit code (unknown flag)."""
         result = run_trash("--gc")
         assert result.returncode != 0, (
@@ -1212,7 +1247,7 @@ class TestRestoreDir13:
     """D-12: _restore_dir() uses shutil.move (not tarfile.extractall)."""
 
     def test_restore_dir_moves_directory_not_extracts(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """Restored directory comes from shutil.move, not tarfile extraction."""
         home = Path(mock_trash_env["home"])
@@ -1239,7 +1274,7 @@ class TestRestoreDir13:
         assert len(tar_files) == 0, f"Found tar files: {tar_files}"
 
     def test_restore_dir_uses_timestamp_key_not_hash(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """Trash log uses timestamp to identify trashed directory (no hash field)."""
         home = Path(mock_trash_env["home"])
@@ -1261,7 +1296,9 @@ class TestRestoreDir13:
 class TestRestore13:
     """D-13: Restore operations use timestamp key (not hash)."""
 
-    def test_restore_file_uses_timestamp_path(self, mock_trash_env: dict) -> None:
+    def test_restore_file_uses_timestamp_path(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """Restoring a file: .trash/{timestamp} is used as source, not hash."""
         home = Path(mock_trash_env["home"])
         trash_dir = Path(mock_trash_env["trash_dir"])
@@ -1283,7 +1320,9 @@ class TestRestore13:
         assert f.exists()
         assert f.read_text() == "restore content"
 
-    def test_restore_symlink_uses_timestamp_path(self, mock_trash_env: dict) -> None:
+    def test_restore_symlink_uses_timestamp_path(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """Restoring a symlink: .trash/{timestamp} used as source."""
         home = Path(mock_trash_env["home"])
 
@@ -1304,7 +1343,7 @@ class TestRestoreConflict13:
     """D-14: Restore to existing path triggers _backup_existing_to_trash."""
 
     def test_restore_with_existing_file_backs_up_first(
-        self, mock_trash_env: dict
+        self, mock_trash_env: MockTrashEnv
     ) -> None:
         """Restoring when target exists: existing file is backed up first."""
         home = Path(mock_trash_env["home"])
@@ -1365,7 +1404,9 @@ class TestTrashLogAPI:
 class TestListTrashTimestampFormat:
     """D-11, D-12: list_trash() displays ISO 8601 timestamps, not raw epoch ints."""
 
-    def test_list_trash_output_shows_iso_format(self, mock_trash_env: dict) -> None:
+    def test_list_trash_output_shows_iso_format(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """trash --list output shows ISO 8601 timestamp (YYYY-MM-DDTHH:MM:SS)."""
         import re
 
@@ -1383,7 +1424,9 @@ class TestListTrashTimestampFormat:
             f"Expected ISO 8601 timestamp in output, got:\n{combined}"
         )
 
-    def test_list_trash_output_not_raw_epoch(self, mock_trash_env: dict) -> None:
+    def test_list_trash_output_not_raw_epoch(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """trash --list output does not show a bare 10-digit epoch integer."""
         import re
 
@@ -1672,7 +1715,7 @@ class TestMainNoParserAccess:
             "currently uses parser.print_help(sys.stderr) — this test is RED"
         )
 
-    def test_19_30_main_no_args_shows_help(self, mock_trash_env: dict) -> None:
+    def test_19_30_main_no_args_shows_help(self, mock_trash_env: MockTrashEnv) -> None:
         """run_trash() with no args returns non-zero exit code and output contains help.
 
         This is a behavioral test that remains valid before and after Plan 04:
@@ -1686,7 +1729,9 @@ class TestMainNoParserAccess:
             f"No-args output must contain 'usage' or 'Error', got:\n{combined}"
         )
 
-    def test_19_31_main_restore_no_files_shows_help(self, mock_trash_env: dict) -> None:
+    def test_19_31_main_restore_no_files_shows_help(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
         """run_trash('--restore') with no file paths returns non-zero exit code.
 
         Behavioral test: --restore without a path shows help and exits with failure.

@@ -1,8 +1,16 @@
 """pytest shared fixtures for test isolation."""
 
 from pathlib import Path
+from typing import TypedDict
 
 import pytest
+
+
+class MockTrashEnv(TypedDict):
+    """Typed return value for mock_trash_env fixture."""
+
+    home: Path
+    trash_dir: Path
 
 
 @pytest.fixture
@@ -22,10 +30,10 @@ def metadata_file(trash_dir: Path) -> Path:
 
 
 @pytest.fixture
-def mock_trash_env(monkeypatch, tmp_path: Path) -> dict:
+def mock_trash_env(monkeypatch, tmp_path: Path) -> MockTrashEnv:
     """Set HOME and TRASH_DIR environment variables to isolated tmp_path directories.
 
-    Returns dict with "home" and "trash_dir" keys.
+    Returns MockTrashEnv with "home" and "trash_dir" keys (typed via TypedDict).
     """
     home = tmp_path / "home"
     home.mkdir()
