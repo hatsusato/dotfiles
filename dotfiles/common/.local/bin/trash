@@ -332,7 +332,7 @@ def main() -> int:
             if config.restore:
                 event = trash_log.make_restore_event(path)
             else:
-                event = TrashEvent(path=str(path), timestamp=0)
+                event = TrashEvent(path=str(path.resolve()), timestamp=0)
             trash_log.execute_trash(event, config.recursive)
             if not config.verbose:
                 continue
