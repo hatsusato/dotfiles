@@ -77,7 +77,7 @@ class TrashLog:
         Raises:
             ValueError: No trash entry found, or most recent entry is already restored.
         """
-        latest = self.get_latest_event(path)
+        latest = self.get_latest_event(path.resolve())
         if latest is None:
             raise ValueError(f"No trash entry found for {path}")
         if latest.restore:
