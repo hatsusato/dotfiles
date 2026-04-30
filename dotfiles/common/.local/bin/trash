@@ -118,7 +118,7 @@ class TrashLog:
         if not event.restore:
             if not os.path.lexists(event.path):
                 raise FileNotFoundError(f"No such file or directory: {event.path}")
-            if Path.cwd().is_relative_to(event.path):
+            if Path.cwd().is_relative_to(Path(event.path).resolve()):
                 raise ValueError(f"Cannot trash parent directory: {event.path}")
             if Path(event.path).is_dir() and not recursive:
                 raise ValueError(
