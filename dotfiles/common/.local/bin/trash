@@ -174,7 +174,9 @@ class TrashLog:
                 file=sys.stderr,
             )
             backup_event = TrashEvent(path=event.path)
-            self.execute_trash(backup_event, recursive)
+            self.execute_trash(
+                backup_event, recursive=True
+            )  # backup is always recursive
         if event.restore:
             source_path = self.get_trash_path(event)
             if not os.path.lexists(source_path):
