@@ -15,32 +15,72 @@ from dataclasses import dataclass
 from dataclasses import replace as dataclass_replace
 from datetime import datetime
 from pathlib import Path
+from typing import Any
+
+
+class TrashPath(Path):
+    """Absolute, normalized path for trash operations.
+
+    Always represents an absolute path: TrashPath(relative) is resolved
+    against cwd at construction time via Path.absolute() (symlinks preserved).
+    """
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> "TrashPath":
+        return super().__new__(cls, *args, **kwargs)
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        abs_str = str(self.absolute())
+        self._raw_paths = [abs_str]  # type: ignore[misc]
+        if hasattr(self, "_tail_cached"):
+            del self._tail_cached
+        if hasattr(self, "_drv"):
+            del self._drv
+        if hasattr(self, "_root"):
+            del self._root
 
 
 @dataclass
 class TrashEvent:
     """Single event in trash-log.jsonl — immutable data container."""
 
-    path: str
-    timestamp: int  # Epoch when trashed (= filename in .trash/)
+    path: TrashPath
+    timestamp: int = 0  # Epoch nanoseconds when trashed (= filename in .trash/)
     restore: bool = False
 
-    def to_dict(self) -> dict[str, str | int | bool]:
-        """Convert to JSON-serializable dict for trash-log.jsonl."""
+    def _to_dict(self) -> dict[str, str | int | bool]:
+        """Convert to JSON-serializable dict (internal use)."""
         return {
-            "path": self.path,
+            "path": str(self.path),
             "timestamp": self.timestamp,
             "restore": self.restore,
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, str | int | bool]) -> "TrashEvent":
-        """Deserialize from JSON dict."""
+    def _from_dict(cls, d: dict[str, str | int | bool]) -> "TrashEvent":
+        """Deserialize from JSON dict (internal use)."""
         return cls(
-            path=str(d["path"]),
+            path=TrashPath(str(d["path"])),
             timestamp=int(d["timestamp"]),
             restore=bool(d.get("restore", False)),
         )
+
+    def to_line(self) -> str:
+        """Serialize to JSONL line (public API)."""
+        return (
+            json.dumps(self._to_dict(), ensure_ascii=False, separators=(",", ":"))
+            + "\n"
+        )
+
+    @classmethod
+    def from_line(cls, line: str) -> "TrashEvent":
+        """Deserialize from JSONL line (public API)."""
+        return cls._from_dict(json.loads(line))
+
+    def format_timestamp(self) -> str:
+        """Convert nanosecond timestamp to human-readable ISO 8601 string."""
+        dt = datetime.fromtimestamp(self.timestamp / 1_000_000_000).astimezone()
+        return dt.isoformat(timespec="seconds")
 
 
 class TrashLog:
