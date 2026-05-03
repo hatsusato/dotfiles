@@ -1965,3 +1965,222 @@ class TestNewTrashLogAPI:
         assert isinstance(log._events, dict), (
             f"TrashLog._events must be a dict, got {type(log._events)}"
         )
+
+
+# ============================================================================
+# Phase 24: TrashPath refactoring (RED phase)
+# ============================================================================
+
+
+class TestTrashPath:
+    """D-01, D-02, D-03 (Phase 24): TrashPath is a Path subclass that always
+    holds an absolute path."""
+
+    def test_trashpath_class_exists(self) -> None:
+        """module.TrashPath must exist after Phase 24 implementation."""
+        module = _import_trash_module()
+        assert hasattr(module, "TrashPath"), (
+            "TrashPath class must exist in trash module (D-01)"
+        )
+
+    def test_trashpath_path_subclass(self) -> None:
+        """TrashPath must be a subclass of pathlib.Path."""
+        module = _import_trash_module()
+        assert issubclass(module.TrashPath, Path), (
+            "TrashPath must inherit from Path (D-01)"
+        )
+
+    def test_trashpath_absolute_from_relative(self, tmp_path: Path) -> None:
+        """TrashPath('.') is_absolute() returns True even for relative input."""
+        import os
+
+        module = _import_trash_module()
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(tmp_path)
+            tp = module.TrashPath(".")
+            assert tp.is_absolute(), f"TrashPath('.') must be absolute, got: {tp!r}"
+        finally:
+            os.chdir(old_cwd)
+
+    def test_trashpath_str_is_absolute(self, tmp_path: Path) -> None:
+        """str(TrashPath('.')) starts with '/' (absolute path string)."""
+        import os
+
+        module = _import_trash_module()
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(tmp_path)
+            tp = module.TrashPath(".")
+            assert str(tp).startswith("/"), (
+                f"str(TrashPath('.')) must start with '/', got: {str(tp)!r}"
+            )
+        finally:
+            os.chdir(old_cwd)
+
+    def test_trashpath_equal_to_path(self) -> None:
+        """TrashPath('/tmp/x') == Path('/tmp/x') (hash/eq compatibility)."""
+        module = _import_trash_module()
+        tp = module.TrashPath("/tmp/x")
+        assert tp == Path("/tmp/x"), "TrashPath('/tmp/x') must equal Path('/tmp/x')"
+
+
+class TestTrashEventTrashPath:
+    """D-10, D-11 (Phase 24): TrashEvent.path is TrashPath; timestamp defaults to 0."""
+
+    def test_event_constructed_with_trashpath(self, tmp_path: Path) -> None:
+        """TrashEvent(path=TrashPath(...)) can be created without error."""
+        module = _import_trash_module()
+        tp = module.TrashPath(tmp_path / "test.txt")
+        event = module.TrashEvent(path=tp)
+        assert event is not None
+
+    def test_event_path_is_trashpath(self, tmp_path: Path) -> None:
+        """event.path must be a TrashPath instance (not str)."""
+        module = _import_trash_module()
+        tp = module.TrashPath(tmp_path / "test.txt")
+        event = module.TrashEvent(path=tp)
+        assert isinstance(event.path, module.TrashPath), (
+            f"event.path must be TrashPath, got {type(event.path)}"
+        )
+
+    def test_event_timestamp_default_is_zero(self, tmp_path: Path) -> None:
+        """TrashEvent(path=TrashPath(...)) without timestamp sets timestamp=0."""
+        module = _import_trash_module()
+        tp = module.TrashPath(tmp_path / "test.txt")
+        event = module.TrashEvent(path=tp)
+        assert event.timestamp == 0, (
+            f"TrashEvent timestamp must default to 0, got {event.timestamp!r}"
+        )
+
+    def test_event_path_field_type_is_trashpath(self) -> None:
+        """dataclasses.fields(TrashEvent)[0] has type annotation TrashPath."""
+        import dataclasses as dc
+
+        module = _import_trash_module()
+        fields = {f.name: f for f in dc.fields(module.TrashEvent)}
+        path_field = fields.get("path")
+        assert path_field is not None, "TrashEvent must have 'path' field"
+        assert path_field.type is module.TrashPath or path_field.type == "TrashPath", (
+            f"TrashEvent.path field type must be TrashPath, got {path_field.type!r}"
+        )
+
+
+class TestTimestampNanoseconds:
+    """D-04, D-07, D-08 (Phase 24): get_trash_path uses time.time_ns();
+    TrashEvent.format_timestamp() converts ns to ISO 8601."""
+
+    def test_get_trash_path_uses_nanoseconds(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_trash_path sets event.timestamp to nanosecond range (>= 10^15)."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        log = module.TrashLog()
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        event = module.TrashEvent(path=module.TrashPath(test_file))
+        log.get_trash_path(event)
+        assert event.timestamp >= 10**15, (
+            f"timestamp {event.timestamp} must be in nanosecond range (>= 10^15),"
+            " but got a value in second range — time.time_ns() not yet used"
+        )
+
+    def test_format_timestamp_method_exists(self) -> None:
+        """TrashEvent must have format_timestamp() method (D-07)."""
+        module = _import_trash_module()
+        assert hasattr(module.TrashEvent, "format_timestamp"), (
+            "TrashEvent.format_timestamp() must exist (D-07)"
+        )
+
+    def test_format_timestamp_returns_iso_string(self, tmp_path: Path) -> None:
+        """format_timestamp() returns ISO 8601 string (YYYY-MM-DDTHH:MM:SS)."""
+        import re
+        import time
+
+        module = _import_trash_module()
+        tp = module.TrashPath(tmp_path / "test.txt")
+        event = module.TrashEvent(path=tp, timestamp=time.time_ns())
+        ts_str = event.format_timestamp()
+        iso_pattern = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
+        assert iso_pattern.search(ts_str), (
+            f"format_timestamp() must return ISO 8601 string, got: {ts_str!r}"
+        )
+
+
+class TestToLineFromLine:
+    """D-13 (Phase 24): TrashEvent.to_line() / from_line() as public JSONL API."""
+
+    def test_to_line_method_exists(self) -> None:
+        """TrashEvent must have to_line() method (D-13)."""
+        module = _import_trash_module()
+        assert hasattr(module.TrashEvent, "to_line"), (
+            "TrashEvent.to_line() must exist (D-13)"
+        )
+
+    def test_to_line_returns_json_with_newline(self, tmp_path: Path) -> None:
+        """to_line() returns JSON string ending with newline."""
+        import json as _json
+
+        module = _import_trash_module()
+        tp = module.TrashPath(tmp_path / "test.txt")
+        event = module.TrashEvent(path=tp, timestamp=1000000000000000000)
+        line = event.to_line()
+        assert line.endswith("\n"), f"to_line() must end with newline, got: {line!r}"
+        # Must be valid JSON (without trailing newline)
+        parsed = _json.loads(line.strip())
+        assert "path" in parsed and "timestamp" in parsed
+
+    def test_from_line_roundtrip(self, tmp_path: Path) -> None:
+        """TrashEvent.from_line(event.to_line()) preserves path/timestamp/restore."""
+        module = _import_trash_module()
+        tp = module.TrashPath(tmp_path / "test.txt")
+        original = module.TrashEvent(
+            path=tp, timestamp=1746000000000000000, restore=False
+        )
+        roundtrip = module.TrashEvent.from_line(original.to_line())
+        assert str(roundtrip.path) == str(original.path), (
+            f"path mismatch: {roundtrip.path!r} != {original.path!r}"
+        )
+        assert roundtrip.timestamp == original.timestamp
+        assert roundtrip.restore == original.restore
+
+    def test_from_line_path_is_trashpath(self, tmp_path: Path) -> None:
+        """TrashEvent.from_line(line).path is a TrashPath instance."""
+        module = _import_trash_module()
+        tp = module.TrashPath(tmp_path / "test.txt")
+        event = module.TrashEvent(path=tp, timestamp=1746000000000000000)
+        restored = module.TrashEvent.from_line(event.to_line())
+        assert isinstance(restored.path, module.TrashPath), (
+            f"from_line().path must be TrashPath, got {type(restored.path)}"
+        )
+
+
+class TestInternalDictAPI:
+    """D-12 (Phase 24): to_dict/from_dict renamed to _to_dict/_from_dict (internal)."""
+
+    def test_to_dict_public_is_removed(self) -> None:
+        """TrashEvent.to_dict() (public) must not exist after Phase 24."""
+        module = _import_trash_module()
+        assert not hasattr(module.TrashEvent, "to_dict"), (
+            "TrashEvent.to_dict() must be removed; use to_line() instead (D-12)"
+        )
+
+    def test_from_dict_public_is_removed(self) -> None:
+        """TrashEvent.from_dict() (public) must not exist after Phase 24."""
+        module = _import_trash_module()
+        assert not hasattr(module.TrashEvent, "from_dict"), (
+            "TrashEvent.from_dict() must be removed; use from_line() instead (D-12)"
+        )
+
+    def test_internal_to_dict_callable(self, tmp_path: Path) -> None:
+        """TrashEvent._to_dict() (internal) must exist and be callable."""
+        module = _import_trash_module()
+        assert hasattr(module.TrashEvent, "_to_dict"), (
+            "TrashEvent._to_dict() must exist as internal method (D-12)"
+        )
+        tp = module.TrashPath(tmp_path / "test.txt")
+        event = module.TrashEvent(path=tp, timestamp=1746000000000000000)
+        d = event._to_dict()
+        assert isinstance(d, dict) and "path" in d
