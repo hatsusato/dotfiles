@@ -87,7 +87,7 @@ class TrashLog:
     """Manages trash-log.jsonl as append-only event log.
 
     Loads entire event history into memory at init for fast queries.
-    Stores events as dict[str, list[TrashEvent]] keyed by path for O(1) lookup.
+    Stores events as dict[TrashPath, list[TrashEvent]] keyed by path for O(1) lookup.
     Provides active_events(), make_restore_event(), get_trash_path(), execute_trash(),
     and append().
     """
@@ -96,12 +96,12 @@ class TrashLog:
         """Initialize TrashLog; defaults to TRASH_DIR env or ~/.trash."""
         self._trash_dir = Path(os.getenv("TRASH_DIR", Path.home() / ".trash"))
         self._metadata_path = self._trash_dir / "trash-log.jsonl"
-        self._events: dict[str, list[TrashEvent]] = {}
+        self._events: dict[TrashPath, list[TrashEvent]] = {}
         self.load()
 
     def get_latest_event(self, path: Path) -> TrashEvent | None:
         """Get the latest TrashEvent for a given path, or None if no events exist."""
-        events_for_path = self._events.get(str(path), [])
+        events_for_path = self._events.get(TrashPath(path), [])
         if not events_for_path:
             return None
         # D-01: Use (timestamp, restore) tiebreaker so restore events (1) beat
@@ -137,7 +137,7 @@ class TrashLog:
         For trash events: increments timestamp until a free slot is found.
         For restore events: returns the path of the already-trashed item.
         """
-        timestamp = event.timestamp or int(time.time())
+        timestamp = event.timestamp or time.time_ns()
         trash_path = self._trash_dir / str(timestamp)
         while not event.restore and os.path.lexists(trash_path):
             timestamp += 1
@@ -162,9 +162,9 @@ class TrashLog:
         if not event.restore:
             if not os.path.lexists(event.path):
                 raise FileNotFoundError(f"No such file or directory: {event.path}")
-            if Path.cwd().is_relative_to(Path(event.path).resolve()):
+            if Path.cwd().is_relative_to(event.path.resolve()):
                 raise ValueError(f"Cannot trash parent directory: {event.path}")
-            if Path(event.path).is_dir() and not recursive:
+            if event.path.is_dir() and not recursive:
                 raise ValueError(
                     f"Cannot trash directory without -r flag: {event.path}"
                 )
@@ -173,7 +173,7 @@ class TrashLog:
                 f"trash: {event.path} exists; backing up to trash...",
                 file=sys.stderr,
             )
-            backup_event = TrashEvent(path=event.path, timestamp=0)
+            backup_event = TrashEvent(path=event.path)
             self.execute_trash(backup_event, recursive)
         if event.restore:
             source_path = self.get_trash_path(event)
@@ -181,9 +181,9 @@ class TrashLog:
                 raise FileNotFoundError(
                     f"Trash item missing (log/filesystem desync): {source_path}"
                 )
-            target_path = Path(event.path)
+            target_path = event.path
         else:
-            source_path = Path(event.path)
+            source_path = event.path
             target_path = self.get_trash_path(event)
         target_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(source_path, target_path)
@@ -210,8 +210,7 @@ class TrashLog:
             if not line:
                 continue
             try:
-                entry_dict = json.loads(line)
-                event = TrashEvent.from_dict(entry_dict)
+                event = TrashEvent.from_line(line)
                 self._events.setdefault(event.path, []).append(event)
             except (json.JSONDecodeError, KeyError, ValueError) as e:
                 # Tolerate truncated final line only (crash leaves no trailing newline).
@@ -241,8 +240,7 @@ class TrashLog:
     def append(self, event: TrashEvent) -> None:
         """Add event to memory and sync to disk immediately."""
         with open(self._metadata_path, "a") as f:
-            json.dump(event.to_dict(), f, ensure_ascii=False, separators=(",", ":"))
-            f.write("\n")
+            f.write(event.to_line())
             os.fsync(f.fileno())
         self._events.setdefault(event.path, []).append(event)
 
@@ -350,9 +348,7 @@ def list_items(trash_log: TrashLog) -> None:
     print(f"Files in trash ({len(entries)}):")
     for i, entry in enumerate(entries, _LIST_START_INDEX):
         print(f"  {i}. {entry.path}")
-        dt_local = datetime.fromtimestamp(entry.timestamp).astimezone()
-        ts_iso = dt_local.isoformat(timespec="seconds")
-        print(f"     timestamp: {ts_iso}")
+        print(f"     timestamp: {entry.format_timestamp()}")
 
 
 def main() -> int:
@@ -380,7 +376,7 @@ def main() -> int:
             if config.restore:
                 event = trash_log.make_restore_event(path)
             else:
-                event = TrashEvent(path=str(path.absolute()), timestamp=0)
+                event = TrashEvent(path=TrashPath(path))
             trash_log.execute_trash(event, config.recursive)
             if not config.verbose:
                 continue
