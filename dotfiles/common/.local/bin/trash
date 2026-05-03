@@ -26,18 +26,17 @@ class TrashPath(Path):
     """
 
     def __new__(cls, *args: Any, **kwargs: Any) -> "TrashPath":
-        return super().__new__(cls, *args, **kwargs)
+        raw = Path(*args)
+        abs_str = str(raw.absolute())
+        obj = object.__new__(cls)
+        obj._raw_paths = [abs_str]  # type: ignore[misc]
+        return obj
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        abs_str = str(self.absolute())
-        self._raw_paths = [abs_str]  # type: ignore[misc]
-        if hasattr(self, "_tail_cached"):
-            del self._tail_cached
-        if hasattr(self, "_drv"):
-            del self._drv
-        if hasattr(self, "_root"):
-            del self._root
+        # _raw_paths is already set in __new__ to the absolute path string.
+        # Skip super().__init__ to prevent PurePath.__init__ from overwriting
+        # _raw_paths with the original (possibly relative) args.
+        pass
 
 
 @dataclass
