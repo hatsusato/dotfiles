@@ -1761,7 +1761,7 @@ class TestMakeRestoreEvent:
         log = module.TrashLog()
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
-        event = module.TrashEvent(path=str(test_file), timestamp=0)
+        event = module.TrashEvent(path=module.TrashPath(test_file))
         log.execute_trash(event, recursive=False)
         restore_event = log.make_restore_event(test_file)
         assert isinstance(restore_event, module.TrashEvent)
@@ -1777,7 +1777,7 @@ class TestMakeRestoreEvent:
         log = module.TrashLog()
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
-        trash_event = module.TrashEvent(path=str(test_file), timestamp=0)
+        trash_event = module.TrashEvent(path=module.TrashPath(test_file))
         log.execute_trash(trash_event, recursive=False)
         restore_event = log.make_restore_event(test_file)
         assert restore_event.timestamp == trash_event.timestamp
@@ -1803,7 +1803,7 @@ class TestMakeRestoreEvent:
         log = module.TrashLog()
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
-        trash_event = module.TrashEvent(path=str(test_file), timestamp=0)
+        trash_event = module.TrashEvent(path=module.TrashPath(test_file))
         log.execute_trash(trash_event, recursive=False)
         # Restore once
         restore_event = log.make_restore_event(test_file)
@@ -1814,16 +1814,16 @@ class TestMakeRestoreEvent:
 
 
 class TestGetTrashPath:
-    """D-01 fix verification: get_trash_path uses epoch seconds and updates trash_path.
+    """D-01 fix verification: get_trash_path uses time.time_ns() and updates trash_path.
 
-    Verifies that get_trash_path() uses int(time.time()) (seconds, not nanoseconds)
+    Verifies that get_trash_path() uses time.time_ns() (nanoseconds)
     and that the while loop correctly updates trash_path on each iteration.
     """
 
-    def test_get_trash_path_uses_epoch_seconds(
+    def test_get_trash_path_uses_nanoseconds_range(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """get_trash_path sets event.timestamp to int(time.time()) range."""
+        """get_trash_path sets event.timestamp to time.time_ns() range."""
         import time
 
         trash_dir = tmp_path / ".trash"
@@ -1832,12 +1832,12 @@ class TestGetTrashPath:
         log = module.TrashLog()
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
-        before = int(time.time())
-        event = module.TrashEvent(path=str(test_file), timestamp=0)
+        before = time.time_ns()
+        event = module.TrashEvent(path=module.TrashPath(test_file))
         log.get_trash_path(event)
-        after = int(time.time()) + 1
+        after = time.time_ns() + 1_000_000_000  # 1-second margin
         assert before <= event.timestamp <= after, (
-            f"timestamp {event.timestamp} must be in epoch-seconds range"
+            f"timestamp {event.timestamp} must be in nanosecond range"
             f" [{before},{after}]"
         )
 
@@ -1851,10 +1851,10 @@ class TestGetTrashPath:
         monkeypatch.setenv("TRASH_DIR", str(trash_dir))
         module = _import_trash_module()
         log = module.TrashLog()
-        # Pre-occupy current epoch slot
-        ts = int(time.time())
+        # Pre-occupy current nanosecond slot
+        ts = time.time_ns()
         (trash_dir / str(ts)).mkdir()
-        event = module.TrashEvent(path=str(tmp_path / "f.txt"), timestamp=0)
+        event = module.TrashEvent(path=module.TrashPath(tmp_path / "f.txt"))
         log.get_trash_path(event)
         assert event.timestamp > ts, (
             f"timestamp must be incremented past {ts}, got {event.timestamp}"
@@ -1870,7 +1870,7 @@ class TestGetTrashPath:
         log = module.TrashLog()
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
-        event = module.TrashEvent(path=str(test_file), timestamp=0)
+        event = module.TrashEvent(path=module.TrashPath(test_file))
         assert event.timestamp == 0
         log.get_trash_path(event)
         assert event.timestamp > 0, "get_trash_path must set event.timestamp"
@@ -1913,7 +1913,7 @@ class TestNewTrashLogAPI:
         log = module.TrashLog()
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
-        event = module.TrashEvent(path=str(test_file), timestamp=0)
+        event = module.TrashEvent(path=module.TrashPath(test_file))
         log.execute_trash(event, recursive=False)
         assert not test_file.exists(), "File must be moved out of original location"
         trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
@@ -1929,7 +1929,7 @@ class TestNewTrashLogAPI:
         log = module.TrashLog()
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
-        event = module.TrashEvent(path=str(test_file), timestamp=0)
+        event = module.TrashEvent(path=module.TrashPath(test_file))
         log.execute_trash(event, recursive=False)
         assert isinstance(event.timestamp, int) and event.timestamp > 0, (
             f"event.timestamp must be a positive int after execute_trash,"
@@ -1946,7 +1946,7 @@ class TestNewTrashLogAPI:
         log = module.TrashLog()
         test_file = tmp_path / "test.txt"
         test_file.write_text("original content")
-        trash_event = module.TrashEvent(path=str(test_file), timestamp=0)
+        trash_event = module.TrashEvent(path=module.TrashPath(test_file))
         log.execute_trash(trash_event, recursive=False)
         assert not test_file.exists()
         restore_event = log.make_restore_event(test_file)
