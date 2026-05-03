@@ -892,7 +892,10 @@ class TestUIDGIDRemoval:
         # We just verify it doesn't crash
 
     def test_13_file_mode_is_restored(self, mock_trash_env: MockTrashEnv) -> None:
-        """TEST-13: File mode (permissions) IS restored via chmod."""
+        """TEST-13: File mode (permissions) is preserved through trash and restore.
+
+        Mode is preserved by shutil.move (os.rename on same filesystem), not chmod.
+        """
         home = Path(mock_trash_env["home"])
         test_file = home / "test_mode_restore.txt"
         test_file.write_text("mode test")
