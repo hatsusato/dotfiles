@@ -346,7 +346,7 @@ class TestErrorHandling:
         """ERROR-001: permission denied on move is handled; other files still trashed.
 
         Uses a 0o555 directory so files inside cannot be renamed out, exercising
-        the PermissionError path in execute_trash().
+        the PermissionError path in execute_event().
         """
         home = Path(mock_trash_env["home"])
 
@@ -1746,76 +1746,6 @@ class TestMainNoParserAccess:
         )
 
 
-# ============================================================================
-# Phase 23: New API tests (D-01, D-02, D-03)
-# ============================================================================
-
-
-class TestMakeRestoreEvent:
-    """D-02 API verification: TrashLog.make_restore_event(path) single-item restore."""
-
-    def test_make_restore_event_returns_trash_event_for_trashed_file(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """make_restore_event(path) returns a TrashEvent with restore=True."""
-        trash_dir = tmp_path / ".trash"
-        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
-        module = _import_trash_module()
-        log = module.TrashLog()
-        test_file = tmp_path / "test.txt"
-        test_file.write_text("content")
-        event = module.TrashEvent(path=module.TrashPath(test_file))
-        log.execute_trash(event, recursive=False)
-        restore_event = log.make_restore_event(test_file)
-        assert isinstance(restore_event, module.TrashEvent)
-        assert restore_event.restore is True
-
-    def test_make_restore_event_timestamp_matches_original(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Returned TrashEvent.timestamp matches the original trash timestamp."""
-        trash_dir = tmp_path / ".trash"
-        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
-        module = _import_trash_module()
-        log = module.TrashLog()
-        test_file = tmp_path / "test.txt"
-        test_file.write_text("content")
-        trash_event = module.TrashEvent(path=module.TrashPath(test_file))
-        log.execute_trash(trash_event, recursive=False)
-        restore_event = log.make_restore_event(test_file)
-        assert restore_event.timestamp == trash_event.timestamp
-
-    def test_make_restore_event_raises_for_nonexistent_path(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """make_restore_event(path) raises ValueError with 'No trash entry found'."""
-        trash_dir = tmp_path / ".trash"
-        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
-        module = _import_trash_module()
-        log = module.TrashLog()
-        with pytest.raises(ValueError, match="No trash entry found"):
-            log.make_restore_event(tmp_path / "nonexistent.txt")
-
-    def test_make_restore_event_raises_for_already_restored(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """make_restore_event(path) raises ValueError with 'already restored'."""
-        trash_dir = tmp_path / ".trash"
-        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
-        module = _import_trash_module()
-        log = module.TrashLog()
-        test_file = tmp_path / "test.txt"
-        test_file.write_text("content")
-        trash_event = module.TrashEvent(path=module.TrashPath(test_file))
-        log.execute_trash(trash_event, recursive=False)
-        # Restore once
-        restore_event = log.make_restore_event(test_file)
-        log.execute_trash(restore_event, recursive=False)
-        # Second restore attempt must raise
-        with pytest.raises(ValueError, match="already restored"):
-            log.make_restore_event(test_file)
-
-
 class TestGetTrashPath:
     """D-01 fix verification: get_trash_path uses time.time_ns() and updates trash_path.
 
@@ -1856,6 +1786,7 @@ class TestGetTrashPath:
         log = module.TrashLog()
         # Pre-occupy current nanosecond slot
         ts = time.time_ns()
+        trash_dir.mkdir(parents=True)
         (trash_dir / str(ts)).mkdir()
         event = module.TrashEvent(path=module.TrashPath(tmp_path / "f.txt"))
         log.get_trash_path(event)
@@ -1906,10 +1837,10 @@ class TestNewTrashLogAPI:
         log = module.TrashLog()
         assert str(log._trash_dir) == str(trash_dir)
 
-    def test_execute_trash_moves_file_to_trash(
+    def test_execute_event_moves_file_to_trash(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """TrashEvent + execute_trash moves file to trash directory."""
+        """TrashEvent + execute_event moves file to trash directory."""
         trash_dir = tmp_path / ".trash"
         monkeypatch.setenv("TRASH_DIR", str(trash_dir))
         module = _import_trash_module()
@@ -1917,15 +1848,15 @@ class TestNewTrashLogAPI:
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
         event = module.TrashEvent(path=module.TrashPath(test_file))
-        log.execute_trash(event, recursive=False)
+        log.execute_event(event, recursive=False)
         assert not test_file.exists(), "File must be moved out of original location"
         trashed = [f for f in trash_dir.iterdir() if f.name != "trash-log.jsonl"]
         assert len(trashed) == 1, "Exactly one item must appear in trash_dir"
 
-    def test_execute_trash_sets_positive_timestamp(
+    def test_execute_event_sets_positive_timestamp(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """execute_trash sets event.timestamp to positive int (D-01 fix)."""
+        """execute_event sets event.timestamp to positive int."""
         trash_dir = tmp_path / ".trash"
         monkeypatch.setenv("TRASH_DIR", str(trash_dir))
         module = _import_trash_module()
@@ -1933,16 +1864,16 @@ class TestNewTrashLogAPI:
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
         event = module.TrashEvent(path=module.TrashPath(test_file))
-        log.execute_trash(event, recursive=False)
+        log.execute_event(event, recursive=False)
         assert isinstance(event.timestamp, int) and event.timestamp > 0, (
-            f"event.timestamp must be a positive int after execute_trash,"
+            f"event.timestamp must be a positive int after execute_event,"
             f" got {event.timestamp!r}"
         )
 
     def test_trash_then_restore_returns_file(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """trash -> make_restore_event -> execute_trash restores file to its origin."""
+        """Trash then restore via get_latest_trash_event returns file."""
         trash_dir = tmp_path / ".trash"
         monkeypatch.setenv("TRASH_DIR", str(trash_dir))
         module = _import_trash_module()
@@ -1950,10 +1881,12 @@ class TestNewTrashLogAPI:
         test_file = tmp_path / "test.txt"
         test_file.write_text("original content")
         trash_event = module.TrashEvent(path=module.TrashPath(test_file))
-        log.execute_trash(trash_event, recursive=False)
+        log.execute_event(trash_event, recursive=False)
         assert not test_file.exists()
-        restore_event = log.make_restore_event(test_file)
-        log.execute_trash(restore_event, recursive=False)
+        restore_event = log.get_latest_trash_event(
+            module.TrashPath(test_file)
+        ).as_restore_event()
+        log.execute_event(restore_event, recursive=False)
         assert test_file.exists(), "File must be restored to original path"
         assert test_file.read_text() == "original content"
 
