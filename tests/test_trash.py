@@ -1906,16 +1906,16 @@ class TestNewTrashLogAPI:
         assert test_file.exists(), "File must be restored to original path"
         assert test_file.read_text() == "original content"
 
-    def test_trashlog_events_is_dict(
+    def test_trashlog_event_map_is_trashventmap(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """TrashLog._events is a dict (dict-based storage structure check)."""
+        """TrashLog._event_map is a TrashEventMap instance (D-10, Phase 26)."""
         trash_dir = tmp_path / ".trash"
         monkeypatch.setenv("TRASH_DIR", str(trash_dir))
         module = _import_trash_module()
         log = module.TrashLog()
-        assert isinstance(log._events, dict), (
-            f"TrashLog._events must be a dict, got {type(log._events)}"
+        assert isinstance(log._event_map, module.TrashEventMap), (
+            f"TrashLog._event_map must be TrashEventMap, got {type(log._event_map)}"
         )
 
 
@@ -2168,3 +2168,117 @@ class TestInternalDictAPI:
         event = module.TrashEvent(path=tp, timestamp=1746000000000000000)
         d = event._to_dict()
         assert isinstance(d, dict) and "path" in d
+
+
+# ============================================================================
+# Phase 26: TrashEventMap (RED phase)
+# ============================================================================
+
+
+class TestTrashEventMap:
+    """D-05 to D-08 (Phase 26): TrashEventMap manages dict[TrashPath, list[TrashEvent]]
+    with sorted append and O(1) get_latest_trash_event."""
+
+    def test_trasheventmap_class_exists(self) -> None:
+        """module.TrashEventMap must exist after Phase 26 implementation."""
+        module = _import_trash_module()
+        assert hasattr(module, "TrashEventMap"), (
+            "TrashEventMap class must exist in trash module (D-05)"
+        )
+
+    def test_append_inserts_in_sorted_order(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """TrashEventMap.append() maintains sort by (timestamp, restore)."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        event_map = module.TrashEventMap()
+        path = module.TrashPath(tmp_path / "file.txt")
+        # Insert in reverse timestamp order to verify bisect sorts them
+        event_late = module.TrashEvent(path=path, timestamp=200, restore=False)
+        event_early = module.TrashEvent(path=path, timestamp=100, restore=False)
+        event_map.append(event_late)
+        event_map.append(event_early)
+        events = event_map._events[path]
+        assert events[0].timestamp < events[1].timestamp, (
+            f"events must be sorted by timestamp: {[e.timestamp for e in events]}"
+        )
+
+    def test_get_latest_trash_event_returns_last(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_latest_trash_event() returns the latest non-restore event."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        event_map = module.TrashEventMap()
+        path = module.TrashPath(tmp_path / "file.txt")
+        event1 = module.TrashEvent(path=path, timestamp=100, restore=False)
+        event2 = module.TrashEvent(path=path, timestamp=200, restore=False)
+        event_map.append(event1)
+        event_map.append(event2)
+        result = event_map.get_latest_trash_event(path)
+        assert result.timestamp == 200, (
+            f"expected latest timestamp 200, got {result.timestamp}"
+        )
+
+    def test_get_latest_raises_when_empty(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_latest_trash_event() raises ValueError when no events for path."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        event_map = module.TrashEventMap()
+        path = module.TrashPath(tmp_path / "no_such.txt")
+        with pytest.raises(ValueError, match=f"No trash entry found for {path}"):
+            event_map.get_latest_trash_event(path)
+
+    def test_get_latest_raises_when_restored(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_latest_trash_event() raises ValueError when latest event is restore."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        event_map = module.TrashEventMap()
+        path = module.TrashPath(tmp_path / "file.txt")
+        event_map.append(module.TrashEvent(path=path, timestamp=100, restore=False))
+        event_map.append(module.TrashEvent(path=path, timestamp=200, restore=True))
+        with pytest.raises(ValueError, match="most recent entry is a restore event"):
+            event_map.get_latest_trash_event(path)
+
+    def test_active_events_excludes_restored(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """active_events() skips paths whose latest event is restore=True."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        event_map = module.TrashEventMap()
+        path_a = module.TrashPath(tmp_path / "a.txt")
+        path_b = module.TrashPath(tmp_path / "b.txt")
+        # path_a: trashed only
+        event_map.append(module.TrashEvent(path=path_a, timestamp=100, restore=False))
+        # path_b: trashed then restored
+        event_map.append(module.TrashEvent(path=path_b, timestamp=100, restore=False))
+        event_map.append(module.TrashEvent(path=path_b, timestamp=200, restore=True))
+        active = list(event_map.active_events())
+        active_paths = [e.path for e in active]
+        assert path_a in active_paths, f"path_a must be active, got {active_paths}"
+        assert path_b not in active_paths, (
+            f"path_b must be excluded (restored), got {active_paths}"
+        )
+
+    def test_trashlog_event_map_is_trashventmap(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """TrashLog._event_map is a TrashEventMap instance (D-10, Phase 26)."""
+        trash_dir = tmp_path / ".trash"
+        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
+        module = _import_trash_module()
+        log = module.TrashLog()
+        assert isinstance(log._event_map, module.TrashEventMap), (
+            f"TrashLog._event_map must be TrashEventMap, got {type(log._event_map)}"
+        )
