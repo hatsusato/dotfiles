@@ -29,12 +29,6 @@ class TrashPath(Path):
     via parent.resolve(), but the filename's own symlink is preserved.
     """
 
-    def __new__(cls, *args: Any, **kwargs: Any) -> Self:
-        raw = Path(*args)
-        abs_path = raw.absolute()
-        normalized = abs_path.parent.resolve() / abs_path.name
-        return super().__new__(cls, str(normalized))
-
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         raw = Path(*args)
         abs_path = raw.absolute()
