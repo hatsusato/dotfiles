@@ -261,7 +261,6 @@ class TrashLog:
             return
         with open(self._metadata_path) as f:
             raw_lines = f.readlines()
-        total_lines = len(raw_lines)
         for lineno, line in enumerate(raw_lines, 1):
             line = line.strip()
             if not line:
@@ -270,10 +269,6 @@ class TrashLog:
                 event = TrashEvent.from_line(line)
                 self._event_map.append(event)
             except (JSONDecodeError, KeyError, ValueError) as e:
-                # Tolerate truncated final line only (crash leaves no trailing newline).
-                # A complete line ending with "\n" is not crash residue — always raise.
-                if lineno == total_lines and not raw_lines[-1].endswith("\n"):
-                    break
                 raise ValueError(
                     f"Malformed metadata entry at line {lineno}: {e}"
                 ) from e
