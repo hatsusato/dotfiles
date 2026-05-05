@@ -62,7 +62,10 @@ main() {
 	else
 		# Default: deploy common and environment-specific files
 		deploy_by_path "common"
-		deploy_by_path "${ENV_TYPE}"
+		# Only deploy ENV_TYPE-specific files if the directory exists (optional overrides)
+		if [[ -d "${DOTFILES_ROOT}/${ENV_TYPE}" ]]; then
+			deploy_by_path "${ENV_TYPE}"
+		fi
 	fi
 }
 

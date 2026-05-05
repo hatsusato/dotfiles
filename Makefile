@@ -27,6 +27,37 @@ DOTFILES_DIRS  := $(shell git ls-tree -rd --name-only HEAD:dotfiles/)
 .PHONY: $(DOTFILES_DIRS:%=deploy/%)
 .PHONY: $(DOTFILES_DIRS:%=deploy/%/)
 
+# --- Help ---
+
+help:
+	@echo "Test targets:"
+	@echo "  make test              — Run all tests (BATS + pytest)"
+	@echo "  make test/bash         — Run BATS shell tests"
+	@echo "  make test/python       — Run Python tests with pytest"
+	@echo ""
+	@echo "Lint targets:"
+	@echo "  make lint              — Lint all code (shell .sh files + Python)"
+	@echo "  make lint/bash         — Strict shellcheck on all .sh files"
+	@echo "  make lint/bashrc       — Basic shellcheck on .bashrc entry-points"
+	@echo "  make lint/python       — Lint Python code with ruff"
+	@echo "  make lint-strict       — Alias for lint/bash"
+	@echo "  make lint/FILE         — Lint specific shell file"
+	@echo "  make lint-strict/FILE  — Lint specific shell file with --external-sources"
+	@echo ""
+	@echo "Quality targets:"
+	@echo "  make type-check        — Type-check Python code (pyright strict)"
+	@echo "  make format            — Auto-format Python code (ruff)"
+	@echo ""
+	@echo "Deployment targets:"
+	@echo "  make deploy            — Deploy all dotfiles"
+	@echo "  make deploy/DIR        — Deploy specific directory"
+	@echo "  make deploy/FILE       — Deploy specific file"
+	@echo ""
+	@echo "Tracked files:"
+	@echo "  Shell scripts ($(words $(SHELL_FILES)) total): $(SHELL_FILES)"
+	@echo "  Bashrc files  ($(words $(BASHRC_FILES)) total): $(BASHRC_FILES)"
+	@echo "  Dotfiles      ($(words $(DOTFILES_FILES)) total): $(DOTFILES_FILES)"
+
 # --- Test targets ---
 
 test: test/bash test/python
@@ -62,37 +93,6 @@ type-check:
 format:
 	uv run ruff format dotfiles/
 	uv run ruff check --fix dotfiles/
-
-# --- Help ---
-
-help:
-	@echo "Test targets:"
-	@echo "  make test              — Run all tests (BATS + pytest)"
-	@echo "  make test/bash         — Run BATS shell tests"
-	@echo "  make test/python       — Run Python tests with pytest"
-	@echo ""
-	@echo "Lint targets:"
-	@echo "  make lint              — Lint all code (shell .sh files + Python)"
-	@echo "  make lint/bash         — Strict shellcheck on all .sh files"
-	@echo "  make lint/bashrc       — Basic shellcheck on .bashrc entry-points"
-	@echo "  make lint/python       — Lint Python code with ruff"
-	@echo "  make lint-strict       — Alias for lint/bash"
-	@echo "  make lint/FILE         — Lint specific shell file"
-	@echo "  make lint-strict/FILE  — Lint specific shell file with --external-sources"
-	@echo ""
-	@echo "Quality targets:"
-	@echo "  make type-check        — Type-check Python code (pyright strict)"
-	@echo "  make format            — Auto-format Python code (ruff)"
-	@echo ""
-	@echo "Deployment targets:"
-	@echo "  make deploy            — Deploy all dotfiles"
-	@echo "  make deploy/DIR        — Deploy specific directory"
-	@echo "  make deploy/FILE       — Deploy specific file"
-	@echo ""
-	@echo "Tracked files:"
-	@echo "  Shell scripts ($(words $(SHELL_FILES)) total): $(SHELL_FILES)"
-	@echo "  Bashrc files  ($(words $(BASHRC_FILES)) total): $(BASHRC_FILES)"
-	@echo "  Dotfiles      ($(words $(DOTFILES_FILES)) total): $(DOTFILES_FILES)"
 
 # --- Per-file lint rules ---
 
