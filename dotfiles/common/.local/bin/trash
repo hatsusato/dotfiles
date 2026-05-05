@@ -43,7 +43,7 @@ class TrashPath(Path):
 
 @dataclass
 class TrashEvent:
-    """Single event in trash-log.jsonl — immutable data container."""
+    """Single event in trash-log.jsonl."""
 
     path: TrashPath
     timestamp: int = 0  # Epoch nanoseconds when trashed (= filename in .trash/)
@@ -98,7 +98,7 @@ class TrashEvent:
 class TrashLog:
     """Manages trash-log.jsonl as append-only event log.
 
-    Loads entire event history into memory at init for fast queries.
+    Call load() before querying events (active_events, get_latest_trash_event).
     Stores events as dict[TrashPath, list[TrashEvent]] keyed by path for O(1) lookup.
     Provides active_events(), get_latest_trash_event(), get_trash_path(),
     execute_event(), and append_event().

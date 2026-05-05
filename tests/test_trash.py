@@ -849,6 +849,22 @@ class TestRestore:
         assert link.is_symlink()
         assert link.readlink() == target
 
+    def test_restore_already_restored_raises(
+        self, mock_trash_env: MockTrashEnv
+    ) -> None:
+        """Restoring a file that has already been restored returns non-zero exit."""
+        home = Path(mock_trash_env["home"])
+        test_file = home / "already_restored.txt"
+        test_file.write_text("content")
+
+        run_trash(str(test_file))  # trash it
+        run_restore(str(test_file))  # restore it
+
+        # Second restore: file is back, no trash entry remains
+        result = run_restore(str(test_file))
+        assert result.returncode != 0
+        assert result.stderr != ""
+
 
 class TestUIDGIDRemoval:
     """TEST-11, TEST-12, TEST-13: Validate uid/gid removal and mode restoration."""
