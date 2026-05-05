@@ -149,19 +149,6 @@ class TrashEventMap:
             )
         return latest_event
 
-    def active_events(self) -> Iterator[TrashEvent]:
-        """Yield currently-trashed events (latest event per path has restore=False).
-
-        Delegates to get_latest_trash_event() which uses sort order
-        (by timestamp, then restore flag) — independent of insertion order.
-        Silently skips paths whose latest event is a restore event (not in trash).
-        """
-        for path in self.keys():
-            try:
-                yield self.get_latest_trash_event(path)
-            except ValueError:
-                continue
-
 
 class TrashLog:
     """Manages trash-log.jsonl as append-only event log.
@@ -290,15 +277,6 @@ class TrashLog:
                 raise ValueError(
                     f"Malformed metadata entry at line {lineno}: {e}"
                 ) from e
-
-    def get_latest_trash_event(self, path: TrashPath) -> TrashEvent:
-        """Get the latest non-restore TrashEvent for a given path.
-
-        Delegates to TrashEventMap.get_latest_trash_event() for O(1) lookup.
-        Raises ValueError if no events exist for path, or if the latest
-        event is a restore event (meaning the file is not currently in trash).
-        """
-        return self._event_map.get_latest_trash_event(path)
 
     def active_events(self) -> Iterator[TrashEvent]:
         """Yield currently-trashed events (latest event per path has restore=False).
