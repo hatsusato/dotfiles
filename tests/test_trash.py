@@ -1787,7 +1787,7 @@ class TestNewTrashLogAPI:
         trash_event = module.TrashEvent(path=module.TrashPath(test_file))
         log.execute_event(trash_event, recursive=False)
         assert not test_file.exists()
-        restore_event = log.get_latest_trash_event(
+        restore_event = log._event_map.get_latest_trash_event(
             module.TrashPath(test_file)
         ).as_restore_event()
         log.execute_event(restore_event, recursive=False)
@@ -2140,12 +2140,10 @@ class TestTrashEventMap:
         # path_b: trashed then restored
         event_map.append(module.TrashEvent(path=path_b, timestamp=100, restore=False))
         event_map.append(module.TrashEvent(path=path_b, timestamp=200, restore=True))
-        active = list(event_map.active_events())
-        active_paths = [e.path for e in active]
-        assert path_a in active_paths, f"path_a must be active, got {active_paths}"
-        assert path_b not in active_paths, (
-            f"path_b must be excluded (restored), got {active_paths}"
-        )
+        # Test: get_latest_trash_event for each path to verify filtering
+        assert event_map.get_latest_trash_event(path_a).path == path_a
+        with pytest.raises(ValueError):
+            event_map.get_latest_trash_event(path_b)
 
     def test_trashlog_event_map_is_trashventmap(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
