@@ -37,7 +37,7 @@ def run_trash(*args: str) -> "subprocess.CompletedProcess[str]":
 
 
 # ============================================================================
-# Category 1: Single File Deletion (TOOL-01, D-05, D-17)
+# Category 1: Single File Deletion (TOOL-01, D-05)
 # ============================================================================
 
 
@@ -136,7 +136,7 @@ class TestMultipleFileArguments:
 
 
 # ============================================================================
-# Category 3: Force Flag (-f, D-06, D-07, D-33, D-34)
+# Category 3: Force Flag (-f, D-06, D-07)
 # ============================================================================
 
 
@@ -184,7 +184,7 @@ class TestForceFlag:
 
 
 # ============================================================================
-# Category 4: Recursive Flag (-r, D-10, D-11, D-12, D-13, D-14)
+# Category 4: Recursive Flag (-r)
 # ============================================================================
 
 
@@ -264,7 +264,7 @@ class TestRecursiveFlag:
 
 
 # ============================================================================
-# Category 5: Verbose Flag (-v, D-23, D-25, D-28)
+# Category 5: Verbose Flag (-v)
 # ============================================================================
 
 
@@ -297,7 +297,7 @@ class TestVerboseFlag:
 
 
 # ============================================================================
-# Category 6: Help Flag (-h, D-24, D-26)
+# Category 6: Help Flag (-h)
 # ============================================================================
 
 
@@ -335,7 +335,7 @@ class TestHelpFlag:
 
 
 # ============================================================================
-# Category 7: Error Handling (D-08, D-09, D-29, D-30, D-31)
+# Category 7: Error Handling
 # ============================================================================
 
 
@@ -389,7 +389,7 @@ class TestErrorHandling:
 
 
 # ============================================================================
-# Category 8: Edge Cases (D-32, D-35, D-36)
+# Category 8: Edge Cases
 # ============================================================================
 
 
@@ -447,7 +447,7 @@ class TestEdgeCases:
 
 
 # ============================================================================
-# Category 9: Metadata Format (D-18, D-19, D-21)
+# Category 9: Metadata Format
 # ============================================================================
 
 
@@ -510,7 +510,7 @@ class TestMetadataFormat:
 
 
 # ============================================================================
-# Category 10: Exit Codes (D-09, D-31)
+# Category 10: Exit Codes
 # ============================================================================
 
 
@@ -583,7 +583,7 @@ class TestCombinedFlags:
 
 
 # ============================================================================
-# Category 12: Script Existence (NOIMPL-001, NOIMPL-002)
+# Category 12: Script Existence
 # ============================================================================
 
 
@@ -600,7 +600,7 @@ class TestScriptExistence:
 
 
 # ============================================================================
-# Category 13: Restore Command (TOOL-01 through TOOL-14)
+# Category 13: Restore Command (--restore flag)
 # ============================================================================
 
 
@@ -937,7 +937,7 @@ class TestUIDGIDRemoval:
 
 
 # ============================================================================
-# Phase 11 (now xfail): TrashEvent legacy contract tests
+# Legacy: TrashEvent 5-field contract (xfail since Phase 13 refactoring)
 # ============================================================================
 # TrashEvent was simplified in Phase 13 to 3 fields {path, timestamp, restore}.
 # These tests check the old 5-field contract (hash, path, type, timestamp, restore)
@@ -963,120 +963,8 @@ def _import_trash_module() -> types.ModuleType:
     return module
 
 
-class TestTrashEvent:
-    """Unit tests for the TrashEvent dataclass (D-03).
-
-    TrashEvent represents a single entry in trash-log.jsonl.
-    Fields: hash, path, type ("file"|"dir"|"symlink"), timestamp (epoch int),
-    restore (bool).
-    """
-
-    pytestmark = pytest.mark.xfail(
-        reason="Phase 13: TrashEvent simplified to 3 fields; hash/type removed",
-        strict=False,
-    )
-
-    def test_trash_event_instantiation_with_all_fields(self) -> None:
-        """TrashEvent can be created with all required fields."""
-        trash = _import_trash_module()
-        event = trash.TrashEvent(
-            hash="abc123",
-            path="/home/user/file.txt",
-            type="file",
-            timestamp=1700000000,
-            restore=False,
-        )
-        assert event.hash == "abc123"
-        assert event.path == "/home/user/file.txt"
-        assert event.type == "file"
-        assert event.timestamp == 1700000000
-        assert event.restore is False
-
-    def test_trash_event_to_dict_serialization(self) -> None:
-        """TrashEvent.to_dict() returns a dict with all required keys."""
-        trash = _import_trash_module()
-        event = trash.TrashEvent(
-            hash="def456",
-            path="/tmp/mydir",
-            type="dir",
-            timestamp=1700000001,
-            restore=True,
-        )
-        d = event.to_dict()
-        assert isinstance(d, dict)
-        assert d["hash"] == "def456"
-        assert d["path"] == "/tmp/mydir"
-        assert d["type"] == "dir"
-        assert d["timestamp"] == 1700000001
-        assert d["restore"] is True
-
-    def test_trash_event_from_dict_deserialization(self) -> None:
-        """TrashEvent.from_dict() creates an equivalent instance from a dict."""
-        trash = _import_trash_module()
-        data = {
-            "hash": "ghi789",
-            "path": "/home/user/link",
-            "type": "symlink",
-            "timestamp": 1700000002,
-            "restore": False,
-        }
-        event = trash.TrashEvent.from_dict(data)
-        assert event.hash == "ghi789"
-        assert event.path == "/home/user/link"
-        assert event.type == "symlink"
-        assert event.timestamp == 1700000002
-        assert event.restore is False
-
-    def test_trash_event_round_trip_serialization(self) -> None:
-        """TrashEvent -> to_dict() -> from_dict() preserves all fields."""
-        trash = _import_trash_module()
-        original = trash.TrashEvent(
-            hash="round123",
-            path="/data/archive.tar.gz",
-            type="file",
-            timestamp=1700000003,
-            restore=True,
-        )
-        restored = trash.TrashEvent.from_dict(original.to_dict())
-        assert restored.hash == original.hash
-        assert restored.path == original.path
-        assert restored.type == original.type
-        assert restored.timestamp == original.timestamp
-        assert restored.restore == original.restore
-
-    def test_trash_event_invalid_type_raises_valueerror(self) -> None:
-        """TrashEvent.from_dict() raises ValueError for invalid type field."""
-        trash = _import_trash_module()
-        data = {
-            "hash": "bad000",
-            "path": "/tmp/file",
-            "type": "invalid",
-            "timestamp": 1700000004,
-            "restore": False,
-        }
-        try:
-            trash.TrashEvent.from_dict(data)
-            pytest.fail("Expected ValueError for invalid type")
-        except ValueError:
-            pass
-
-    def test_trash_event_default_values(self) -> None:
-        """TrashEvent has sensible defaults: timestamp=0, restore=False."""
-        trash = _import_trash_module()
-        # Instantiate with only required fields; defaults apply
-        event = trash.TrashEvent(
-            hash="defaults",
-            path="/tmp/default_test.txt",
-            type="file",
-        )
-        # timestamp should default to 0 or a recent epoch (implementation choice)
-        assert isinstance(event.timestamp, int)
-        # restore should default to False
-        assert event.restore is False
-
-
 # ============================================================================
-# Phase 13 Wave 0 (RED): D-01 to D-16
+# Phase 13: Epoch naming, tar removal, simplified TrashEvent
 # ============================================================================
 
 
@@ -1497,7 +1385,7 @@ class TestUnusedMethodsRemoved:
 
 
 # ============================================================================
-# Phase 18: TrashConfig as namespace, top-level functions, TrashLog consolidation
+# TrashConfig: argparse Namespace subclass, parse_args() pattern
 # ============================================================================
 
 
@@ -1908,7 +1796,7 @@ class TestNewTrashLogAPI:
 
 
 # ============================================================================
-# Phase 24: TrashPath refactoring (RED phase)
+# Phase 24: TrashPath — Path subclass with absolute normalization
 # ============================================================================
 
 
@@ -2159,7 +2047,7 @@ class TestInternalDictAPI:
 
 
 # ============================================================================
-# Phase 26: TrashEventMap (RED phase)
+# Phase 26: TrashEventMap — sorted append, O(1) latest lookup
 # ============================================================================
 
 
