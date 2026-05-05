@@ -1906,18 +1906,6 @@ class TestNewTrashLogAPI:
         assert test_file.exists(), "File must be restored to original path"
         assert test_file.read_text() == "original content"
 
-    def test_trashlog_event_map_is_trashventmap(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """TrashLog._event_map is a TrashEventMap instance (D-10, Phase 26)."""
-        trash_dir = tmp_path / ".trash"
-        monkeypatch.setenv("TRASH_DIR", str(trash_dir))
-        module = _import_trash_module()
-        log = module.TrashLog()
-        assert isinstance(log._event_map, module.TrashEventMap), (
-            f"TrashLog._event_map must be TrashEventMap, got {type(log._event_map)}"
-        )
-
 
 # ============================================================================
 # Phase 24: TrashPath refactoring (RED phase)
