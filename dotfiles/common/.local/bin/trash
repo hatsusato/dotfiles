@@ -24,21 +24,21 @@ class TrashPath(Path):
     """Absolute, normalized path for trash operations.
 
     Always represents an absolute path: TrashPath(relative) is resolved
-    against cwd at construction time via Path.absolute() (symlinks preserved).
+    against cwd at construction time. Parent directory symlinks are resolved
+    via parent.resolve(), but the filename's own symlink is preserved.
     """
 
     def __new__(cls, *args: Any, **kwargs: Any) -> Self:
         raw = Path(*args)
-        abs_str = str(raw.absolute())
-        obj = object.__new__(cls)
-        obj._raw_paths = [abs_str]  # type: ignore[misc]
-        return obj
+        abs_path = raw.absolute()
+        normalized = abs_path.parent.resolve() / abs_path.name
+        return super().__new__(cls, str(normalized))
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        # _raw_paths is already set in __new__ to the absolute path string.
-        # Skip super().__init__ to prevent PurePath.__init__ from overwriting
-        # _raw_paths with the original (possibly relative) args.
-        pass
+        raw = Path(*args)
+        abs_path = raw.absolute()
+        normalized = abs_path.parent.resolve() / abs_path.name
+        super().__init__(str(normalized))
 
 
 @dataclass
