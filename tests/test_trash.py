@@ -1977,6 +1977,38 @@ class TestTrashPath:
         assert tp == Path("/tmp/x"), "TrashPath('/tmp/x') must equal Path('/tmp/x')"
 
 
+class TestTrashPathSuperNew:
+    """D-01 to D-03 (Phase 26): TrashPath uses super().__new__ + parent.resolve
+    for normalization."""
+
+    def test_trashpath_resolves_parent_symlink(self, tmp_path: Path) -> None:
+        """TrashPath resolves parent directory symlinks via parent.resolve()."""
+
+        real_dir = tmp_path / "real"
+        real_dir.mkdir()
+        sym_dir = tmp_path / "sym"
+        sym_dir.symlink_to(real_dir)
+        module = _import_trash_module()
+        tp = module.TrashPath(sym_dir / "file.txt")
+        assert str(tp).startswith(str(real_dir)), (
+            f"parent symlink must be resolved: expected prefix {real_dir!r}, got {tp!r}"
+        )
+
+    def test_trashpath_preserves_filename(self, tmp_path: Path) -> None:
+        """TrashPath preserves the filename itself (does not resolve it)."""
+        module = _import_trash_module()
+        tp = module.TrashPath(tmp_path / "mylink.txt")
+        assert tp.name == "mylink.txt", f"filename must be preserved, got {tp.name!r}"
+
+    def test_trashpath_no_type_ignore_misc(self) -> None:
+        """TrashPath.__new__ must not use # type: ignore[misc] after Phase 26."""
+        trash_script = Path(__file__).parent.parent / "dotfiles/common/.local/bin/trash"
+        source = trash_script.read_text()
+        assert "type: ignore[misc]" not in source, (
+            "type: ignore[misc] must be removed from TrashPath (D-01)"
+        )
+
+
 class TestTrashEventTrashPath:
     """D-10, D-11 (Phase 24): TrashEvent.path is TrashPath; timestamp defaults to 0."""
 
