@@ -5,6 +5,7 @@ Moves files and directories to ~/.trash/ (configurable via TRASH_DIR environment
 variable) and records metadata about each operation in JSON Lines format for recovery.
 """
 
+import bisect
 import json
 import os
 import shutil
@@ -95,11 +96,53 @@ class TrashEvent:
         return dataclass_replace(self, timestamp=0, restore=False)
 
 
+class TrashEventMap:
+    """Manages dict[TrashPath, list[TrashEvent]] with sorted append.
+
+    append() maintains sort order via bisect.insort.
+    get_latest_trash_event() returns events[-1] in O(1).
+    active_events() iterates over currently-trashed events.
+    """
+
+    def __init__(self) -> None:
+        self._events: dict[TrashPath, list[TrashEvent]] = {}
+
+    def append(self, event: TrashEvent) -> None:
+        """Insert event maintaining sort order by (timestamp, restore)."""
+        if event.path not in self._events:
+            self._events[event.path] = []
+        bisect.insort(
+            self._events[event.path],
+            event,
+            key=lambda e: (e.timestamp, e.restore),
+        )
+
+    def get_latest_trash_event(self, path: TrashPath) -> TrashEvent:
+        """Get latest non-restore TrashEvent for path in O(1)."""
+        events_for_path = self._events.get(path, [])
+        if not events_for_path:
+            raise ValueError(f"No trash entry found for {path}")
+        latest_event = events_for_path[-1]
+        if latest_event.restore:
+            raise ValueError(
+                f"No trash entry found for {path}: most recent entry is a restore event"
+            )
+        return latest_event
+
+    def active_events(self) -> Iterator[TrashEvent]:
+        """Return currently-trashed events (latest per path is not a restore event)."""
+        for path in self._events:
+            try:
+                yield self.get_latest_trash_event(path)
+            except ValueError:
+                continue
+
+
 class TrashLog:
     """Manages trash-log.jsonl as append-only event log.
 
     Call load() before querying events (active_events, get_latest_trash_event).
-    Stores events as dict[TrashPath, list[TrashEvent]] keyed by path for O(1) lookup.
+    Stores events in a TrashEventMap for sorted append and O(1) latest lookup.
     Provides active_events(), get_latest_trash_event(), get_trash_path(),
     execute_event(), and append_event().
     """
@@ -108,19 +151,11 @@ class TrashLog:
         """Initialize TrashLog; defaults to TRASH_DIR env or ~/.trash."""
         self._trash_dir = Path(os.getenv("TRASH_DIR", Path.home() / ".trash"))
         self._metadata_path = self._trash_dir / "trash-log.jsonl"
-        self._events: dict[TrashPath, list[TrashEvent]] = {}
+        self._event_map: TrashEventMap = TrashEventMap()
 
     def get_latest_trash_event(self, path: TrashPath) -> TrashEvent:
         """Get the latest non-restore TrashEvent for a given path."""
-        events_for_path = self._events.get(path, [])
-        if not events_for_path:
-            raise ValueError(f"No trash entry found for {path}")
-        latest_event = max(events_for_path, key=lambda e: (e.timestamp, e.restore))
-        if latest_event.restore:
-            raise ValueError(
-                f"No trash entry found for {path}: most recent entry is a restore event"
-            )
-        return latest_event
+        return self._event_map.get_latest_trash_event(path)
 
     def get_trash_path(self, event: TrashEvent) -> Path:
         """Return unique path in trash_dir for event; mutates event.timestamp.
@@ -190,9 +225,9 @@ class TrashLog:
         Tolerates a single truncated final line (crash-during-write pattern).
         Raises ValueError on malformed lines that are not at end-of-file.
 
-        Note: Changes to _events must be persisted via append_event().
+        Note: Changes to _event_map must be persisted via append_event().
         """
-        self._events = {}
+        self._event_map = TrashEventMap()
         self._trash_dir.mkdir(parents=True, exist_ok=True)
         if not self._metadata_path.exists():
             return
@@ -205,7 +240,7 @@ class TrashLog:
                 continue
             try:
                 event = TrashEvent.from_line(line)
-                self._events.setdefault(event.path, []).append(event)
+                self._event_map.append(event)
             except (JSONDecodeError, KeyError, ValueError) as e:
                 # Tolerate truncated final line only (crash leaves no trailing newline).
                 # A complete line ending with "\n" is not crash residue — always raise.
@@ -221,20 +256,14 @@ class TrashLog:
         Uses timestamp-based filtering (max timestamp per path), independent of
         append order. Each path's latest event is checked for restore=False.
         """
-        for path in self._events:
-            # Use (timestamp, restore) tiebreaker: restore events sort after
-            # trash events at equal timestamps.
-            try:
-                yield self.get_latest_trash_event(path)
-            except ValueError:
-                continue
+        return self._event_map.active_events()
 
     def append_event(self, event: TrashEvent) -> None:
         """Add event to memory and sync to disk immediately."""
         with open(self._metadata_path, "a") as f:
             f.write(event.to_line())
             os.fsync(f.fileno())
-        self._events.setdefault(event.path, []).append(event)
+        self._event_map.append(event)
 
 
 class TrashConfig(Namespace):
