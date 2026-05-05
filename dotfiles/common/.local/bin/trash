@@ -112,7 +112,11 @@ class TrashEventMap:
         )
 
     def get_latest_trash_event(self, path: TrashPath) -> TrashEvent:
-        """Get latest non-restore TrashEvent for path in O(1)."""
+        """Return the latest TrashEvent for path in O(1).
+
+        Raises ValueError if no events exist for path, or if the latest
+        event is a restore event (meaning the file is not currently in trash).
+        """
         events_for_path = self._events.get(path, [])
         if not events_for_path:
             raise ValueError(f"No trash entry found for {path}")
