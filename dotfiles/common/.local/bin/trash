@@ -194,26 +194,27 @@ class TrashLog:
                 )
             return source_path, event.path
         else:
-            if not os.path.lexists(event.path):
-                raise FileNotFoundError(f"No such file or directory: {event.path}")
-            if Path.cwd().is_relative_to(event.path.resolve()):
-                raise ValueError(f"Cannot trash parent directory: {event.path}")
-            if event.path.is_dir() and not recursive:
+            source_path = event.path
+            if not os.path.lexists(source_path):
+                raise FileNotFoundError(f"No such file or directory: {source_path}")
+            if source_path.is_dir() and not recursive:
                 raise ValueError(
-                    f"Cannot trash directory without -r flag: {event.path}"
+                    f"Cannot trash directory without -r flag: {source_path}"
                 )
-            return event.path, self.get_trash_path(event)
+            if Path.cwd().is_relative_to(source_path):
+                raise ValueError(f"Cannot trash parent directory: {source_path}")
+            return source_path, self.get_trash_path(event)
 
     def execute_event(self, event: TrashEvent, recursive: bool) -> None:
         """Execute the given TrashEvent, dispatching to trash or restore as needed."""
+        source_path, target_path = self._execute_check(event, recursive)
         if event.restore:
-            if os.path.lexists(event.path):
+            if os.path.lexists(target_path):
                 print(
-                    f"trash: {event.path} exists; backing up to trash...",
+                    f"trash: {target_path} exists; backing up to trash...",
                     file=sys.stderr,
                 )
                 self.execute_event(event.as_backup_event(), True)
-        source_path, target_path = self._execute_check(event, recursive)
         target_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(source_path, target_path)
         self.append_event(event)
@@ -291,7 +292,7 @@ class TrashConfig(Namespace):
         epilog = [
             "Examples:",
             "  trash file1.txt",
-            "  trash file1 file2 directory/",
+            "  trash file1 file2",
             "  trash -r important_dir/",
             "  trash -v -r backup.tar.gz",
             "  trash -f old_nonexistent_file",
