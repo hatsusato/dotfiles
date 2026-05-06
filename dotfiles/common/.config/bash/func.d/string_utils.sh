@@ -34,5 +34,8 @@ str_trim() {
 str_contains() {
 	local haystack="${1}"
 	local needle="${2}"
-	[[ "${haystack}" == *"${needle}"* ]]
+	case "${haystack}" in
+	*"${needle}"*) return 0 ;;
+	*) return 1 ;;
+	esac
 }
