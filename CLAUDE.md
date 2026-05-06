@@ -232,9 +232,32 @@ This repository is a personal dotfiles deployment system for Linux, WSL, and Git
 - **Development dependencies (testing, linting, type-checking):** pytest, ruff, pyright managed via uv in pyproject.toml [project.optional-dependencies.dev]. Install via: `uv sync`. Run via: `uv run pytest`, `uv run ruff`, `uv run pyright`.
   - Rationale: Testing and code quality tools are development-only; not part of deployed artifacts
 
+### Design-First Rule (for multi-class features)
+
+Before writing any test or implementation code for a feature that involves multiple interacting classes, define a design sketch and get user approval:
+
+1. **All classes** — names, fields, key methods
+2. **Data flow** — how data moves between classes (e.g., `main() → Config → Event → Log`)
+3. **Key invariants** — assumptions the code relies on (e.g., "path is always absolute after construction")
+4. **Persistence format** — what is stored and how (e.g., JSON Lines, one event per line)
+
+**Why:** Discovering a missing abstraction (like a `TrashPath` class) in phase 24 of 29 forces a full rewrite of everything that came before. A 10-minute design sketch prevents 10+ remediation phases.
+
+**Scope guidance:** Group related classes into one phase rather than one class per phase. Prefer feature-boundary splits (e.g., "trash a file", "list trashed files", "restore a file") over class-boundary splits.
+
+### Minimum Viable Slice First
+
+For new features, implement the simplest complete end-to-end path first — even if the code is rough — before refining internals.
+
+**Example:** For a trash command, make `trash file` move the file and log it (all classes rough) before perfecting any single class. This surfaces architectural gaps early, when they are cheap to fix.
+
+**Rule:** A vertical slice that works end-to-end takes priority over a single class that is perfect in isolation.
+
 ### TDD Methodology
 
 Commits follow Red → Green cycles: tests are written first (failing), then implementation is added to make them pass. When adding features, write the BATS test first.
+
+For straightforward tasks, RED and GREEN can be combined into one phase to avoid overhead. Split into separate phases only when the test surface is large enough to warrant independent review.
 
 Commit message convention: `type(phase-step): description (TEST-ID)`
 
