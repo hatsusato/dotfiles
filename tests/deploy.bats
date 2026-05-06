@@ -476,3 +476,108 @@ _run_log_fn() {
 	assert_output --partial "[WARN]"
 	refute_output --partial "[INFO]"
 }
+
+# ===========================================================================
+# INTG-01 through INTG-08: ENV_TYPE validation and deploy.sh integration
+#
+# These tests define the contract for deploy.sh's ENV_TYPE requirement (D-07)
+# and copy_file() integration with safe_delete() (D-03).
+#
+# Phase 30 requirement: deploy.sh must exit 1 if ENV_TYPE is not set.
+# deploy.sh must NOT source lib/env-detect.sh (D-08: lib/ deleted).
+# copy_file() must call safe_delete() before overwriting (D-04).
+# ===========================================================================
+
+@test "INTG-01: deploy.sh exits with code 1 if ENV_TYPE not set" {
+	# D-07: ENV_TYPE must be pre-set by bootstrap.sh; deploy.sh fails if missing
+	run env -u ENV_TYPE HOME="${BATS_TEST_TMPDIR}/home" \
+		TRASH_DIR="${BATS_TEST_TMPDIR}/trash" \
+		"${BASH_BIN}" "${DEPLOY}"
+	assert_failure
+}
+
+@test "INTG-02: deploy.sh error message mentions ENV_TYPE when missing" {
+	# D-07: clear error message so user knows bootstrap.sh must pre-set ENV_TYPE
+	run env -u ENV_TYPE HOME="${BATS_TEST_TMPDIR}/home" \
+		TRASH_DIR="${BATS_TEST_TMPDIR}/trash" \
+		"${BASH_BIN}" "${DEPLOY}" 2>&1
+	assert_output --partial "ENV_TYPE"
+}
+
+@test "INTG-03: deploy.sh does not reference lib/env-detect.sh at all" {
+	# D-08: lib/ is deleted; deploy.sh must not reference env-detect.sh in any way
+	# Verify deploy.sh source code does not contain any reference to env-detect.sh
+	# This covers both source/. and bash execution patterns.
+	# Phase 30 contract: no lib/ references allowed in deploy.sh
+	run grep -q 'env-detect' "${DEPLOY}"
+	assert_failure  # grep must NOT find a match — no env-detect.sh reference
+}
+
+@test "INTG-04: copy_file() calls safe_delete() before overwriting" {
+	# D-04: copy_file() must backup existing file before overwrite
+	mkdir -p "${BATS_TEST_TMPDIR}/home/.config/git"
+	echo "old content" >"${BATS_TEST_TMPDIR}/home/.config/git/config"
+
+	run env HOME="${BATS_TEST_TMPDIR}/home" ENV_TYPE="linux" \
+		TRASH_DIR="${BATS_TEST_TMPDIR}/trash" \
+		"${BASH_BIN}" "${DEPLOY}"
+	assert_success
+
+	# Destination must have new content (not old content)
+	run grep -q "old content" "${BATS_TEST_TMPDIR}/home/.config/git/config"
+	assert_failure
+
+	# Backup must exist in TRASH_DIR
+	assert [ -d "${BATS_TEST_TMPDIR}/trash" ]
+	local backup_count
+	backup_count=$(find "${BATS_TEST_TMPDIR}/trash" -maxdepth 1 -type f ! -name 'metadata.jsonl' | wc -l)
+	assert [ "${backup_count}" -ge 1 ]
+}
+
+@test "INTG-05: full deploy run with ENV_TYPE=linux copies common/ files" {
+	# D-07: ENV_TYPE=linux triggers common/ deploy
+	run env HOME="${BATS_TEST_TMPDIR}/home" ENV_TYPE="linux" \
+		TRASH_DIR="${BATS_TEST_TMPDIR}/trash" \
+		"${BASH_BIN}" "${DEPLOY}"
+	assert_success
+
+	# At minimum, .config/git/config (from common/) must be deployed
+	assert [ -f "${BATS_TEST_TMPDIR}/home/.config/git/config" ]
+}
+
+@test "INTG-06: full deploy run skips linux/ directory if it does not exist" {
+	# Phase 30: ENV_TYPE-specific dir is optional; deploy succeeds without it
+	# (Existing behavior from deploy.sh: if [[ -d "${DOTFILES_ROOT}/${ENV_TYPE}" ]])
+	run env HOME="${BATS_TEST_TMPDIR}/home" ENV_TYPE="nonexistent_env" \
+		TRASH_DIR="${BATS_TEST_TMPDIR}/trash" \
+		"${BASH_BIN}" "${DEPLOY}"
+	assert_success
+}
+
+@test "INTG-07: backup failures in copy_file() cause deploy to exit with code 1" {
+	# D-03: fatal error — backup failure must halt entire deploy
+	mkdir -p "${BATS_TEST_TMPDIR}/home/.config/git"
+	echo "old content" >"${BATS_TEST_TMPDIR}/home/.config/git/config"
+
+	# Create TRASH_DIR as unwritable to force backup failure
+	mkdir -p "${BATS_TEST_TMPDIR}/trash"
+	chmod 000 "${BATS_TEST_TMPDIR}/trash"
+
+	run env HOME="${BATS_TEST_TMPDIR}/home" ENV_TYPE="linux" \
+		TRASH_DIR="${BATS_TEST_TMPDIR}/trash" \
+		"${BASH_BIN}" "${DEPLOY}"
+
+	# Restore permissions for BATS_TEST_TMPDIR cleanup
+	chmod 755 "${BATS_TEST_TMPDIR}/trash"
+	assert_failure
+}
+
+@test "INTG-08: all file operations logged when LOG_LEVEL=info" {
+	# D-06: log_info called for each copy operation when LOG_LEVEL=info
+	run env HOME="${BATS_TEST_TMPDIR}/home" ENV_TYPE="linux" \
+		TRASH_DIR="${BATS_TEST_TMPDIR}/trash" LOG_LEVEL="info" \
+		"${BASH_BIN}" "${DEPLOY}" 2>&1
+	assert_success
+	# At minimum, the git config copy must be logged
+	assert_output --partial "Copied"
+}
