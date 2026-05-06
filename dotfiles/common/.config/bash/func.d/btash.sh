@@ -15,8 +15,19 @@ btash() {
 		return 1
 	fi
 
+	# Validate runtime directory exists before trying to create socket dir
+	local runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+	if [[ ! -d "${runtime_dir}" ]]; then
+		echo "Error: Runtime directory does not exist: ${runtime_dir}" >&2
+		echo "Hint: Set XDG_RUNTIME_DIR or ensure /run/user exists" >&2
+		return 1
+	fi
+
 	# Ensure socket directory exists
-	mkdir -p "${socket_dir}" || return 1
+	mkdir -p "${socket_dir}" || {
+		echo "Error: Failed to create socket directory: ${socket_dir}" >&2
+		return 1
+	}
 
 	# List existing sessions using nullglob to handle empty directory safely
 	local sessions=()
