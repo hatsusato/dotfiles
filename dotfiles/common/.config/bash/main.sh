@@ -4,6 +4,18 @@
 
 _output_modules() {
 	local dir="${1}"
+
+	# Validate directory parameter
+	if [[ -z "${dir}" ]]; then
+		echo "ERROR: _output_modules called with empty directory parameter" >&2
+		return 1
+	fi
+
+	if [[ ! -d "${dir}" ]]; then
+		# Non-fatal: directory doesn't exist yet (OK in fresh setup)
+		return 0
+	fi
+
 	local module
 	shopt -s nullglob
 	for module in "${dir}"/*.sh; do
@@ -19,6 +31,7 @@ _output_modules() {
 		fi
 	done
 	shopt -u nullglob
+	return 0
 }
 
 main() {
