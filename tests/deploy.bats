@@ -376,3 +376,103 @@ _run_safe_delete() {
 	# Path must start with / (absolute path)
 	grep -qE '"path":"/' "${trash_dir}/metadata.jsonl"
 }
+
+# ===========================================================================
+# LOG-01 through LOG-09: Logging function contract
+#
+# These tests define the contract for log_error, log_info, log_warn, log_debug
+# functions in the refactored deploy.sh (D-06: inline logging with LOG_LEVEL).
+#
+# Phase 30 requirement: deploy.sh must define these 4 log functions inline.
+# Log output goes to stderr. LOG_LEVEL controls which levels are shown.
+# Default LOG_LEVEL is "warn" (warn + error visible).
+#
+# Level hierarchy (lowest to highest): debug < info < warn < error
+# A message at level X is shown when LOG_LEVEL <= X.
+# ===========================================================================
+
+# Helper: run a log function from deploy.sh in isolation.
+# Captures both stdout and stderr for assertion.
+_run_log_fn() {
+	local fn="${1}" msg="${2}" log_level="${3:-warn}"
+	run env HOME="${BATS_TEST_TMPDIR}/home" ENV_TYPE="linux" \
+		TRASH_DIR="${BATS_TEST_TMPDIR}/trash" LOG_LEVEL="${log_level}" \
+		bash -c "
+			set -euo pipefail
+			# Phase 30 requirement: sourcing deploy.sh must not run main()
+			source '${DEPLOY}'
+			${fn} '${msg}' 2>&1
+		"
+}
+
+@test "LOG-01: log_error() outputs to stderr when LOG_LEVEL=error" {
+	# D-06: log_error always outputs (highest priority); stderr via >&2
+	_run_log_fn "log_error" "test error message" "error"
+	assert_output --partial "[ERROR]"
+}
+
+@test "LOG-02: log_error() outputs to stderr when LOG_LEVEL=debug (all levels)" {
+	# D-06: log_error outputs at all log levels (error is highest priority)
+	_run_log_fn "log_error" "test error message" "debug"
+	assert_output --partial "[ERROR]"
+}
+
+@test "LOG-03: log_info() outputs only when LOG_LEVEL=info or debug" {
+	# D-06: log_info visible at info and debug levels
+	_run_log_fn "log_info" "test info message" "info"
+	assert_output --partial "[INFO]"
+}
+
+@test "LOG-04: log_info() silent when LOG_LEVEL=warn or error" {
+	# D-06: log_info suppressed at warn level (default)
+	_run_log_fn "log_info" "test info message" "warn"
+	refute_output --partial "[INFO]"
+}
+
+@test "LOG-05: log_warn() outputs when LOG_LEVEL=warn, info, or debug" {
+	# D-06: log_warn visible at warn and below (debug/info/warn)
+	_run_log_fn "log_warn" "test warn message" "warn"
+	assert_output --partial "[WARN]"
+}
+
+@test "LOG-06: log_debug() outputs only when LOG_LEVEL=debug" {
+	# D-06: log_debug visible only at debug level
+	_run_log_fn "log_debug" "test debug message" "debug"
+	assert_output --partial "[DEBUG]"
+}
+
+@test "LOG-07: log_debug() silent when LOG_LEVEL=warn" {
+	# D-06: log_debug suppressed at default warn level
+	_run_log_fn "log_debug" "test debug message" "warn"
+	refute_output --partial "[DEBUG]"
+}
+
+@test "LOG-08: log messages include level prefix [ERROR], [INFO], [WARN], [DEBUG]" {
+	# D-06: each log function must prefix output with its level in brackets
+	_run_log_fn "log_error" "err msg" "error"
+	assert_output --partial "[ERROR]"
+
+	_run_log_fn "log_warn" "warn msg" "warn"
+	assert_output --partial "[WARN]"
+
+	_run_log_fn "log_info" "info msg" "info"
+	assert_output --partial "[INFO]"
+
+	_run_log_fn "log_debug" "debug msg" "debug"
+	assert_output --partial "[DEBUG]"
+}
+
+@test "LOG-09: default LOG_LEVEL is warn if not explicitly set" {
+	# D-06: LOG_LEVEL defaults to warn — warn and error visible; info and debug silent
+	run env HOME="${BATS_TEST_TMPDIR}/home" ENV_TYPE="linux" \
+		TRASH_DIR="${BATS_TEST_TMPDIR}/trash" \
+		bash -c "
+			set -euo pipefail
+			# Phase 30 requirement: sourcing deploy.sh must not run main()
+			source '${DEPLOY}'
+			log_warn 'should appear' 2>&1
+			log_info 'should not appear' 2>&1
+		"
+	assert_output --partial "[WARN]"
+	refute_output --partial "[INFO]"
+}
