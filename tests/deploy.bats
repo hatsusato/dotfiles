@@ -139,8 +139,8 @@ setup() {
 	mkdir -p "$FAKE_HOME/.config/git"
 	echo "old content" >"$FAKE_HOME/.config/git/config"
 
-	# Run deploy and capture output (with VERBOSE=1 to show per-file backups)
-	run env HOME="$FAKE_HOME" ENV_TYPE="linux" TRASH_DIR="$FAKE_HOME/.trash" VERBOSE=1 "$BASH_BIN" "$DEPLOY"
+	# Run deploy and capture output (with LOG_LEVEL=info to show per-file backups)
+	run env HOME="$FAKE_HOME" ENV_TYPE="linux" TRASH_DIR="$FAKE_HOME/.trash" LOG_LEVEL="info" "$BASH_BIN" "$DEPLOY"
 	assert_success
 
 	# Output must mention backup
@@ -177,7 +177,7 @@ _run_safe_delete() {
 			set -euo pipefail
 			# Phase 30 requirement: sourcing deploy.sh must not run main()
 			source '${DEPLOY}'
-			safe_delete '${file}'
+			backup_file '${file}'
 		"
 }
 

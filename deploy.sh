@@ -3,17 +3,102 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Environment variable validation (D-07)
+# ENV_TYPE must be pre-set by bootstrap.sh or caller; deploy.sh does not auto-detect.
 if [[ -z "${ENV_TYPE:-}" ]]; then
-	_env_output=$(bash "${SCRIPT_DIR}/lib/env-detect.sh")
-	eval "${_env_output}"
-	unset _env_output
+	echo "ERROR: ENV_TYPE not set. Set via bootstrap.sh or manually before calling deploy.sh" >&2
+	exit 1
 fi
 
-# shellcheck source=lib/safe-delete.sh
-source "${SCRIPT_DIR}/lib/safe-delete.sh"
-# shellcheck source=dotfiles/common/.local/lib/logging.sh
-source "${SCRIPT_DIR}/dotfiles/common/.local/lib/logging.sh"
-set_log_prefix "deploy"
+# Constants — all overridable via environment variables
+TRASH_DIR="${TRASH_DIR:-${HOME}/.trash}"
+LOG_PREFIX="${LOG_PREFIX:-deploy}"
+LOG_LEVEL="${LOG_LEVEL:-warn}"
+
+# Logging functions (D-06) — inlined from dotfiles/common/.local/lib/logging.sh
+# Level hierarchy: debug < info < warn < error
+# A message at level X is shown when LOG_LEVEL <= X (debug shows all, error shows only errors).
+
+log_error() {
+	# error: always show (highest severity)
+	case "${LOG_LEVEL}" in
+	error | warn | info | debug)
+		echo "[ERROR] ${LOG_PREFIX}: $*" >&2
+		;;
+	*) ;;
+	esac
+	return 0
+}
+
+log_warn() {
+	# warn: show at warn, info, debug
+	case "${LOG_LEVEL}" in
+	warn | info | debug)
+		echo "[WARN] ${LOG_PREFIX}: $*" >&2
+		;;
+	*) ;;
+	esac
+	return 0
+}
+
+log_info() {
+	# info: show at info, debug
+	case "${LOG_LEVEL}" in
+	info | debug)
+		echo "[INFO] ${LOG_PREFIX}: $*" >&2
+		;;
+	*) ;;
+	esac
+	return 0
+}
+
+log_debug() {
+	# debug: show only at debug
+	case "${LOG_LEVEL}" in
+	debug)
+		echo "[DEBUG] ${LOG_PREFIX}: $*" >&2
+		;;
+	*) ;;
+	esac
+	return 0
+}
+
+set_log_prefix() {
+	LOG_PREFIX="${1}"
+}
+
+# backup_file FILE
+#
+# Moves FILE to $TRASH_DIR/{epoch_nanoseconds} and records metadata.
+# Returns 0 if FILE does not exist (no-op). (BACK-05)
+# Creates $TRASH_DIR automatically if absent. (BACK-01)
+# Logs backup to stderr when LOG_LEVEL permits INFO.
+#
+# Usage: backup_file /path/to/file
+backup_file() {
+	local file="${1}"
+
+	# No-op if file does not exist (BACK-05, D-04)
+	[[ -f "${file}" ]] || return 0
+
+	# Ensure backup directory exists (BACK-01, D-01)
+	mkdir -p "${TRASH_DIR}"
+
+	# Use epoch nanoseconds for unique naming (D-02, BACK-03)
+	local hash
+	hash=$(date +%s%N)
+
+	# Move file to TRASH_DIR (BACK-02)
+	mv "${file}" "${TRASH_DIR}/${hash}" || return 1
+
+	# Record metadata in JSON Lines format (D-05, BACK-06, BACK-07, BACK-08)
+	local date
+	date=$(date -u '+%Y-%m-%dT%H:%M:%S')
+	printf '{"hash":"%s","path":"%s","date":"%s"}\n' \
+		"${hash}" "${file}" "${date}" >>"${TRASH_DIR}/metadata.jsonl"
+
+	log_info "Backed up ${file/${HOME}/\~}"
+}
 
 DOTFILES_ROOT="${SCRIPT_DIR}/dotfiles"
 
@@ -21,8 +106,8 @@ copy_file() {
 	local src="${1}" target="${2}"
 	mkdir -p "$(dirname "${target}")"
 
-	# safe_delete handles both existing and non-existent files
-	safe_delete "${target}"
+	# backup_file handles both existing and non-existent files (D-04)
+	backup_file "${target}"
 	local _ret=$?
 	if [[ ${_ret} -ne 0 ]]; then
 		log_error "Failed to backup ${target}"
@@ -69,4 +154,8 @@ main() {
 	fi
 }
 
-main "$@"
+# Entry point guard: only run main() when executed directly, not when sourced.
+# This allows BATS tests to source deploy.sh for unit testing individual functions.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+	main "$@"
+fi
