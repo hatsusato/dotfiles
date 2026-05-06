@@ -30,7 +30,7 @@ UNAME
 	chmod +x "$FAKE_BIN/apt"
 
 	PATH="$FAKE_BIN:$PATH" PROC_VERSION_FILE="$MOCK_PROC/version" \
-		run bash lib/env-detect.sh
+		run bash env-detect.sh
 
 	assert_success
 	assert_output --partial 'declare -- ENV_TYPE="linux"'
@@ -51,7 +51,7 @@ UNAME
 	chmod +x "$FAKE_BIN/apt"
 
 	PATH="$FAKE_BIN:$PATH" PROC_VERSION_FILE="$MOCK_PROC/version" \
-		run bash lib/env-detect.sh
+		run bash env-detect.sh
 
 	assert_success
 	assert_output --partial 'declare -- ENV_TYPE="wsl"'
@@ -72,7 +72,7 @@ UNAME
 	cp "$(command -v grep)" "$FAKE_BIN/grep"
 
 	run env PATH="$FAKE_BIN" MSYSTEM=MINGW64 PROC_VERSION_FILE="$MOCK_PROC/version" \
-		"$BASH_BIN" lib/env-detect.sh
+		"$BASH_BIN" env-detect.sh
 
 	assert_success
 	assert_output --partial 'declare -- ENV_TYPE="gitbash"'
@@ -92,7 +92,7 @@ UNAME
 	cp "$(command -v grep)" "$FAKE_BIN/grep"
 
 	run env PATH="$FAKE_BIN" PROC_VERSION_FILE="$MOCK_PROC/version" \
-		"$BASH_BIN" lib/env-detect.sh
+		"$BASH_BIN" env-detect.sh
 
 	assert_failure
 }
@@ -114,7 +114,7 @@ UNAME
 	chmod +x "$FAKE_BIN/sudo"
 
 	PATH="$FAKE_BIN:$PATH" PROC_VERSION_FILE="$MOCK_PROC/version" \
-		run bash lib/env-detect.sh
+		run bash env-detect.sh
 
 	assert_success
 	assert_output --partial 'declare -- ENV_TYPE="'
@@ -142,7 +142,7 @@ UNAME
 	chmod +x "$FAKE_BIN/apt"
 
 	PATH="$FAKE_BIN:$PATH" PROC_VERSION_FILE="$MOCK_PROC/version" \
-		run bash lib/env-detect.sh
+		run bash env-detect.sh
 
 	assert_success
 	assert_output --partial 'declare -- ENV_TYPE="wsl"'
@@ -164,7 +164,7 @@ UNAME
 	chmod +x "$FAKE_BIN/apt"
 
 	PATH="$FAKE_BIN:$PATH" PROC_VERSION_FILE="$MOCK_PROC/version" \
-		run bash lib/env-detect.sh
+		run bash env-detect.sh
 
 	assert_success
 	assert_output --partial 'declare -- ENV_TYPE="wsl"'
@@ -186,7 +186,7 @@ UNAME
 
 	# Both WSL signals AND MSYSTEM set — WSL must win
 	PATH="$FAKE_BIN:$PATH" MSYSTEM=MINGW64 PROC_VERSION_FILE="$MOCK_PROC/version" \
-		run bash lib/env-detect.sh
+		run bash env-detect.sh
 
 	assert_success
 	assert_output --partial 'declare -- ENV_TYPE="wsl"'
@@ -211,7 +211,7 @@ UNAME
 	chmod +x "$FAKE_BIN/apt"
 
 	PATH="$FAKE_BIN:$PATH" PROC_VERSION_FILE="$MOCK_PROC/version" \
-		run bash lib/env-detect.sh
+		run bash env-detect.sh
 
 	assert_success
 	assert_output --partial 'declare -- PACKAGE_MANAGER="apt"'
@@ -234,7 +234,7 @@ UNAME
 	cp "$(command -v grep)" "$FAKE_BIN/grep"
 
 	run env PATH="$FAKE_BIN" PROC_VERSION_FILE="$MOCK_PROC/version" \
-		"$BASH_BIN" lib/env-detect.sh
+		"$BASH_BIN" env-detect.sh
 
 	assert_success
 	assert_output --partial 'declare -- PACKAGE_MANAGER="dnf"'
@@ -257,7 +257,7 @@ UNAME
 	cp "$(command -v grep)" "$FAKE_BIN/grep"
 
 	run env PATH="$FAKE_BIN" PROC_VERSION_FILE="$MOCK_PROC/version" \
-		"$BASH_BIN" lib/env-detect.sh
+		"$BASH_BIN" env-detect.sh
 
 	assert_success
 	assert_output --partial 'declare -- PACKAGE_MANAGER="pacman"'
@@ -278,7 +278,7 @@ UNAME
 	cp "$(command -v grep)" "$FAKE_BIN/grep"
 
 	run env PATH="$FAKE_BIN" MSYSTEM=MINGW64 PROC_VERSION_FILE="$MOCK_PROC/version" \
-		"$BASH_BIN" lib/env-detect.sh
+		"$BASH_BIN" env-detect.sh
 
 	assert_success
 	assert_output --partial 'declare -- PACKAGE_MANAGER="scoop"'
@@ -298,7 +298,7 @@ UNAME
 	cp "$(command -v grep)" "$FAKE_BIN/grep"
 	# No package managers — PATH restricted so real apt/dnf/pacman are hidden
 	run env PATH="$FAKE_BIN" PROC_VERSION_FILE="$MOCK_PROC/version" \
-		"$BASH_BIN" lib/env-detect.sh
+		"$BASH_BIN" env-detect.sh
 
 	assert_failure
 }
@@ -324,7 +324,7 @@ UNAME
 	chmod +x "$FAKE_BIN/sudo"
 
 	PATH="$FAKE_BIN:$PATH" PROC_VERSION_FILE="$MOCK_PROC/version" \
-		run bash lib/env-detect.sh
+		run bash env-detect.sh
 
 	assert_success
 	assert_output --partial 'declare -- HAS_SUDO="true"'
@@ -346,7 +346,7 @@ UNAME
 	cp "$(command -v grep)" "$FAKE_BIN/grep"
 	# No sudo in FAKE_BIN — PATH restricted so real sudo is hidden
 	run env PATH="$FAKE_BIN" PROC_VERSION_FILE="$MOCK_PROC/version" \
-		"$BASH_BIN" lib/env-detect.sh
+		"$BASH_BIN" env-detect.sh
 
 	assert_success
 	assert_output --partial 'declare -- HAS_SUDO="false"'
