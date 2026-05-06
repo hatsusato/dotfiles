@@ -49,6 +49,8 @@ btash() {
 	local choice
 	PS3="Select action: "
 	select choice in "${options[@]}"; do
+		[[ -z "${choice}" ]] && break # Handle EOF gracefully (Ctrl-D)
+
 		case "${choice}" in
 		"Create new session")
 			# Create new session with auto-generated ID (PID + timestamp)
