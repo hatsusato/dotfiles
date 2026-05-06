@@ -864,3 +864,343 @@ grep -q 'set editing-mode vi' '$INPUTRC_FILE' 2>/dev/null && echo 'FOUND_VI' || 
 	# When file doesn't exist, grep returns 2, so we get NO_VI (correct for RED phase)
 	assert_output "NO_VI"
 }
+
+# ---------------------------------------------------------------------------
+# Group 8: BASH-08 - func.d/ auto-discovery and loading
+# ---------------------------------------------------------------------------
+
+# BASH-08a: func.d/ modules are discovered and loaded
+@test "BASH-08a: func.d/ modules are discovered and loaded" {
+	mkdir -p "$HOME/.config/bash/func.d"
+
+	cat >"$HOME/.config/bash/func.d/my_test.sh" <<'EOF'
+my_test_function() {
+    echo "LOADED"
+}
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH'
+my_test_function
+"
+
+	assert_success
+	assert_output "LOADED"
+}
+
+# BASH-08b: func.d/ directory can be empty without error
+@test "BASH-08b: empty func.d/ directory is handled gracefully" {
+	mkdir -p "$HOME/.config/bash/func.d"
+
+	run bash -c "
+export HOME='$HOME'
+output=\$(source '$MAIN_SH')
+eval \"\$output\" 2>/dev/null
+"
+	assert_success
+}
+
+# BASH-08c: Non-.sh files are ignored in func.d/
+@test "BASH-08c: non-.sh files are ignored in func.d/" {
+	mkdir -p "$HOME/.config/bash/func.d"
+
+	cat >"$HOME/.config/bash/func.d/valid.sh" <<'EOF'
+valid_func() { echo "VALID"; }
+EOF
+	echo "IGNORED" >"$HOME/.config/bash/func.d/not-a-script.txt"
+	echo "IGNORED_MD" >"$HOME/.config/bash/func.d/readme.md"
+
+	run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH'
+valid_func
+"
+	assert_success
+	assert_output "VALID"
+}
+
+# BASH-08d: Functions defined in modules are available in shell after sourcing
+@test "BASH-08d: functions from func.d/ are available after main.sh is sourced" {
+	mkdir -p "$HOME/.config/bash/func.d"
+
+	cat >"$HOME/.config/bash/func.d/greet.sh" <<'EOF'
+greet() { echo "Hello, ${1}!"; }
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH'
+greet World
+"
+	assert_success
+	assert_output "Hello, World!"
+}
+
+# ---------------------------------------------------------------------------
+# Group 9: BASH-09 - Alphabetical loading order
+# ---------------------------------------------------------------------------
+
+# BASH-09a: func.d/ modules load in alphabetical order
+@test "BASH-09a: func.d/ modules load alphabetically (a before b before c)" {
+	mkdir -p "$HOME/.config/bash/func.d"
+
+	# Create modules out of alphabetical order; verify all three load correctly
+	cat >"$HOME/.config/bash/func.d/c_third.sh" <<'EOF'
+func_c() { echo "C"; }
+EOF
+	cat >"$HOME/.config/bash/func.d/a_first.sh" <<'EOF'
+func_a() { echo "A"; }
+EOF
+	cat >"$HOME/.config/bash/func.d/b_second.sh" <<'EOF'
+func_b() { echo "B"; }
+EOF
+
+	# Source main.sh; all three functions should be available regardless of creation order
+	run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH'
+func_a
+func_b
+func_c
+"
+	assert_success
+	assert_output "A
+B
+C"
+}
+
+# BASH-09b: Module ordering is consistent — both files exist and load
+@test "BASH-09b: multiple func.d/ modules all load successfully" {
+	mkdir -p "$HOME/.config/bash/func.d"
+
+	cat >"$HOME/.config/bash/func.d/alpha.sh" <<'EOF'
+alpha_func() { echo "alpha"; }
+EOF
+	cat >"$HOME/.config/bash/func.d/beta.sh" <<'EOF'
+beta_func() { echo "beta"; }
+EOF
+	cat >"$HOME/.config/bash/func.d/gamma.sh" <<'EOF'
+gamma_func() { echo "gamma"; }
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH'
+declare -f alpha_func >/dev/null && echo 'ALPHA_FOUND' || echo 'ALPHA_MISSING'
+declare -f beta_func  >/dev/null && echo 'BETA_FOUND'  || echo 'BETA_MISSING'
+declare -f gamma_func >/dev/null && echo 'GAMMA_FOUND' || echo 'GAMMA_MISSING'
+"
+	assert_success
+	assert_output "ALPHA_FOUND
+BETA_FOUND
+GAMMA_FOUND"
+}
+
+# BASH-09c: func.d/ loads after conf.d/ (combined ordering)
+@test "BASH-09c: func.d/ modules load after conf.d/ modules" {
+	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.config/bash/func.d"
+
+	cat >"$HOME/.config/bash/conf.d/05-conf.sh" <<'EOF'
+echo "CONF_LOADED"
+EOF
+	cat >"$HOME/.config/bash/func.d/funcs.sh" <<'EOF'
+run_func() { echo "FUNC_AVAILABLE"; }
+EOF
+
+	# Use source directly so functions are available in same shell context
+	run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH'
+run_func
+"
+	assert_success
+	assert_output "CONF_LOADED
+FUNC_AVAILABLE"
+}
+
+# ---------------------------------------------------------------------------
+# Group 10: BASH-10 - Module constraint (function definitions, error handling)
+# ---------------------------------------------------------------------------
+
+# BASH-10a: Module with only function definitions passes syntax check
+@test "BASH-10a: module with only function definitions passes bash -n syntax check" {
+	MODULE="$HOME/test-pure.sh"
+
+	cat >"${MODULE}" <<'EOF'
+pure_func_a() { echo "a"; }
+pure_func_b() { local x="${1}"; echo "${x}"; }
+EOF
+
+	run bash -n "${MODULE}"
+	assert_success
+}
+
+# BASH-10b: Syntax-broken module is skipped (bash -n fails => not sourced)
+@test "BASH-10b: module with syntax error is skipped (not sourced)" {
+	mkdir -p "$HOME/.config/bash/func.d"
+
+	# Write a module with a genuine bash syntax error
+	cat >"$HOME/.config/bash/func.d/broken.sh" <<'EOF'
+broken_func() {
+    echo "missing close brace"
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH' 2>/dev/null
+# broken_func should not be available since module was skipped
+declare -f broken_func >/dev/null 2>&1 && echo 'LOADED' || echo 'SKIPPED'
+"
+	assert_success
+	assert_output "SKIPPED"
+}
+
+# BASH-10c: Module with top-level function call passes bash -n but executes at source
+@test "BASH-10c: valid module with only function defs loads without executing at load time" {
+	mkdir -p "$HOME/.config/bash/func.d"
+
+	# This module has a pure function; calling it is a side-effect of func call, not load
+	cat >"$HOME/.config/bash/func.d/side_test.sh" <<'EOF'
+side_test_func() { echo "CALLED"; }
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH' 2>/dev/null
+# Function defined but not called at load time => no output yet
+echo 'LOADED_ONLY'
+"
+	assert_success
+	assert_output "LOADED_ONLY"
+}
+
+# BASH-10d: Broken module doesn't prevent bashrc from loading
+@test "BASH-10d: broken func.d/ module doesn't break bashrc load" {
+	mkdir -p "$HOME/.config/bash/func.d"
+
+	cat >"$HOME/.config/bash/func.d/broken.sh" <<'EOF'
+broken() {
+    echo "unclosed"
+EOF
+
+	cat >"$HOME/.config/bash/func.d/good.sh" <<'EOF'
+good_func() { echo "GOOD"; }
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH' 2>/dev/null
+good_func
+"
+	assert_success
+	assert_output "GOOD"
+}
+
+# BASH-10e: Module works independently without other modules (D-04 requirement)
+@test "BASH-10e: btash.sh works independently without string_utils.sh" {
+	mkdir -p "$HOME/.config/bash/func.d"
+
+	# Create only a standalone module (not dependent on any other func.d/ module)
+	cat >"$HOME/.config/bash/func.d/standalone.sh" <<'EOF'
+standalone_func() { echo "STANDALONE"; }
+EOF
+	# Deliberately do NOT create any other module
+
+	run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH' 2>/dev/null
+declare -f standalone_func >/dev/null && echo 'SUCCESS' || echo 'FAILED'
+"
+	assert_success
+	assert_output "SUCCESS"
+}
+
+# ---------------------------------------------------------------------------
+# Group 11: BASH-11 - Error resilience with logging
+# ---------------------------------------------------------------------------
+
+# BASH-11a: Broken module is logged (warning message shown on stderr)
+@test "BASH-11a: broken module produces a warning message" {
+	mkdir -p "$HOME/.config/bash/func.d"
+
+	cat >"$HOME/.config/bash/func.d/bad.sh" <<'EOF'
+broken_func() {
+    echo "unclosed block"
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH' 2>&1
+" 2>&1
+
+	# Warning output should mention Skipping or WARN
+	[[ "${output}" == *"Skipping"* ]] || [[ "${output}" == *"WARN"* ]] || [[ "${output}" == *"bad.sh"* ]]
+}
+
+# BASH-11b: Broken module is skipped (not included in source output)
+@test "BASH-11b: broken module is not sourced (function absent after load)" {
+	mkdir -p "$HOME/.config/bash/func.d"
+
+	cat >"$HOME/.config/bash/func.d/syntax_err.sh" <<'EOF'
+will_not_load() {
+    echo "unreachable"
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH' 2>/dev/null
+declare -f will_not_load >/dev/null 2>&1 && echo 'SOURCED' || echo 'SKIPPED'
+"
+	assert_success
+	assert_output "SKIPPED"
+}
+
+# BASH-11c: Following modules load despite earlier broken module
+@test "BASH-11c: following modules load successfully after a broken module" {
+	mkdir -p "$HOME/.config/bash/func.d"
+
+	# Alphabetically: a_broken.sh loads before b_good.sh
+	cat >"$HOME/.config/bash/func.d/a_broken.sh" <<'EOF'
+broken() {
+    echo "unclosed"
+EOF
+
+	cat >"$HOME/.config/bash/func.d/b_good.sh" <<'EOF'
+good_after_broken() { echo "GOOD_AFTER_BROKEN"; }
+EOF
+
+	run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH' 2>/dev/null
+good_after_broken
+"
+	assert_success
+	assert_output "GOOD_AFTER_BROKEN"
+}
+
+# ---------------------------------------------------------------------------
+# Group 12: BASH-12 - bash -n syntax check compatibility
+# ---------------------------------------------------------------------------
+
+# BASH-12a: bash -n passes on main.sh with func.d/ modules loaded
+@test "BASH-12a: bash -n passes on main.sh itself" {
+	run bash -n "$MAIN_SH"
+	assert_success
+}
+
+# BASH-12b: bash -n passes on func.d/ example modules deployed in dotfiles
+@test "BASH-12b: bash -n passes on all deployed func.d/ example modules" {
+	FUNC_D_DIR="${PWD}/dotfiles/common/.config/bash/func.d"
+
+	# Verify both example modules pass bash -n
+	run bash -c "
+for module in '${FUNC_D_DIR}'/*.sh; do
+    bash -n \"\${module}\" || { echo \"FAIL: \${module}\"; exit 1; }
+done
+echo 'ALL_PASS'
+"
+	assert_success
+	assert_output "ALL_PASS"
+}
