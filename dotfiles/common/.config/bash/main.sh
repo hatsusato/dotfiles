@@ -9,6 +9,13 @@ _output_modules() {
 	for module in "${dir}"/*.sh; do
 		if bash -n "${module}"; then
 			printf 'source %q || true;\n' "${module}"
+		else
+			# Try log_warn; fall back to echo if not available (D-06)
+			if declare -f log_warn >/dev/null 2>&1; then
+				log_warn "Skipping func.d/ module: ${module##*/} (syntax error)"
+			else
+				echo "[WARN] Skipping func.d/ module: ${module##*/} (syntax error)" >&2
+			fi
 		fi
 	done
 	shopt -u nullglob
