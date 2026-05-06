@@ -46,10 +46,14 @@ main() {
 	fi
 
 	# 2. Load conf.d modules via internal eval
+	# Note: _output_modules returns source commands; internal eval executes them
+	# in the current shell so effects (function definitions, exports) propagate.
 	output=$(_output_modules "${HOME}/.config/bash/conf.d")
 	eval "${output}" || true
 
 	# 3. Load func.d modules via internal eval
+	# Note: _output_modules returns source commands; internal eval executes them
+	# in the current shell so effects (function definitions, exports) propagate.
 	output=$(_output_modules "${HOME}/.config/bash/func.d")
 	eval "${output}" || true
 }
