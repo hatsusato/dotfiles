@@ -53,9 +53,9 @@ btash() {
 
 		case "${choice}" in
 		"Create new session")
-			# Create new session with auto-generated ID (PID + timestamp)
+			# Create new session with auto-generated ID (PID + timestamp + nanoseconds)
 			local session_id
-			session_id="btash-$$-$(date +%s)"
+			session_id="btash-$$-$(date +%s%N)"
 			dtach -c "${socket_dir}/${session_id}" bash
 			;;
 		Attach\ to:\ *)
