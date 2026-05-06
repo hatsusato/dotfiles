@@ -3,19 +3,19 @@
 # All functions are side-effect free and can be sourced safely.
 
 # str_upper ARGUMENT
-# Converts a string to uppercase using bash parameter expansion.
+# Converts a string to uppercase.
 # Usage: str_upper "hello world" => "HELLO WORLD"
 str_upper() {
 	local input="${1}"
-	echo "${input^^}"
+	echo "${input}" | tr '[:lower:]' '[:upper:]'
 }
 
 # str_lower ARGUMENT
-# Converts a string to lowercase using bash parameter expansion.
+# Converts a string to lowercase.
 # Usage: str_lower "HELLO WORLD" => "hello world"
 str_lower() {
 	local input="${1}"
-	echo "${input,,}"
+	echo "${input}" | tr '[:upper:]' '[:lower:]'
 }
 
 # str_trim ARGUMENT
