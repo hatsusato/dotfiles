@@ -9,8 +9,8 @@ setup() {
 	export HOME="$FAKE_HOME"
 
 	# Point to the main.sh in dotfiles (relative to project root)
-	# When tests run from /home/hatsu/dotfiles, the file is at ./dotfiles/common/.config/bash/main.sh
-	MAIN_SH="${PWD}/dotfiles/common/.config/bash/main.sh"
+	# When tests run from /home/hatsu/dotfiles, the file is at ./dotfiles/common/.local/share/bash/main.sh
+	MAIN_SH="${PWD}/dotfiles/common/.local/share/bash/main.sh"
 
 	# Create fake logging library in ~/.local/lib/logging.sh
 	# (This will be sourced by main.sh in the new eval-based design)
@@ -799,69 +799,64 @@ echo \"\$PATH\" | grep -q 'local/bin' && echo 'LOCAL_FOUND' || echo 'MISSING'
 	assert_output "INPUTRC_EXISTS"
 }
 
-# BASH-07b: .inputrc contains colored completions setting
-# Tests that .inputrc has colored-completion-prefix on
+# BASH-07b: .config/readline/inputrc contains colored completions setting
+# Tests that readline config has colored-completion-prefix on
 @test "BASH-07b: .inputrc enables colored-completion-prefix" {
-	INPUTRC_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.inputrc"
+	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/readline/inputrc"
 
 	run bash -c "
-grep -q 'set colored-completion-prefix on' '$INPUTRC_FILE' 2>/dev/null && echo 'FOUND' || echo 'NOT_FOUND'
+grep -q 'set colored-completion-prefix on' '$READLINE_CONFIG' 2>/dev/null && echo 'FOUND' || echo 'NOT_FOUND'
 "
 	assert_success
-	# Fails in RED phase - file doesn't exist
 	assert_output "FOUND"
 }
 
-# BASH-07c: .inputrc contains colored-stats setting
-# Tests that .inputrc has colored-stats on
+# BASH-07c: .config/readline/inputrc contains colored-stats setting
+# Tests that readline config has colored-stats on
 @test "BASH-07c: .inputrc enables colored-stats" {
-	INPUTRC_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.inputrc"
+	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/readline/inputrc"
 
 	run bash -c "
-grep -q 'set colored-stats on' '$INPUTRC_FILE' 2>/dev/null && echo 'FOUND' || echo 'NOT_FOUND'
+grep -q 'set colored-stats on' '$READLINE_CONFIG' 2>/dev/null && echo 'FOUND' || echo 'NOT_FOUND'
 "
 	assert_success
-	# Fails in RED phase - file doesn't exist
 	assert_output "FOUND"
 }
 
-# BASH-07d: .inputrc contains case-insensitive completion
-# Tests that .inputrc has completion-ignore-case on
+# BASH-07d: .config/readline/inputrc contains case-insensitive completion
+# Tests that readline config has completion-ignore-case on
 @test "BASH-07d: .inputrc enables case-insensitive matching" {
-	INPUTRC_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.inputrc"
+	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/readline/inputrc"
 
 	run bash -c "
-grep -q 'set completion-ignore-case on' '$INPUTRC_FILE' 2>/dev/null && echo 'FOUND' || echo 'NOT_FOUND'
+grep -q 'set completion-ignore-case on' '$READLINE_CONFIG' 2>/dev/null && echo 'FOUND' || echo 'NOT_FOUND'
 "
 	assert_success
-	# Fails in RED phase - file doesn't exist
 	assert_output "FOUND"
 }
 
-# BASH-07e: .inputrc contains history search keybindings
-# Tests that .inputrc has Ctrl-P and Ctrl-N for history search
+# BASH-07e: .config/readline/inputrc contains history search keybindings
+# Tests that readline config has Ctrl-P and Ctrl-N for history search
 @test "BASH-07e: .inputrc configures history search keybindings" {
-	INPUTRC_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.inputrc"
+	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/readline/inputrc"
 
 	run bash -c "
-grep -q '\"\\\\C-p\": history-search-backward' '$INPUTRC_FILE' 2>/dev/null && echo 'FOUND_P' || echo 'NOT_FOUND'
+grep -q '\"\\\\C-p\": history-search-backward' '$READLINE_CONFIG' 2>/dev/null && echo 'FOUND_P' || echo 'NOT_FOUND'
 "
 	assert_success
-	# Fails in RED phase - file doesn't exist
 	assert_output "FOUND_P"
 }
 
-# BASH-07f: .inputrc does NOT enable vi mode
-# Tests that .inputrc doesn't set editing-mode vi
+# BASH-07f: .config/readline/inputrc does NOT enable vi mode
+# Tests that readline config doesn't set editing-mode vi
 @test "BASH-07f: .inputrc uses Emacs mode (not vi)" {
-	INPUTRC_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.inputrc"
+	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/readline/inputrc"
 
 	run bash -c "
-grep -q 'set editing-mode vi' '$INPUTRC_FILE' 2>/dev/null && echo 'FOUND_VI' || echo 'NO_VI'
+grep -q 'set editing-mode vi' '$READLINE_CONFIG' 2>/dev/null && echo 'FOUND_VI' || echo 'NO_VI'
 "
 	assert_success
-	# Fails in RED phase - file doesn't exist, but when it does, should not have vi mode
-	# When file doesn't exist, grep returns 2, so we get NO_VI (correct for RED phase)
+	# Readline config should not have vi mode
 	assert_output "NO_VI"
 }
 
