@@ -1204,3 +1204,56 @@ echo 'ALL_PASS'
 	assert_success
 	assert_output "ALL_PASS"
 }
+
+# ---------------------------------------------------------------------------
+# Group 13: CONF-01 through CONF-04 - Configuration integration
+# ---------------------------------------------------------------------------
+
+# CONF-01: main.sh is sourced from ~/.local/share/bash/main.sh
+@test "CONF-01: main.sh relocated to ~/.local/share/bash/main.sh per XDG spec" {
+	# Verify the new location exists in dotfiles
+	MAIN_SH_NEW="${PWD}/dotfiles/common/.local/share/bash/main.sh"
+	run test -f "$MAIN_SH_NEW"
+	assert_success
+}
+
+# CONF-02: .inputrc exists with $include directive
+@test "CONF-02: .inputrc contains \$include directive for readline config" {
+	INPUTRC="${PWD}/dotfiles/common/.inputrc"
+	[[ -f "$INPUTRC" ]] || { echo "File not found: $INPUTRC"; exit 1; }
+
+	# Check that .inputrc contains $include directive
+	run grep -q "\$include" "$INPUTRC"
+	assert_success
+}
+
+# CONF-03: .config/readline/inputrc contains readline settings
+@test "CONF-03: .config/readline/inputrc contains readline configuration" {
+	READLINE_CONFIG="${PWD}/dotfiles/common/.config/readline/inputrc"
+	[[ -f "$READLINE_CONFIG" ]] || { echo "File not found: $READLINE_CONFIG"; exit 1; }
+
+	# Check that readline config has content (at least some readline settings)
+	run test -s "$READLINE_CONFIG"
+	assert_success
+}
+
+# CONF-04: .bashrc sources main.sh from the new location
+@test "CONF-04: .bashrc sources main.sh from ~/.local/share/bash/main.sh" {
+	BASHRC="${PWD}/dotfiles/common/.bashrc"
+	[[ -f "$BASHRC" ]] || { echo "File not found: $BASHRC"; exit 1; }
+
+	# Check that .bashrc sources from new location
+	run grep -q "\.local/share/bash/main\.sh" "$BASHRC"
+	assert_success
+}
+
+# CONF-04b: XDG directory structure is complete and valid
+@test "CONF-04b: XDG Base Directory structure is complete for bash and readline" {
+	run bash -c '
+	[[ -f "${PWD}/dotfiles/common/.local/share/bash/main.sh" ]] || exit 1
+	[[ -f "${PWD}/dotfiles/common/.config/readline/inputrc" ]] || exit 1
+	[[ -f "${PWD}/dotfiles/common/.inputrc" ]] || exit 1
+	[[ -f "${PWD}/dotfiles/common/.bashrc" ]] || exit 1
+	'
+	assert_success
+}
