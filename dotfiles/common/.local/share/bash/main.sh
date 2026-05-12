@@ -40,21 +40,26 @@ main() {
 	# 1. Load skel fallback first (for environments where /etc/skel/.bashrc does not exist)
 	# SKEL_SYSTEM allows tests to override the system skel path
 	local skel_system="${SKEL_SYSTEM:-/etc/skel/.bashrc}"
-	if [[ ! -f "${skel_system}" ]] && [[ -f "${HOME}/.config/bash/skel/.bashrc" ]]; then
-		# shellcheck source=dotfiles/common/.config/bash/skel/.bashrc
-		source "${HOME}/.config/bash/skel/.bashrc" || true
+	if [[ -f "${skel_system}" ]]; then
+		# System skel takes priority
+		# shellcheck source=/etc/skel/.bashrc
+		source "${skel_system}" || true
+	elif [[ -f "${HOME}/.local/share/bash/skel/.bashrc" ]]; then
+		# Fallback to local skel if system skel doesn't exist
+		# shellcheck source=dotfiles/common/.local/share/bash/skel/.bashrc
+		source "${HOME}/.local/share/bash/skel/.bashrc" || true
 	fi
 
 	# 2. Load conf.d modules via internal eval
 	# Note: _output_modules returns source commands; internal eval executes them
 	# in the current shell so effects (function definitions, exports) propagate.
-	output=$(_output_modules "${HOME}/.config/bash/conf.d")
+	output=$(_output_modules "${HOME}/.local/share/bash/conf.d")
 	eval "${output}" || true
 
 	# 3. Load func.d modules via internal eval
 	# Note: _output_modules returns source commands; internal eval executes them
 	# in the current shell so effects (function definitions, exports) propagate.
-	output=$(_output_modules "${HOME}/.config/bash/func.d")
+	output=$(_output_modules "${HOME}/.local/share/bash/func.d")
 	eval "${output}" || true
 }
 

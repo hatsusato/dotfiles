@@ -5,7 +5,7 @@ load 'test_helper/bats-assert/load'
 
 setup() {
 	FAKE_HOME="$BATS_TEST_TMPDIR/home"
-	mkdir -p "$FAKE_HOME/.config/bash"
+	mkdir -p "$FAKE_HOME/.local/share/bash"
 	export HOME="$FAKE_HOME"
 
 	# Point to the main.sh in dotfiles (relative to project root)
@@ -42,15 +42,15 @@ LOGGING_EOF
 
 # BASH-01a: main.sh outputs source commands that eval executes
 @test "BASH-01a: main.sh outputs source commands for eval invocation" {
-	mkdir -p "$HOME/.config/bash/conf.d"
-	cat > "$HOME/.config/bash/conf.d/05-first.sh" << 'EOF'
-echo "FIRST" >> "$HOME/.config/bash/test-output.log"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
+	cat > "$HOME/.local/share/bash/conf.d/05-first.sh" << 'EOF'
+echo "FIRST" >> "$HOME/.local/share/bash/test-output.log"
 EOF
-	cat > "$HOME/.config/bash/conf.d/10-second.sh" << 'EOF'
-echo "SECOND" >> "$HOME/.config/bash/test-output.log"
+	cat > "$HOME/.local/share/bash/conf.d/10-second.sh" << 'EOF'
+echo "SECOND" >> "$HOME/.local/share/bash/test-output.log"
 EOF
-	cat > "$HOME/.config/bash/conf.d/15-third.sh" << 'EOF'
-echo "THIRD" >> "$HOME/.config/bash/test-output.log"
+	cat > "$HOME/.local/share/bash/conf.d/15-third.sh" << 'EOF'
+echo "THIRD" >> "$HOME/.local/share/bash/test-output.log"
 EOF
 
 	# New eval pattern: main.sh outputs source commands, eval executes them in caller's namespace
@@ -60,15 +60,15 @@ output=\$(source '$MAIN_SH')
 eval \"\$output\" 2>/dev/null
 "
 
-	assert [ -f "$HOME/.config/bash/test-output.log" ]
-	grep -q "FIRST" "$HOME/.config/bash/test-output.log"
-	grep -q "SECOND" "$HOME/.config/bash/test-output.log"
-	grep -q "THIRD" "$HOME/.config/bash/test-output.log"
+	assert [ -f "$HOME/.local/share/bash/test-output.log" ]
+	grep -q "FIRST" "$HOME/.local/share/bash/test-output.log"
+	grep -q "SECOND" "$HOME/.local/share/bash/test-output.log"
+	grep -q "THIRD" "$HOME/.local/share/bash/test-output.log"
 }
 
 # BASH-01b: main.sh handles empty conf.d/ (no files to source)
 @test "BASH-01b: main.sh handles empty conf.d/ directory" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
 	run bash -c "
 export HOME='$HOME'
@@ -80,14 +80,14 @@ eval \"\$output\" 2>/dev/null
 
 # BASH-01c: main.sh ignores non-.sh files in conf.d/
 @test "BASH-01c: main.sh ignores non-.sh files in conf.d/" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
-	cat > "$HOME/.config/bash/conf.d/05-valid.sh" << 'EOF'
-echo "VALID" >> "$HOME/.config/bash/test-output.log"
+	cat > "$HOME/.local/share/bash/conf.d/05-valid.sh" << 'EOF'
+echo "VALID" >> "$HOME/.local/share/bash/test-output.log"
 EOF
 
-	echo "IGNORED_TXT" > "$HOME/.config/bash/conf.d/10-invalid.txt"
-	echo "IGNORED_MD" > "$HOME/.config/bash/conf.d/15-readme.md"
+	echo "IGNORED_TXT" > "$HOME/.local/share/bash/conf.d/10-invalid.txt"
+	echo "IGNORED_MD" > "$HOME/.local/share/bash/conf.d/15-readme.md"
 
 	run bash -c "
 export HOME='$HOME'
@@ -96,16 +96,16 @@ eval \"\$output\" 2>/dev/null
 "
 	assert_success
 
-	assert [ -f "$HOME/.config/bash/test-output.log" ]
-	grep -q "VALID" "$HOME/.config/bash/test-output.log"
+	assert [ -f "$HOME/.local/share/bash/test-output.log" ]
+	grep -q "VALID" "$HOME/.local/share/bash/test-output.log"
 }
 
 # BASH-01d: main.sh handles filenames with spaces via printf %q
 @test "BASH-01d: main.sh handles filenames with spaces via printf %q" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
-	cat > "$HOME/.config/bash/conf.d/05-my conf.sh" << 'EOF'
-echo "SPACE-TEST" >> "$HOME/.config/bash/test-output.log"
+	cat > "$HOME/.local/share/bash/conf.d/05-my conf.sh" << 'EOF'
+echo "SPACE-TEST" >> "$HOME/.local/share/bash/test-output.log"
 EOF
 
 	run bash -c "
@@ -115,28 +115,28 @@ eval \"\$output\" 2>/dev/null
 "
 	assert_success
 
-	assert [ -f "$HOME/.config/bash/test-output.log" ]
-	grep -q "SPACE-TEST" "$HOME/.config/bash/test-output.log"
+	assert [ -f "$HOME/.local/share/bash/test-output.log" ]
+	grep -q "SPACE-TEST" "$HOME/.local/share/bash/test-output.log"
 }
 
 # BASH-01e: main.sh handles multiple special characters in filenames
 @test "BASH-01e: main.sh handles multiple special characters in filenames" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
-	cat > "$HOME/.config/bash/conf.d/05-file'quote.sh" << 'EOF'
-echo "QUOTE" >> "$HOME/.config/bash/special-chars.log"
+	cat > "$HOME/.local/share/bash/conf.d/05-file'quote.sh" << 'EOF'
+echo "QUOTE" >> "$HOME/.local/share/bash/special-chars.log"
 EOF
 
-	cat > "$HOME/.config/bash/conf.d/10-file\$var.sh" << 'EOF'
-echo "DOLLAR" >> "$HOME/.config/bash/special-chars.log"
+	cat > "$HOME/.local/share/bash/conf.d/10-file\$var.sh" << 'EOF'
+echo "DOLLAR" >> "$HOME/.local/share/bash/special-chars.log"
 EOF
 
-	cat > "$HOME/.config/bash/conf.d/15-load(1).sh" << 'EOF'
-echo "PAREN" >> "$HOME/.config/bash/special-chars.log"
+	cat > "$HOME/.local/share/bash/conf.d/15-load(1).sh" << 'EOF'
+echo "PAREN" >> "$HOME/.local/share/bash/special-chars.log"
 EOF
 
-	cat > "$HOME/.config/bash/conf.d/20-my test.sh" << 'EOF'
-echo "SPACE" >> "$HOME/.config/bash/special-chars.log"
+	cat > "$HOME/.local/share/bash/conf.d/20-my test.sh" << 'EOF'
+echo "SPACE" >> "$HOME/.local/share/bash/special-chars.log"
 EOF
 
 	run bash -c "
@@ -146,12 +146,12 @@ eval \"\$output\" 2>/dev/null
 "
 	assert_success
 
-	assert [ -f "$HOME/.config/bash/special-chars.log" ]
+	assert [ -f "$HOME/.local/share/bash/special-chars.log" ]
 	expected_order="QUOTE
 DOLLAR
 PAREN
 SPACE"
-	actual_order=$(cat "$HOME/.config/bash/special-chars.log")
+	actual_order=$(cat "$HOME/.local/share/bash/special-chars.log")
 	assert [ "$actual_order" = "$expected_order" ]
 }
 
@@ -161,12 +161,12 @@ SPACE"
 
 # BASH-02a: main.sh outputs source commands for func.d modules via eval
 @test "BASH-02a: main.sh outputs source commands for func.d modules" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
-	cat > "$HOME/.config/bash/func.d/05-func-first.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/func.d/05-func-first.sh" << 'EOF'
 my_func_first() { echo "func first"; }
 EOF
-	cat > "$HOME/.config/bash/func.d/10-func-second.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/func.d/10-func-second.sh" << 'EOF'
 my_func_second() { echo "func second"; }
 EOF
 
@@ -182,7 +182,7 @@ type my_func_first && type my_func_second
 
 # BASH-02b: main.sh handles empty func.d/
 @test "BASH-02b: main.sh handles empty func.d/ directory" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
 	run bash -c "
 export HOME='$HOME'
@@ -194,14 +194,14 @@ eval \"\$output\" 2>/dev/null
 
 # BASH-02c: main.sh ignores non-.sh files in func.d/
 @test "BASH-02c: main.sh ignores non-.sh files in func.d/" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
-	cat > "$HOME/.config/bash/func.d/05-valid-func.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/func.d/05-valid-func.sh" << 'EOF'
 valid_func() { echo "valid"; }
 EOF
 
-	echo "IGNORED" > "$HOME/.config/bash/func.d/10-file.txt"
-	echo "IGNORED_MD" > "$HOME/.config/bash/func.d/15-doc.md"
+	echo "IGNORED" > "$HOME/.local/share/bash/func.d/10-file.txt"
+	echo "IGNORED_MD" > "$HOME/.local/share/bash/func.d/15-doc.md"
 
 	run bash -c "
 export HOME='$HOME'
@@ -218,16 +218,16 @@ type valid_func
 
 # BASH-03a: conf.d/ modules load in alphabetical order via eval
 @test "BASH-03a: conf.d/ modules load in alphabetical order via eval" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
-	cat > "$HOME/.config/bash/conf.d/05-first.sh" << 'EOF'
-echo "05-first" >> "$HOME/.config/bash/load-order.log"
+	cat > "$HOME/.local/share/bash/conf.d/05-first.sh" << 'EOF'
+echo "05-first" >> "$HOME/.local/share/bash/load-order.log"
 EOF
-	cat > "$HOME/.config/bash/conf.d/10-second.sh" << 'EOF'
-echo "10-second" >> "$HOME/.config/bash/load-order.log"
+	cat > "$HOME/.local/share/bash/conf.d/10-second.sh" << 'EOF'
+echo "10-second" >> "$HOME/.local/share/bash/load-order.log"
 EOF
-	cat > "$HOME/.config/bash/conf.d/20-third.sh" << 'EOF'
-echo "20-third" >> "$HOME/.config/bash/load-order.log"
+	cat > "$HOME/.local/share/bash/conf.d/20-third.sh" << 'EOF'
+echo "20-third" >> "$HOME/.local/share/bash/load-order.log"
 EOF
 
 	run bash -c "
@@ -237,31 +237,31 @@ eval \"\$output\" 2>/dev/null
 "
 	assert_success
 
-	assert [ -f "$HOME/.config/bash/load-order.log" ]
+	assert [ -f "$HOME/.local/share/bash/load-order.log" ]
 	expected_order="05-first
 10-second
 20-third"
-	actual_order=$(cat "$HOME/.config/bash/load-order.log")
+	actual_order=$(cat "$HOME/.local/share/bash/load-order.log")
 	assert [ "$actual_order" = "$expected_order" ]
 }
 
 # BASH-03b: func.d/ modules load in alphabetical order after conf.d/ (via eval)
 @test "BASH-03b: func.d/ modules load in alphabetical order after conf.d/" {
-	mkdir -p "$HOME/.config/bash/conf.d"
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
-	cat > "$HOME/.config/bash/conf.d/05-conf.sh" << 'EOF'
-echo "conf-05" >> "$HOME/.config/bash/combined-order.log"
+	cat > "$HOME/.local/share/bash/conf.d/05-conf.sh" << 'EOF'
+echo "conf-05" >> "$HOME/.local/share/bash/combined-order.log"
 EOF
-	cat > "$HOME/.config/bash/conf.d/10-conf.sh" << 'EOF'
-echo "conf-10" >> "$HOME/.config/bash/combined-order.log"
+	cat > "$HOME/.local/share/bash/conf.d/10-conf.sh" << 'EOF'
+echo "conf-10" >> "$HOME/.local/share/bash/combined-order.log"
 EOF
 
-	cat > "$HOME/.config/bash/func.d/05-func.sh" << 'EOF'
-echo "func-05" >> "$HOME/.config/bash/combined-order.log"
+	cat > "$HOME/.local/share/bash/func.d/05-func.sh" << 'EOF'
+echo "func-05" >> "$HOME/.local/share/bash/combined-order.log"
 EOF
-	cat > "$HOME/.config/bash/func.d/10-func.sh" << 'EOF'
-echo "func-10" >> "$HOME/.config/bash/combined-order.log"
+	cat > "$HOME/.local/share/bash/func.d/10-func.sh" << 'EOF'
+echo "func-10" >> "$HOME/.local/share/bash/combined-order.log"
 EOF
 
 	run bash -c "
@@ -271,30 +271,30 @@ eval \"\$output\" 2>/dev/null
 "
 	assert_success
 
-	assert [ -f "$HOME/.config/bash/combined-order.log" ]
+	assert [ -f "$HOME/.local/share/bash/combined-order.log" ]
 	expected_order="conf-05
 conf-10
 func-05
 func-10"
-	actual_order=$(cat "$HOME/.config/bash/combined-order.log")
+	actual_order=$(cat "$HOME/.local/share/bash/combined-order.log")
 	assert [ "$actual_order" = "$expected_order" ]
 }
 
 # BASH-03c: 2-digit prefix enables predictable insertion points (via eval)
 @test "BASH-03c: 2-digit prefix enables predictable load order (05/10/15/20)" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
-	cat > "$HOME/.config/bash/conf.d/20-zebra.sh" << 'EOF'
-echo "20" >> "$HOME/.config/bash/numeric-order.log"
+	cat > "$HOME/.local/share/bash/conf.d/20-zebra.sh" << 'EOF'
+echo "20" >> "$HOME/.local/share/bash/numeric-order.log"
 EOF
-	cat > "$HOME/.config/bash/conf.d/10-apple.sh" << 'EOF'
-echo "10" >> "$HOME/.config/bash/numeric-order.log"
+	cat > "$HOME/.local/share/bash/conf.d/10-apple.sh" << 'EOF'
+echo "10" >> "$HOME/.local/share/bash/numeric-order.log"
 EOF
-	cat > "$HOME/.config/bash/conf.d/15-banana.sh" << 'EOF'
-echo "15" >> "$HOME/.config/bash/numeric-order.log"
+	cat > "$HOME/.local/share/bash/conf.d/15-banana.sh" << 'EOF'
+echo "15" >> "$HOME/.local/share/bash/numeric-order.log"
 EOF
-	cat > "$HOME/.config/bash/conf.d/05-yak.sh" << 'EOF'
-echo "05" >> "$HOME/.config/bash/numeric-order.log"
+	cat > "$HOME/.local/share/bash/conf.d/05-yak.sh" << 'EOF'
+echo "05" >> "$HOME/.local/share/bash/numeric-order.log"
 EOF
 
 	run bash -c "
@@ -304,12 +304,12 @@ eval \"\$output\" 2>/dev/null
 "
 	assert_success
 
-	assert [ -f "$HOME/.config/bash/numeric-order.log" ]
+	assert [ -f "$HOME/.local/share/bash/numeric-order.log" ]
 	expected_order="05
 10
 15
 20"
-	actual_order=$(cat "$HOME/.config/bash/numeric-order.log")
+	actual_order=$(cat "$HOME/.local/share/bash/numeric-order.log")
 	assert [ "$actual_order" = "$expected_order" ]
 }
 
@@ -319,9 +319,9 @@ eval \"\$output\" 2>/dev/null
 
 # BASH-04a: main.sh loop variables don't leak via eval
 @test "BASH-04a: main.sh loop variables don't leak into bash namespace after eval" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
-	cat > "$HOME/.config/bash/conf.d/05-mod.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/conf.d/05-mod.sh" << 'EOF'
 # Simple module
 EOF
 
@@ -338,7 +338,7 @@ eval \"\$output\" 2>/dev/null
 
 # BASH-04b: main.sh sources logging library from ~/.local/lib/logging.sh
 @test "BASH-04b: main.sh sources logging library from ~/.local/lib/logging.sh" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
 	# Create a test logging library that sets a marker variable
 	mkdir -p "$HOME/.local/lib"
@@ -360,7 +360,7 @@ eval \"\$output\" 2>/dev/null
 
 # BASH-04c: main.sh handles missing logging library gracefully
 @test "BASH-04c: main.sh handles missing logging library gracefully" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
 	# Remove the fake logging library from setup
 	rm -f "$HOME/.local/lib/logging.sh"
@@ -376,18 +376,18 @@ eval \"\$output\" 2>/dev/null
 
 # BASH-04d: One failing module does not prevent remaining modules from loading
 @test "BASH-04d: failing module doesn't prevent other modules from loading" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
-	cat > "$HOME/.config/bash/conf.d/05-ok.sh" << 'EOF'
-echo "OK-05" >> "$HOME/.config/bash/resilience.log"
+	cat > "$HOME/.local/share/bash/conf.d/05-ok.sh" << 'EOF'
+echo "OK-05" >> "$HOME/.local/share/bash/resilience.log"
 EOF
 
-	cat > "$HOME/.config/bash/conf.d/10-bad.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/conf.d/10-bad.sh" << 'EOF'
 this_is_a_syntax_error {
 EOF
 
-	cat > "$HOME/.config/bash/conf.d/15-ok.sh" << 'EOF'
-echo "OK-15" >> "$HOME/.config/bash/resilience.log"
+	cat > "$HOME/.local/share/bash/conf.d/15-ok.sh" << 'EOF'
+echo "OK-15" >> "$HOME/.local/share/bash/resilience.log"
 EOF
 
 	run bash -c "
@@ -396,16 +396,16 @@ output=\$(source '$MAIN_SH')
 eval \"\$output\" 2>/dev/null || true
 "
 
-	assert [ -f "$HOME/.config/bash/resilience.log" ]
-	grep -q "OK-05" "$HOME/.config/bash/resilience.log"
-	grep -q "OK-15" "$HOME/.config/bash/resilience.log"
+	assert [ -f "$HOME/.local/share/bash/resilience.log" ]
+	grep -q "OK-05" "$HOME/.local/share/bash/resilience.log"
+	grep -q "OK-15" "$HOME/.local/share/bash/resilience.log"
 }
 
 # BASH-04e: Module errors are silently suppressed (|| true pattern)
 @test "BASH-04e: module errors silently suppressed with || true" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
-	cat > "$HOME/.config/bash/conf.d/10-bad.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/conf.d/10-bad.sh" << 'EOF'
 this_is_a_syntax_error {
 EOF
 
@@ -421,14 +421,14 @@ eval \"\$output\" 2>/dev/null || true
 
 # BASH-04f: Broken conf.d/ module doesn't block func.d/ loading (via eval)
 @test "BASH-04f: broken conf.d/ module doesn't block func.d/ loading" {
-	mkdir -p "$HOME/.config/bash/conf.d"
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
-	cat > "$HOME/.config/bash/conf.d/05-bad.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/conf.d/05-bad.sh" << 'EOF'
 syntax_error {
 EOF
 
-	cat > "$HOME/.config/bash/func.d/10-ok.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/func.d/10-ok.sh" << 'EOF'
 func_ok() { echo "OK"; }
 EOF
 
@@ -442,7 +442,7 @@ type func_ok 2>/dev/null && echo 'FOUND'
 
 # BASH-04g: nullglob prevents error on missing directories
 @test "BASH-04g: missing conf.d/ or func.d/ doesn't cause error" {
-	mkdir -p "$HOME/.config/bash"
+	mkdir -p "$HOME/.local/share/bash"
 
 	run bash -c "
 export HOME='$HOME'
@@ -454,9 +454,9 @@ eval \"\$output\" 2>/dev/null
 
 # BASH-04h: main.sh exits with code 0 even if one module failed
 @test "BASH-04h: main.sh exits with code 0 despite module failure" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
-	cat > "$HOME/.config/bash/conf.d/10-bad.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/conf.d/10-bad.sh" << 'EOF'
 syntax_error {
 EOF
 
@@ -471,9 +471,9 @@ exit 0
 
 # BASH-04i: Error message includes module filename
 @test "BASH-04i: error message includes module filename" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
-	cat > "$HOME/.config/bash/conf.d/10-bad.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/conf.d/10-bad.sh" << 'EOF'
 syntax_error {
 EOF
 
@@ -488,9 +488,9 @@ source '$MAIN_SH' 2>&1
 
 # BASH-04j: Module success is silent (no log output at LOG_LEVEL=warn)
 @test "BASH-04j: successful module sourcing is silent at LOG_LEVEL=warn" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
-	cat > "$HOME/.config/bash/conf.d/05-ok.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/conf.d/05-ok.sh" << 'EOF'
 # This is fine
 EOF
 
@@ -507,9 +507,9 @@ eval \"\$output\" 2>&1
 
 # BASH-04k: main.sh with LOG_LEVEL=debug (no output pollution from main.sh)
 @test "BASH-04k: main.sh respects LOG_LEVEL (logging in subshell isolated)" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
-	cat > "$HOME/.config/bash/conf.d/05-ok.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/conf.d/05-ok.sh" << 'EOF'
 # Valid module
 EOF
 
@@ -528,9 +528,9 @@ eval \"\$output\" 2>&1
 
 # BASH-04l: LOG_NO_COLOR=1 disables colors in error output
 @test "BASH-04l: LOG_NO_COLOR=1 disables ANSI colors in errors" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 
-	cat > "$HOME/.config/bash/conf.d/10-bad.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/conf.d/10-bad.sh" << 'EOF'
 syntax_error {
 EOF
 
@@ -548,9 +548,9 @@ source '$MAIN_SH' 2>&1
 # ---------------------------------------------------------------------------
 
 # BASH-05a: Fallback skel file exists in dotfiles
-# Tests that dotfiles/common/.config/bash/skel/.bashrc exists
+# Tests that dotfiles/common/.local/share/bash/skel/.bashrc exists
 @test "BASH-05a: bash_completion fallback file exists in dotfiles" {
-	SKEL_BASHRC="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/bash/skel/.bashrc"
+	SKEL_BASHRC="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/bash/skel/.bashrc"
 
 	run bash -c "
 [[ -f '$SKEL_BASHRC' ]] && echo 'SKEL_EXISTS' || echo 'SKEL_NOT_FOUND'
@@ -563,7 +563,7 @@ source '$MAIN_SH' 2>&1
 # BASH-05b: Main .bashrc sources system bash_completion
 # Tests that ~/.bashrc includes bash_completion bootstrap logic
 @test "BASH-05b: .bashrc includes bash_completion bootstrap logic" {
-	MAIN_SH_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/bash/main.sh"
+	MAIN_SH_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/bash/main.sh"
 
 	run bash -c "
 grep -q 'skel' '$MAIN_SH_FILE' && echo 'HAS_COMPLETION_LOGIC' || echo 'NO_COMPLETION_LOGIC'
@@ -576,11 +576,11 @@ grep -q 'skel' '$MAIN_SH_FILE' && echo 'HAS_COMPLETION_LOGIC' || echo 'NO_COMPLE
 # BASH-05c: Main.sh handles missing /etc/skel/.bashrc gracefully
 # Tests that main.sh outputs fallback when system bash_completion unavailable
 @test "BASH-05c: main.sh provides fallback when /etc/skel/.bashrc unavailable" {
-	mkdir -p "$HOME/.config/bash/conf.d"
-	mkdir -p "$HOME/.config/bash/skel"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/skel"
 
 	# Create fallback file with marker
-	cat > "$HOME/.config/bash/skel/.bashrc" << 'EOF'
+	cat > "$HOME/.local/share/bash/skel/.bashrc" << 'EOF'
 FALLBACK_LOADED="yes"
 EOF
 
@@ -595,13 +595,13 @@ source '$MAIN_SH'
 	assert_output "FALLBACK_WORKED"
 }
 
-# BASH-05d: Fallback uses correct path ~/.config/bash/skel/.bashrc
-# Tests that main.sh checks ~/.config/bash/skel/.bashrc specifically
-@test "BASH-05d: main.sh fallback uses ~/.config/bash/skel/.bashrc path" {
-	mkdir -p "$HOME/.config/bash/conf.d"
-	mkdir -p "$HOME/.config/bash/skel"
+# BASH-05d: Fallback uses correct path ~/.local/share/bash/skel/.bashrc
+# Tests that main.sh checks ~/.local/share/bash/skel/.bashrc specifically
+@test "BASH-05d: main.sh fallback uses ~/.local/share/bash/skel/.bashrc path" {
+	mkdir -p "$HOME/.local/share/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/skel"
 
-	cat > "$HOME/.config/bash/skel/.bashrc" << 'EOF'
+	cat > "$HOME/.local/share/bash/skel/.bashrc" << 'EOF'
 CORRECT_PATH_MARKER="yes"
 EOF
 
@@ -619,11 +619,11 @@ source '$MAIN_SH'
 # BASH-05e: Fallback is non-blocking (uses || pattern)
 # Tests that fallback failure doesn't prevent shell startup
 @test "BASH-05e: bash_completion fallback is non-blocking" {
-	mkdir -p "$HOME/.config/bash/conf.d"
-	mkdir -p "$HOME/.config/bash/skel"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/skel"
 
 	# Create fallback with syntax error
-	cat > "$HOME/.config/bash/skel/.bashrc" << 'EOF'
+	cat > "$HOME/.local/share/bash/skel/.bashrc" << 'EOF'
 syntax_error {
 EOF
 
@@ -644,9 +644,9 @@ echo 'SHELL_CONTINUED'
 # ---------------------------------------------------------------------------
 
 # BASH-06a: PATH module exists in dotfiles
-# Tests that dotfiles/common/.config/bash/conf.d/05-path.sh exists
+# Tests that dotfiles/common/.local/share/bash/conf.d/05-path.sh exists
 @test "BASH-06a: PATH module (conf.d/05-path.sh) exists in dotfiles" {
-	DOTFILES_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/bash/conf.d/05-path.sh"
+	DOTFILES_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/bash/conf.d/05-path.sh"
 
 	run bash -c "
 [[ -f '$DOTFILES_PATH' ]] && echo 'PATH_MODULE_EXISTS' || echo 'PATH_MODULE_NOT_FOUND'
@@ -659,10 +659,10 @@ echo 'SHELL_CONTINUED'
 # BASH-06b: PATH module when loaded adds directories to PATH
 # Tests that when PATH module is sourced, it modifies PATH variable
 @test "BASH-06b: PATH module adds user directories to PATH when sourced" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 	mkdir -p "$HOME/.local/bin"
 
-	cat > "$HOME/.config/bash/conf.d/05-path.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/conf.d/05-path.sh" << 'EOF'
 [[ -d ~/.cargo/bin ]] && PATH="$HOME/.cargo/bin:$PATH"
 [[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
 [[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
@@ -683,12 +683,12 @@ source '$MAIN_SH'
 # BASH-06c: PATH precedence - ~/.local/bin first
 # Tests that ~/.local/bin appears first in PATH when added
 @test "BASH-06c: PATH module adds ~/.local/bin with highest precedence" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 	mkdir -p "$HOME/.local/bin"
 	mkdir -p "$HOME/bin"
 	mkdir -p "$HOME/.cargo/bin"
 
-	cat > "$HOME/.config/bash/conf.d/05-path.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/conf.d/05-path.sh" << 'EOF'
 [[ -d ~/.cargo/bin ]] && PATH="$HOME/.cargo/bin:$PATH"
 [[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
 [[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
@@ -708,11 +708,11 @@ echo \"\$PATH\" | cut -d: -f1 | grep -q 'local/bin' && echo 'LOCAL_BIN_FIRST' ||
 # BASH-06d: PATH excludes non-existent directories
 # Tests that only existing directories are added to PATH
 @test "BASH-06d: PATH module excludes non-existent directories" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 	mkdir -p "$HOME/.local/bin"
 	# Intentionally don't create ~/bin and ~/.cargo/bin
 
-	cat > "$HOME/.config/bash/conf.d/05-path.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/conf.d/05-path.sh" << 'EOF'
 [[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
 [[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
 [[ -d ~/.cargo/bin ]] && PATH="$HOME/.cargo/bin:$PATH"
@@ -733,12 +733,12 @@ echo \"\$PATH\" | grep -q \"\$HOME/bin:\" && echo 'BIN_FOUND' || echo 'BIN_NOT_F
 # BASH-06e: All three directories added when all exist
 # Tests that ~/.local/bin, ~/bin, ~/.cargo/bin all appear in PATH
 @test "BASH-06e: PATH module includes all three directories when they exist" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 	mkdir -p "$HOME/.local/bin"
 	mkdir -p "$HOME/bin"
 	mkdir -p "$HOME/.cargo/bin"
 
-	cat > "$HOME/.config/bash/conf.d/05-path.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/conf.d/05-path.sh" << 'EOF'
 [[ -d ~/.cargo/bin ]] && PATH="$HOME/.cargo/bin:$PATH"
 [[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
 [[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
@@ -759,12 +759,12 @@ echo \"\$PATH\" | grep -q 'local/bin' && echo 'LOCAL_FOUND' || echo 'MISSING'
 # BASH-06f: Partial directories added when some exist
 # Tests that only existing directories among the three are added
 @test "BASH-06f: PATH module handles partial directory existence correctly" {
-	mkdir -p "$HOME/.config/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
 	mkdir -p "$HOME/.local/bin"
 	mkdir -p "$HOME/.cargo/bin"
 	# Intentionally don't create ~/bin
 
-	cat > "$HOME/.config/bash/conf.d/05-path.sh" << 'EOF'
+	cat > "$HOME/.local/share/bash/conf.d/05-path.sh" << 'EOF'
 [[ -d ~/.cargo/bin ]] && PATH="$HOME/.cargo/bin:$PATH"
 [[ -d ~/bin ]] && PATH="$HOME/bin:$PATH"
 [[ -d ~/.local/bin ]] && PATH="$HOME/.local/bin:$PATH"
@@ -866,9 +866,9 @@ grep -q 'set editing-mode vi' '$READLINE_CONFIG' 2>/dev/null && echo 'FOUND_VI' 
 
 # BASH-08a: func.d/ modules are discovered and loaded
 @test "BASH-08a: func.d/ modules are discovered and loaded" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
-	cat >"$HOME/.config/bash/func.d/my_test.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/my_test.sh" <<'EOF'
 my_test_function() {
     echo "LOADED"
 }
@@ -886,7 +886,7 @@ my_test_function
 
 # BASH-08b: func.d/ directory can be empty without error
 @test "BASH-08b: empty func.d/ directory is handled gracefully" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
 	run bash -c "
 export HOME='$HOME'
@@ -898,13 +898,13 @@ eval \"\$output\" 2>/dev/null
 
 # BASH-08c: Non-.sh files are ignored in func.d/
 @test "BASH-08c: non-.sh files are ignored in func.d/" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
-	cat >"$HOME/.config/bash/func.d/valid.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/valid.sh" <<'EOF'
 valid_func() { echo "VALID"; }
 EOF
-	echo "IGNORED" >"$HOME/.config/bash/func.d/not-a-script.txt"
-	echo "IGNORED_MD" >"$HOME/.config/bash/func.d/readme.md"
+	echo "IGNORED" >"$HOME/.local/share/bash/func.d/not-a-script.txt"
+	echo "IGNORED_MD" >"$HOME/.local/share/bash/func.d/readme.md"
 
 	run bash -c "
 export HOME='$HOME'
@@ -917,9 +917,9 @@ valid_func
 
 # BASH-08d: Functions defined in modules are available in shell after sourcing
 @test "BASH-08d: functions from func.d/ are available after main.sh is sourced" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
-	cat >"$HOME/.config/bash/func.d/greet.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/greet.sh" <<'EOF'
 greet() { echo "Hello, ${1}!"; }
 EOF
 
@@ -938,16 +938,16 @@ greet World
 
 # BASH-09a: func.d/ modules load in alphabetical order
 @test "BASH-09a: func.d/ modules load alphabetically (a before b before c)" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
 	# Create modules out of alphabetical order; verify all three load correctly
-	cat >"$HOME/.config/bash/func.d/c_third.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/c_third.sh" <<'EOF'
 func_c() { echo "C"; }
 EOF
-	cat >"$HOME/.config/bash/func.d/a_first.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/a_first.sh" <<'EOF'
 func_a() { echo "A"; }
 EOF
-	cat >"$HOME/.config/bash/func.d/b_second.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/b_second.sh" <<'EOF'
 func_b() { echo "B"; }
 EOF
 
@@ -967,15 +967,15 @@ C"
 
 # BASH-09b: Module ordering is consistent — both files exist and load
 @test "BASH-09b: multiple func.d/ modules all load successfully" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
-	cat >"$HOME/.config/bash/func.d/alpha.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/alpha.sh" <<'EOF'
 alpha_func() { echo "alpha"; }
 EOF
-	cat >"$HOME/.config/bash/func.d/beta.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/beta.sh" <<'EOF'
 beta_func() { echo "beta"; }
 EOF
-	cat >"$HOME/.config/bash/func.d/gamma.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/gamma.sh" <<'EOF'
 gamma_func() { echo "gamma"; }
 EOF
 
@@ -994,13 +994,13 @@ GAMMA_FOUND"
 
 # BASH-09c: func.d/ loads after conf.d/ (combined ordering)
 @test "BASH-09c: func.d/ modules load after conf.d/ modules" {
-	mkdir -p "$HOME/.config/bash/conf.d"
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/conf.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
-	cat >"$HOME/.config/bash/conf.d/05-conf.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/conf.d/05-conf.sh" <<'EOF'
 echo "CONF_LOADED"
 EOF
-	cat >"$HOME/.config/bash/func.d/funcs.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/funcs.sh" <<'EOF'
 run_func() { echo "FUNC_AVAILABLE"; }
 EOF
 
@@ -1034,10 +1034,10 @@ EOF
 
 # BASH-10b: Syntax-broken module is skipped (bash -n fails => not sourced)
 @test "BASH-10b: module with syntax error is skipped (not sourced)" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
 	# Write a module with a genuine bash syntax error
-	cat >"$HOME/.config/bash/func.d/broken.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/broken.sh" <<'EOF'
 broken_func() {
     echo "missing close brace"
 EOF
@@ -1054,10 +1054,10 @@ declare -f broken_func >/dev/null 2>&1 && echo 'LOADED' || echo 'SKIPPED'
 
 # BASH-10c: Module with top-level function call passes bash -n but executes at source
 @test "BASH-10c: valid module with only function defs loads without executing at load time" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
 	# This module has a pure function; calling it is a side-effect of func call, not load
-	cat >"$HOME/.config/bash/func.d/side_test.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/side_test.sh" <<'EOF'
 side_test_func() { echo "CALLED"; }
 EOF
 
@@ -1073,14 +1073,14 @@ echo 'LOADED_ONLY'
 
 # BASH-10d: Broken module doesn't prevent bashrc from loading
 @test "BASH-10d: broken func.d/ module doesn't break bashrc load" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
-	cat >"$HOME/.config/bash/func.d/broken.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/broken.sh" <<'EOF'
 broken() {
     echo "unclosed"
 EOF
 
-	cat >"$HOME/.config/bash/func.d/good.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/good.sh" <<'EOF'
 good_func() { echo "GOOD"; }
 EOF
 
@@ -1095,10 +1095,10 @@ good_func
 
 # BASH-10e: Module works independently without other modules (D-04 requirement)
 @test "BASH-10e: btash.sh works independently without string_utils.sh" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
 	# Create only a standalone module (not dependent on any other func.d/ module)
-	cat >"$HOME/.config/bash/func.d/standalone.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/standalone.sh" <<'EOF'
 standalone_func() { echo "STANDALONE"; }
 EOF
 	# Deliberately do NOT create any other module
@@ -1118,9 +1118,9 @@ declare -f standalone_func >/dev/null && echo 'SUCCESS' || echo 'FAILED'
 
 # BASH-11a: Broken module is logged (warning message shown on stderr)
 @test "BASH-11a: broken module produces a warning message" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
-	cat >"$HOME/.config/bash/func.d/bad.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/bad.sh" <<'EOF'
 broken_func() {
     echo "unclosed block"
 EOF
@@ -1136,9 +1136,9 @@ source '$MAIN_SH' 2>&1
 
 # BASH-11b: Broken module is skipped (not included in source output)
 @test "BASH-11b: broken module is not sourced (function absent after load)" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
-	cat >"$HOME/.config/bash/func.d/syntax_err.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/syntax_err.sh" <<'EOF'
 will_not_load() {
     echo "unreachable"
 EOF
@@ -1154,15 +1154,15 @@ declare -f will_not_load >/dev/null 2>&1 && echo 'SOURCED' || echo 'SKIPPED'
 
 # BASH-11c: Following modules load despite earlier broken module
 @test "BASH-11c: following modules load successfully after a broken module" {
-	mkdir -p "$HOME/.config/bash/func.d"
+	mkdir -p "$HOME/.local/share/bash/func.d"
 
 	# Alphabetically: a_broken.sh loads before b_good.sh
-	cat >"$HOME/.config/bash/func.d/a_broken.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/a_broken.sh" <<'EOF'
 broken() {
     echo "unclosed"
 EOF
 
-	cat >"$HOME/.config/bash/func.d/b_good.sh" <<'EOF'
+	cat >"$HOME/.local/share/bash/func.d/b_good.sh" <<'EOF'
 good_after_broken() { echo "GOOD_AFTER_BROKEN"; }
 EOF
 
@@ -1187,7 +1187,7 @@ good_after_broken
 
 # BASH-12b: bash -n passes on func.d/ example modules deployed in dotfiles
 @test "BASH-12b: bash -n passes on all deployed func.d/ example modules" {
-	FUNC_D_DIR="${PWD}/dotfiles/common/.config/bash/func.d"
+	FUNC_D_DIR="${PWD}/dotfiles/common/.local/share/bash/func.d"
 
 	# Verify both example modules pass bash -n
 	run bash -c "
@@ -1252,3 +1252,345 @@ echo 'ALL_PASS'
 	'
 	assert_success
 }
+
+	# ---------------------------------------------------------------------------
+	# Group 14: BASH-13 - conf.d module discovery from .local/share/bash/conf.d/
+	# ---------------------------------------------------------------------------
+
+	# BASH-13a: Modules discovered and eval'd from .local/share/bash/conf.d/
+	@test "BASH-13a: modules discovered and eval'd from .local/share/bash/conf.d/" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+
+		cat > "$HOME/.local/share/bash/conf.d/05-first.sh" << 'EOF'
+echo "LOCAL_FIRST" >> "$HOME/.local/share/bash/test-output.log"
+EOF
+		cat > "$HOME/.local/share/bash/conf.d/10-second.sh" << 'EOF'
+echo "LOCAL_SECOND" >> "$HOME/.local/share/bash/test-output.log"
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+output=\$(source '$MAIN_SH')
+eval \"\$output\" 2>/dev/null
+"
+		assert [ -f "$HOME/.local/share/bash/test-output.log" ]
+		grep -q "LOCAL_FIRST" "$HOME/.local/share/bash/test-output.log"
+		grep -q "LOCAL_SECOND" "$HOME/.local/share/bash/test-output.log"
+	}
+
+	# BASH-13b: Empty .local/share/bash/conf.d/ handled gracefully
+	@test "BASH-13b: empty .local/share/bash/conf.d/ handled gracefully" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+
+		run bash -c "
+export HOME='$HOME'
+output=\$(source '$MAIN_SH')
+eval \"\$output\" 2>/dev/null
+"
+		assert_success
+	}
+
+	# BASH-13c: Non-.sh files ignored in .local/share/bash/conf.d/
+	@test "BASH-13c: non-.sh files ignored in .local/share/bash/conf.d/" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+
+		cat > "$HOME/.local/share/bash/conf.d/05-valid.sh" << 'EOF'
+echo "VALID_LOCAL" >> "$HOME/.local/share/bash/test-output.log"
+EOF
+
+		echo "IGNORED_TXT" > "$HOME/.local/share/bash/conf.d/10-invalid.txt"
+		echo "IGNORED_MD" > "$HOME/.local/share/bash/conf.d/15-readme.md"
+
+		run bash -c "
+export HOME='$HOME'
+output=\$(source '$MAIN_SH')
+eval \"\$output\" 2>/dev/null
+"
+		assert_success
+
+		assert [ -f "$HOME/.local/share/bash/test-output.log" ]
+		grep -q "VALID_LOCAL" "$HOME/.local/share/bash/test-output.log"
+	}
+
+	# BASH-13d: Filenames with spaces quoted correctly in .local/share/bash/conf.d/
+	@test "BASH-13d: filenames with spaces quoted correctly in .local/share/bash/conf.d/" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+
+		cat > "$HOME/.local/share/bash/conf.d/05-my conf.sh" << 'EOF'
+echo "SPACE-TEST-LOCAL" >> "$HOME/.local/share/bash/test-output.log"
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+output=\$(source '$MAIN_SH')
+eval \"\$output\" 2>/dev/null
+"
+		assert_success
+
+		assert [ -f "$HOME/.local/share/bash/test-output.log" ]
+		grep -q "SPACE-TEST-LOCAL" "$HOME/.local/share/bash/test-output.log"
+	}
+
+	# ---------------------------------------------------------------------------
+	# Group 15: BASH-14 - func.d module discovery from .local/share/bash/func.d/
+	# ---------------------------------------------------------------------------
+
+	# BASH-14a: Functions loaded and callable from .local/share/bash/func.d/
+	@test "BASH-14a: functions loaded and callable from .local/share/bash/func.d/" {
+		mkdir -p "$HOME/.local/share/bash/func.d"
+
+		cat > "$HOME/.local/share/bash/func.d/05-local-func-first.sh" << 'EOF'
+local_func_first() { echo "local func first"; }
+EOF
+		cat > "$HOME/.local/share/bash/func.d/10-local-func-second.sh" << 'EOF'
+local_func_second() { echo "local func second"; }
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH'
+type local_func_first && type local_func_second
+"
+		assert_success
+		assert_output --partial "local_func_first is a function"
+		assert_output --partial "local_func_second is a function"
+	}
+
+	# BASH-14b: Function definitions in eval'd namespace from .local/share/bash/func.d/
+	@test "BASH-14b: function definitions in eval'd namespace from .local/share/bash/func.d/" {
+		mkdir -p "$HOME/.local/share/bash/func.d"
+
+		cat > "$HOME/.local/share/bash/func.d/10-local-test.sh" << 'EOF'
+local_test_func() { echo "LOCAL_TEST"; }
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH'
+local_test_func
+"
+		assert_success
+		assert_output "LOCAL_TEST"
+	}
+
+	# BASH-14c: Syntax errors skipped with warning in .local/share/bash/func.d/
+	@test "BASH-14c: syntax errors skipped with warning in .local/share/bash/func.d/" {
+		mkdir -p "$HOME/.local/share/bash/func.d"
+
+		cat > "$HOME/.local/share/bash/func.d/05-bad-local.sh" << 'EOF'
+bad_local_func() {
+    echo "unclosed"
+EOF
+
+		cat > "$HOME/.local/share/bash/func.d/10-good-local.sh" << 'EOF'
+good_local_func() { echo "GOOD_LOCAL"; }
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH' 2>/dev/null
+good_local_func
+"
+		assert_success
+		assert_output "GOOD_LOCAL"
+	}
+
+	# BASH-14d: Alphabetical ordering preserved in .local/share/bash/func.d/
+	@test "BASH-14d: alphabetical ordering preserved in .local/share/bash/func.d/" {
+		mkdir -p "$HOME/.local/share/bash/func.d"
+
+		cat > "$HOME/.local/share/bash/func.d/30-local-third.sh" << 'EOF'
+local_func_c() { echo "C"; }
+EOF
+		cat > "$HOME/.local/share/bash/func.d/10-local-first.sh" << 'EOF'
+local_func_a() { echo "A"; }
+EOF
+		cat > "$HOME/.local/share/bash/func.d/20-local-second.sh" << 'EOF'
+local_func_b() { echo "B"; }
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH'
+local_func_a
+local_func_b
+local_func_c
+"
+		assert_success
+		assert_output "A
+B
+C"
+	}
+
+	# ---------------------------------------------------------------------------
+	# Group 16: BASH-15 - skel fallback from .local/share/bash/skel/
+	# ---------------------------------------------------------------------------
+
+	# BASH-15a: Skel fallback loads when system skel missing
+	@test "BASH-15a: skel fallback loads from .local/share/bash/skel/ when system missing" {
+		mkdir -p "$HOME/.local/share/bash/skel"
+
+		cat > "$HOME/.local/share/bash/skel/.bashrc" << 'EOF'
+SKEL_FALLBACK_LOADED="yes"
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+export SKEL_SYSTEM='/nonexistent/skel/.bashrc'
+source '$MAIN_SH'
+[[ \"\$SKEL_FALLBACK_LOADED\" == \"yes\" ]] && echo 'FALLBACK_WORKED' || echo 'FALLBACK_FAILED'
+"
+		assert_success
+		assert_output "FALLBACK_WORKED"
+	}
+
+	# BASH-15b: Skel path references updated to .local/share/bash/skel/
+	@test "BASH-15b: skel path references updated to .local/share/bash/skel/" {
+		mkdir -p "$HOME/.local/share/bash/skel"
+
+		cat > "$HOME/.local/share/bash/skel/.bashrc" << 'EOF'
+CORRECT_SKEL_PATH="yes"
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+export SKEL_SYSTEM='/nonexistent/skel/.bashrc'
+source '$MAIN_SH'
+[[ \"\$CORRECT_SKEL_PATH\" == \"yes\" ]] && echo 'CORRECT_PATH' || echo 'WRONG_PATH'
+"
+		assert_success
+		assert_output "CORRECT_PATH"
+	}
+
+	# BASH-15c: System skel takes priority over local fallback
+	@test "BASH-15c: system skel takes priority over .local/share/bash/skel/ fallback" {
+		mkdir -p "$HOME/.local/share/bash/skel"
+		FAKE_SYSTEM_SKEL="$HOME/fake-system-skel"
+		mkdir -p "$(dirname "$FAKE_SYSTEM_SKEL")"
+
+		cat > "$HOME/.local/share/bash/skel/.bashrc" << 'EOF'
+LOADED_FROM="fallback"
+EOF
+
+		cat > "$FAKE_SYSTEM_SKEL" << 'EOF'
+LOADED_FROM="system"
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+export SKEL_SYSTEM='$FAKE_SYSTEM_SKEL'
+source '$MAIN_SH'
+[[ \"\$LOADED_FROM\" == \"system\" ]] && echo 'SYSTEM_PRIORITY' || echo 'FALLBACK_PRIORITY'
+"
+		assert_success
+		assert_output "SYSTEM_PRIORITY"
+	}
+
+	# ---------------------------------------------------------------------------
+	# Group 17: BASHRC-SAFETY-01 - explicit main.sh existence check in .bashrc
+	# ---------------------------------------------------------------------------
+
+	# BASHRC-SAFETY-01a: Explicit if-statement check when file present
+	@test "BASHRC-SAFETY-01a: explicit if-statement checks main.sh file presence" {
+		mkdir -p "$HOME/.local/share/bash"
+
+		cat > "$HOME/.local/share/bash/main.sh" << 'EOF'
+echo "MAIN_SH_LOADED"
+EOF
+
+		BASHRC="$HOME/.bashrc"
+		cat > "$BASHRC" << 'EOF'
+# Explicit safety check for main.sh
+if [[ -f "$HOME/.local/share/bash/main.sh" ]]; then
+	source "$HOME/.local/share/bash/main.sh"
+fi
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+source '$BASHRC'
+"
+		assert_success
+		assert_output "MAIN_SH_LOADED"
+	}
+
+	# BASHRC-SAFETY-01b: Explicit if-statement check when file missing
+	@test "BASHRC-SAFETY-01b: explicit if-statement handles missing main.sh file gracefully" {
+		mkdir -p "$HOME/.local/share/bash"
+		# Deliberately don't create main.sh
+
+		BASHRC="$HOME/.bashrc"
+		cat > "$BASHRC" << 'EOF'
+# Explicit safety check for main.sh
+if [[ -f "$HOME/.local/share/bash/main.sh" ]]; then
+	source "$HOME/.local/share/bash/main.sh"
+fi
+echo "BASHRC_CONTINUED"
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+source '$BASHRC'
+"
+		assert_success
+		assert_output "BASHRC_CONTINUED"
+	}
+
+	# BASHRC-SAFETY-01c: .bashrc continues loading when main.sh missing
+	@test "BASHRC-SAFETY-01c: .bashrc continues loading when main.sh missing" {
+		mkdir -p "$HOME/.local/share/bash"
+
+		BASHRC="$HOME/.bashrc"
+		cat > "$BASHRC" << 'EOF'
+if [[ -f "$HOME/.local/share/bash/main.sh" ]]; then
+	source "$HOME/.local/share/bash/main.sh"
+fi
+# Additional bashrc setup continues
+export BASHRC_MARKER="loaded"
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+source '$BASHRC'
+[[ \"\$BASHRC_MARKER\" == \"loaded\" ]] && echo 'SUCCESS' || echo 'FAILED'
+"
+		assert_success
+		assert_output "SUCCESS"
+	}
+
+	# BASHRC-SAFETY-01d: System skel sourced before main.sh
+	@test "BASHRC-SAFETY-01d: system skel (bash_completion) sourced before main.sh" {
+		mkdir -p "$HOME/.local/share/bash"
+		FAKE_SYSTEM_SKEL="$HOME/fake-system-skel"
+		mkdir -p "$(dirname "$FAKE_SYSTEM_SKEL")"
+
+		cat > "$FAKE_SYSTEM_SKEL" << 'EOF'
+SYSTEM_SKEL_LOADED="yes"
+EOF
+
+		cat > "$HOME/.local/share/bash/main.sh" << 'EOF'
+# main.sh expects system skel to be loaded first
+[[ -z "$SYSTEM_SKEL_LOADED" ]] && echo "WARNING: system skel not loaded first" >&2
+echo "MAIN_SH_LOADED"
+EOF
+
+		BASHRC="$HOME/.bashrc"
+		cat > "$BASHRC" << 'EOF'
+# Load system skel first
+if [[ -f "$SKEL_SYSTEM" ]]; then
+	source "$SKEL_SYSTEM"
+fi
+# Then load main.sh
+if [[ -f "$HOME/.local/share/bash/main.sh" ]]; then
+	source "$HOME/.local/share/bash/main.sh"
+fi
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+export SKEL_SYSTEM='$FAKE_SYSTEM_SKEL'
+source '$BASHRC'
+"
+		assert_success
+		assert_output "MAIN_SH_LOADED"
+	}

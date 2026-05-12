@@ -6,5 +6,8 @@ if [[ -f /etc/skel/.bashrc ]]; then
 fi
 
 # Source main bash configuration loader (modules, functions)
-# shellcheck source=dotfiles/common/.config/bash/main.sh
-source "${HOME}/.config/bash/main.sh" || true
+# Explicit existence check: if file exists, source it; if not, silently skip
+if [[ -f "${HOME}/.local/share/bash/main.sh" ]]; then
+  # shellcheck source=dotfiles/common/.local/share/bash/main.sh
+  source "${HOME}/.local/share/bash/main.sh" || true
+fi
