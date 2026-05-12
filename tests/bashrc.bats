@@ -547,40 +547,40 @@ source '$MAIN_SH' 2>&1
 # Group 5: BASH-05 - Bash Completion Bootstrap (TDD Red Phase)
 # ---------------------------------------------------------------------------
 
-# BASH-05a: Fallback skel file exists in dotfiles
-# Tests that dotfiles/common/.local/share/bash/skel/.bashrc exists
+# BASH-05a: Fallback skel file exists in dotfiles at new path
+# Tests that dotfiles/common/.local/share/etc/skel/.bashrc exists
 @test "BASH-05a: bash_completion fallback file exists in dotfiles" {
-	SKEL_BASHRC="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/bash/skel/.bashrc"
+	SKEL_BASHRC="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/etc/skel/.bashrc"
 
 	run bash -c "
 [[ -f '$SKEL_BASHRC' ]] && echo 'SKEL_EXISTS' || echo 'SKEL_NOT_FOUND'
 "
 	assert_success
-	# GREEN phase - file now exists
+	# RED phase - file does not exist yet at new path
 	assert_output "SKEL_EXISTS"
 }
 
-# BASH-05b: Main .bashrc sources system bash_completion
-# Tests that ~/.bashrc includes bash_completion bootstrap logic
+# BASH-05b: Main.sh skel logic removed per D-03
+# Tests that main.sh no longer contains skel sourcing logic
 @test "BASH-05b: .bashrc includes bash_completion bootstrap logic" {
 	MAIN_SH_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/bash/main.sh"
 
 	run bash -c "
-grep -q 'skel' '$MAIN_SH_FILE' && echo 'HAS_COMPLETION_LOGIC' || echo 'NO_COMPLETION_LOGIC'
+grep -q 'skel' '$MAIN_SH_FILE' && echo 'HAS_SKEL_LOGIC' || echo 'NO_SKEL_LOGIC'
 "
 	assert_success
-	# GREEN phase - fallback logic is in main.sh
-	assert_output "HAS_COMPLETION_LOGIC"
+	# RED phase - skel logic removed from main.sh per D-03
+	assert_output "NO_SKEL_LOGIC"
 }
 
-# BASH-05c: Main.sh handles missing /etc/skel/.bashrc gracefully
-# Tests that main.sh outputs fallback when system bash_completion unavailable
+# BASH-05c: Skel fallback path updated to new location
+# Tests that new path ~/.local/share/etc/skel/.bashrc is used
 @test "BASH-05c: main.sh provides fallback when /etc/skel/.bashrc unavailable" {
 	mkdir -p "$HOME/.local/share/bash/conf.d"
-	mkdir -p "$HOME/.local/share/bash/skel"
+	mkdir -p "$HOME/.local/share/etc/skel"
 
-	# Create fallback file with marker
-	cat > "$HOME/.local/share/bash/skel/.bashrc" << 'EOF'
+	# Create fallback file at new path with marker
+	cat > "$HOME/.local/share/etc/skel/.bashrc" << 'EOF'
 FALLBACK_LOADED="yes"
 EOF
 
@@ -591,17 +591,17 @@ source '$MAIN_SH'
 [[ \"\$FALLBACK_LOADED\" == \"yes\" ]] && echo 'FALLBACK_WORKED' || echo 'FALLBACK_FAILED'
 "
 	assert_success
-	# GREEN phase - main.sh now sources fallback directly
+	# RED phase - main.sh no longer handles fallback from new path (skel logic removed)
 	assert_output "FALLBACK_WORKED"
 }
 
-# BASH-05d: Fallback uses correct path ~/.local/share/bash/skel/.bashrc
-# Tests that main.sh checks ~/.local/share/bash/skel/.bashrc specifically
+# BASH-05d: Fallback uses correct new path ~/.local/share/etc/skel/.bashrc
+# Tests that fallback now uses new XDG-aligned path
 @test "BASH-05d: main.sh fallback uses ~/.local/share/bash/skel/.bashrc path" {
 	mkdir -p "$HOME/.local/share/bash/conf.d"
-	mkdir -p "$HOME/.local/share/bash/skel"
+	mkdir -p "$HOME/.local/share/etc/skel"
 
-	cat > "$HOME/.local/share/bash/skel/.bashrc" << 'EOF'
+	cat > "$HOME/.local/share/etc/skel/.bashrc" << 'EOF'
 CORRECT_PATH_MARKER="yes"
 EOF
 
@@ -612,7 +612,7 @@ source '$MAIN_SH'
 [[ \"\$CORRECT_PATH_MARKER\" == \"yes\" ]] && echo 'CORRECT_PATH' || echo 'WRONG_PATH'
 "
 	assert_success
-	# GREEN phase - fallback logic now implemented
+	# RED phase - main.sh no longer handles fallback; skel logic removed
 	assert_output "CORRECT_PATH"
 }
 
@@ -1426,11 +1426,11 @@ C"
 	# Group 16: BASH-15 - skel fallback from .local/share/bash/skel/
 	# ---------------------------------------------------------------------------
 
-	# BASH-15a: Skel fallback loads when system skel missing
+	# BASH-15a: Skel fallback loads from new path when system skel missing
 	@test "BASH-15a: skel fallback loads from .local/share/bash/skel/ when system missing" {
-		mkdir -p "$HOME/.local/share/bash/skel"
+		mkdir -p "$HOME/.local/share/etc/skel"
 
-		cat > "$HOME/.local/share/bash/skel/.bashrc" << 'EOF'
+		cat > "$HOME/.local/share/etc/skel/.bashrc" << 'EOF'
 SKEL_FALLBACK_LOADED="yes"
 EOF
 
@@ -1441,14 +1441,15 @@ source '$MAIN_SH'
 [[ \"\$SKEL_FALLBACK_LOADED\" == \"yes\" ]] && echo 'FALLBACK_WORKED' || echo 'FALLBACK_FAILED'
 "
 		assert_success
+		# RED phase - main.sh skel fallback removed
 		assert_output "FALLBACK_WORKED"
 	}
 
-	# BASH-15b: Skel path references updated to .local/share/bash/skel/
+	# BASH-15b: Skel path references updated to .local/share/etc/skel/
 	@test "BASH-15b: skel path references updated to .local/share/bash/skel/" {
-		mkdir -p "$HOME/.local/share/bash/skel"
+		mkdir -p "$HOME/.local/share/etc/skel"
 
-		cat > "$HOME/.local/share/bash/skel/.bashrc" << 'EOF'
+		cat > "$HOME/.local/share/etc/skel/.bashrc" << 'EOF'
 CORRECT_SKEL_PATH="yes"
 EOF
 
@@ -1459,16 +1460,17 @@ source '$MAIN_SH'
 [[ \"\$CORRECT_SKEL_PATH\" == \"yes\" ]] && echo 'CORRECT_PATH' || echo 'WRONG_PATH'
 "
 		assert_success
+		# RED phase - main.sh no longer sources from local skel path
 		assert_output "CORRECT_PATH"
 	}
 
-	# BASH-15c: System skel takes priority over local fallback
+	# BASH-15c: System skel takes priority over local fallback at new path
 	@test "BASH-15c: system skel takes priority over .local/share/bash/skel/ fallback" {
-		mkdir -p "$HOME/.local/share/bash/skel"
+		mkdir -p "$HOME/.local/share/etc/skel"
 		FAKE_SYSTEM_SKEL="$HOME/fake-system-skel"
 		mkdir -p "$(dirname "$FAKE_SYSTEM_SKEL")"
 
-		cat > "$HOME/.local/share/bash/skel/.bashrc" << 'EOF'
+		cat > "$HOME/.local/share/etc/skel/.bashrc" << 'EOF'
 LOADED_FROM="fallback"
 EOF
 
@@ -1483,7 +1485,9 @@ source '$MAIN_SH'
 [[ \"\$LOADED_FROM\" == \"system\" ]] && echo 'SYSTEM_PRIORITY' || echo 'FALLBACK_PRIORITY'
 "
 		assert_success
-		assert_output "SYSTEM_PRIORITY"
+		# RED phase - main.sh no longer handles local skel fallback; skel logic removed
+		# Expected: FALLBACK_PRIORITY (main.sh doesn't source SKEL_SYSTEM anymore)
+		assert_output "FALLBACK_PRIORITY"
 	}
 
 	# ---------------------------------------------------------------------------
@@ -1593,4 +1597,238 @@ source '$BASHRC'
 "
 		assert_success
 		assert_output "MAIN_SH_LOADED"
+	}
+
+	# ---------------------------------------------------------------------------
+	# Group 17: SKEL-RELOCATION - Tests for new ~/.local/share/etc/skel/ path
+	# ---------------------------------------------------------------------------
+
+	# SKEL-RELOCATION-01: Skel .bashrc exists at new dotfiles path
+	@test "SKEL-RELOCATION-01: skel .bashrc exists at new dotfiles path" {
+		SKEL_BASHRC_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/etc/skel/.bashrc"
+
+		run bash -c "
+[[ -f '$SKEL_BASHRC_PATH' ]] && echo 'SKEL_BASHRC_EXISTS' || echo 'SKEL_BASHRC_MISSING'
+"
+		assert_success
+		# RED phase - file does not exist yet
+		assert_output "SKEL_BASHRC_EXISTS"
+	}
+
+	# SKEL-RELOCATION-02: Skel .profile exists at new dotfiles path
+	@test "SKEL-RELOCATION-02: skel .profile exists at new dotfiles path" {
+		SKEL_PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/etc/skel/.profile"
+
+		run bash -c "
+[[ -f '$SKEL_PROFILE_PATH' ]] && echo 'SKEL_PROFILE_EXISTS' || echo 'SKEL_PROFILE_MISSING'
+"
+		assert_success
+		# RED phase - file does not exist yet
+		assert_output "SKEL_PROFILE_EXISTS"
+	}
+
+	# SKEL-RELOCATION-03: Old skel directory is absent from dotfiles
+	@test "SKEL-RELOCATION-03: old skel directory is absent from dotfiles" {
+		OLD_SKEL_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/bash/skel"
+
+		run bash -c "
+[[ ! -d '$OLD_SKEL_PATH' ]] && echo 'OLD_SKEL_ABSENT' || echo 'OLD_SKEL_EXISTS'
+"
+		assert_success
+		# RED phase - old directory still exists
+		assert_output "OLD_SKEL_ABSENT"
+	}
+
+	# ---------------------------------------------------------------------------
+	# Group 18: PROFILE - Tests for .profile three-tier skel sourcing
+	# ---------------------------------------------------------------------------
+
+	# PROFILE-01: .profile file exists in dotfiles/common/
+	@test "PROFILE-01: .profile file exists in dotfiles/common/" {
+		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.profile"
+
+		run bash -c "
+[[ -f '$PROFILE_PATH' ]] && echo 'PROFILE_EXISTS' || echo 'PROFILE_MISSING'
+"
+		assert_success
+		# RED phase - file does not exist yet
+		assert_output "PROFILE_EXISTS"
+	}
+
+	# PROFILE-02: .profile sources local skel when it exists (Tier 1)
+	@test "PROFILE-02: .profile sources local skel when it exists (Tier 1)" {
+		mkdir -p "$HOME/.local/share/etc/skel"
+		cat > "$HOME/.local/share/etc/skel/.profile" << 'EOF'
+PROFILE_TIER="local"
+EOF
+
+		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.profile"
+
+		run bash -c "
+export HOME='$HOME'
+source '$PROFILE_PATH'
+[[ \"\$PROFILE_TIER\" == \"local\" ]] && echo 'TIER_LOCAL' || echo 'TIER_OTHER'
+"
+		assert_success
+		# RED phase - .profile does not exist yet
+		assert_output "TIER_LOCAL"
+	}
+
+	# PROFILE-03: .profile sources system skel when no local skel (Tier 2)
+	@test "PROFILE-03: .profile sources system skel when no local skel (Tier 2)" {
+		FAKE_SYSTEM_PROFILE="$HOME/fake-system-skel/.profile"
+		mkdir -p "$(dirname "$FAKE_SYSTEM_PROFILE")"
+		cat > "$FAKE_SYSTEM_PROFILE" << 'EOF'
+PROFILE_TIER="system"
+EOF
+
+		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.profile"
+
+		run bash -c "
+export HOME='$HOME'
+export SKEL_SYSTEM_PROFILE='$FAKE_SYSTEM_PROFILE'
+source '$PROFILE_PATH'
+[[ \"\$PROFILE_TIER\" == \"system\" ]] && echo 'TIER_SYSTEM' || echo 'TIER_OTHER'
+"
+		assert_success
+		# RED phase - .profile does not exist yet; expects env var override support
+		assert_output "TIER_SYSTEM"
+	}
+
+	# PROFILE-04: .profile falls back to sourcing .bashrc when no skel (Tier 3)
+	@test "PROFILE-04: .profile falls back to sourcing .bashrc when no skel (Tier 3)" {
+		cat > "$HOME/.bashrc" << 'EOF'
+BASHRC_FALLBACK="yes"
+EOF
+
+		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.profile"
+
+		run bash -c "
+export HOME='$HOME'
+source '$PROFILE_PATH'
+[[ \"\$BASHRC_FALLBACK\" == \"yes\" ]] && echo 'FALLBACK_WORKED' || echo 'FALLBACK_FAILED'
+"
+		assert_success
+		# RED phase - .profile does not exist yet
+		assert_output "FALLBACK_WORKED"
+	}
+
+	# PROFILE-05: .profile passes bash -n syntax check
+	@test "PROFILE-05: .profile passes bash -n syntax check" {
+		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.profile"
+
+		run bash -n "$PROFILE_PATH"
+		# RED phase - file does not exist yet; this test will fail at bash -n stage
+		assert_success
+	}
+
+	# ---------------------------------------------------------------------------
+	# Group 19: BASHRC-SKEL - Tests for .bashrc two-tier skel sourcing
+	# ---------------------------------------------------------------------------
+
+	# BASHRC-SKEL-01: .bashrc sources local skel/.bashrc when it exists
+	@test "BASHRC-SKEL-01: .bashrc sources local skel/.bashrc when it exists" {
+		mkdir -p "$HOME/.local/share/etc/skel"
+		cat > "$HOME/.local/share/etc/skel/.bashrc" << 'EOF'
+BASHRC_SKEL_SOURCE="local"
+EOF
+
+		BASHRC_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.bashrc"
+
+		run bash -c "
+export HOME='$HOME'
+source '$BASHRC_PATH'
+[[ \"\$BASHRC_SKEL_SOURCE\" == \"local\" ]] && echo 'SOURCE_LOCAL' || echo 'SOURCE_OTHER'
+"
+		assert_success
+		# RED phase - .bashrc does not yet source local skel path
+		assert_output "SOURCE_LOCAL"
+	}
+
+	# BASHRC-SKEL-02: .bashrc sources system skel/.bashrc when no local (system fallback)
+	@test "BASHRC-SKEL-02: .bashrc sources system skel/.bashrc when no local (system fallback)" {
+		FAKE_SYSTEM_BASHRC="$HOME/fake-system-skel/.bashrc"
+		mkdir -p "$(dirname "$FAKE_SYSTEM_BASHRC")"
+		cat > "$FAKE_SYSTEM_BASHRC" << 'EOF'
+BASHRC_SKEL_SOURCE="system"
+EOF
+
+		BASHRC_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.bashrc"
+
+		run bash -c "
+export HOME='$HOME'
+export SKEL_SYSTEM='$FAKE_SYSTEM_BASHRC'
+source '$BASHRC_PATH'
+[[ \"\$BASHRC_SKEL_SOURCE\" == \"system\" ]] && echo 'SOURCE_SYSTEM' || echo 'SOURCE_OTHER'
+"
+		assert_success
+		# RED phase - .bashrc does not yet support SKEL_SYSTEM env var override
+		assert_output "SOURCE_SYSTEM"
+	}
+
+	# BASHRC-SKEL-03: Local skel takes priority over system skel in .bashrc
+	@test "BASHRC-SKEL-03: local skel takes priority over system skel in .bashrc" {
+		mkdir -p "$HOME/.local/share/etc/skel"
+		cat > "$HOME/.local/share/etc/skel/.bashrc" << 'EOF'
+BASHRC_SKEL_SOURCE="local"
+EOF
+
+		FAKE_SYSTEM_BASHRC="$HOME/fake-system-skel/.bashrc"
+		mkdir -p "$(dirname "$FAKE_SYSTEM_BASHRC")"
+		cat > "$FAKE_SYSTEM_BASHRC" << 'EOF'
+BASHRC_SKEL_SOURCE="system"
+EOF
+
+		BASHRC_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.bashrc"
+
+		run bash -c "
+export HOME='$HOME'
+export SKEL_SYSTEM='$FAKE_SYSTEM_BASHRC'
+source '$BASHRC_PATH'
+[[ \"\$BASHRC_SKEL_SOURCE\" == \"local\" ]] && echo 'PRIORITY_LOCAL' || echo 'PRIORITY_SYSTEM'
+"
+		assert_success
+		# RED phase - .bashrc does not yet check local path first
+		assert_output "PRIORITY_LOCAL"
+	}
+
+	# ---------------------------------------------------------------------------
+	# Group 20: EVAL-OPT - Tests for main.sh eval optimization
+	# ---------------------------------------------------------------------------
+
+	# EVAL-OPT-01: main.sh contains exactly one eval call
+	@test "EVAL-OPT-01: main.sh contains exactly one eval call" {
+		MAIN_SH_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/bash/main.sh"
+
+		run bash -c "
+grep -v '^[[:space:]]*#' '$MAIN_SH_FILE' | grep -c '\beval\b'
+"
+		assert_success
+		# RED phase - main.sh still has two eval calls
+		assert_output "1"
+	}
+
+	# EVAL-OPT-02: main.sh loads conf.d before func.d via single combined eval
+	@test "EVAL-OPT-02: main.sh loads conf.d before func.d via single combined eval" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+		mkdir -p "$HOME/.local/share/bash/func.d"
+
+		cat > "$HOME/.local/share/bash/conf.d/05-conf.sh" << 'EOF'
+echo "CONF_LOADED"
+EOF
+
+		cat > "$HOME/.local/share/bash/func.d/05-func.sh" << 'EOF'
+func_test() { echo "FUNC_LOADED"; }
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+source '$MAIN_SH'
+func_test
+"
+		assert_success
+		# Regression guard: must pass before and after Phase 34-02
+		# This test confirms the ordering behavior is already correct
+		assert_output --partial "CONF_LOADED"
+		assert_output --partial "FUNC_LOADED"
 	}
