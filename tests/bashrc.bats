@@ -575,45 +575,45 @@ grep -q 'skel' '$MAIN_SH_FILE' && echo 'HAS_SKEL_LOGIC' || echo 'NO_SKEL_LOGIC'
 
 # BASH-05c: Skel fallback path updated to new location
 # Tests that new path ~/.local/share/etc/skel/.bashrc is used
-@test "BASH-05c: main.sh provides fallback when /etc/skel/.bashrc unavailable" {
+@test "BASH-05c: main.sh does not source skel files (skel logic removed)" {
 	mkdir -p "$HOME/.local/share/bash/conf.d"
 	mkdir -p "$HOME/.local/share/etc/skel"
 
-	# Create fallback file at new path with marker
+	# Create skel file at new path with marker
 	cat > "$HOME/.local/share/etc/skel/.bashrc" << 'EOF'
-FALLBACK_LOADED="yes"
+SKEL_LOADED="yes"
 EOF
 
 	run bash -c "
 export HOME='$HOME'
 export SKEL_SYSTEM='/nonexistent/skel/.bashrc'
 source '$MAIN_SH'
-[[ \"\$FALLBACK_LOADED\" == \"yes\" ]] && echo 'FALLBACK_WORKED' || echo 'FALLBACK_FAILED'
+[[ \"\$SKEL_LOADED\" == \"yes\" ]] && echo 'SKEL_LOADED' || echo 'SKEL_NOT_LOADED'
 "
 	assert_success
-	# RED phase - main.sh no longer handles fallback from new path (skel logic removed)
-	assert_output "FALLBACK_WORKED"
+	# GREEN phase - main.sh no longer handles skel (skel logic moved to .bashrc)
+	assert_output "SKEL_NOT_LOADED"
 }
 
-# BASH-05d: Fallback uses correct new path ~/.local/share/etc/skel/.bashrc
-# Tests that fallback now uses new XDG-aligned path
-@test "BASH-05d: main.sh fallback uses ~/.local/share/bash/skel/.bashrc path" {
+# BASH-05d: main.sh does not use old skel path (.local/share/bash/skel/)
+# Tests that skel logic is removed from main.sh (moved to .bashrc)
+@test "BASH-05d: main.sh does not source from old skel path" {
 	mkdir -p "$HOME/.local/share/bash/conf.d"
 	mkdir -p "$HOME/.local/share/etc/skel"
 
 	cat > "$HOME/.local/share/etc/skel/.bashrc" << 'EOF'
-CORRECT_PATH_MARKER="yes"
+OLD_PATH_MARKER="yes"
 EOF
 
 	run bash -c "
 export HOME='$HOME'
 export SKEL_SYSTEM='/nonexistent/skel/.bashrc'
 source '$MAIN_SH'
-[[ \"\$CORRECT_PATH_MARKER\" == \"yes\" ]] && echo 'CORRECT_PATH' || echo 'WRONG_PATH'
+[[ \"\$OLD_PATH_MARKER\" == \"yes\" ]] && echo 'OLD_PATH_SOURCED' || echo 'OLD_PATH_NOT_SOURCED'
 "
 	assert_success
-	# RED phase - main.sh no longer handles fallback; skel logic removed
-	assert_output "CORRECT_PATH"
+	# GREEN phase - main.sh no longer handles skel; skel logic removed
+	assert_output "OLD_PATH_NOT_SOURCED"
 }
 
 # BASH-05e: Fallback is non-blocking (uses || pattern)
@@ -1426,52 +1426,52 @@ C"
 	# Group 16: BASH-15 - skel fallback from .local/share/bash/skel/
 	# ---------------------------------------------------------------------------
 
-	# BASH-15a: Skel fallback loads from new path when system skel missing
-	@test "BASH-15a: skel fallback loads from .local/share/bash/skel/ when system missing" {
+	# BASH-15a: main.sh does not fallback to local skel (skel removed from main.sh)
+	@test "BASH-15a: main.sh does not fallback to local skel when system missing" {
 		mkdir -p "$HOME/.local/share/etc/skel"
 
 		cat > "$HOME/.local/share/etc/skel/.bashrc" << 'EOF'
-SKEL_FALLBACK_LOADED="yes"
+SKEL_LOADED_BY_MAIN="yes"
 EOF
 
 		run bash -c "
 export HOME='$HOME'
 export SKEL_SYSTEM='/nonexistent/skel/.bashrc'
 source '$MAIN_SH'
-[[ \"\$SKEL_FALLBACK_LOADED\" == \"yes\" ]] && echo 'FALLBACK_WORKED' || echo 'FALLBACK_FAILED'
+[[ \"\$SKEL_LOADED_BY_MAIN\" == \"yes\" ]] && echo 'LOADED' || echo 'NOT_LOADED'
 "
 		assert_success
-		# RED phase - main.sh skel fallback removed
-		assert_output "FALLBACK_WORKED"
+		# GREEN phase - main.sh no longer handles skel (moved to .bashrc)
+		assert_output "NOT_LOADED"
 	}
 
-	# BASH-15b: Skel path references updated to .local/share/etc/skel/
-	@test "BASH-15b: skel path references updated to .local/share/bash/skel/" {
+	# BASH-15b: main.sh does not reference skel paths (skel logic removed)
+	@test "BASH-15b: main.sh does not reference skel paths" {
 		mkdir -p "$HOME/.local/share/etc/skel"
 
 		cat > "$HOME/.local/share/etc/skel/.bashrc" << 'EOF'
-CORRECT_SKEL_PATH="yes"
+SKEL_PATH_MARKER="yes"
 EOF
 
 		run bash -c "
 export HOME='$HOME'
 export SKEL_SYSTEM='/nonexistent/skel/.bashrc'
 source '$MAIN_SH'
-[[ \"\$CORRECT_SKEL_PATH\" == \"yes\" ]] && echo 'CORRECT_PATH' || echo 'WRONG_PATH'
+[[ \"\$SKEL_PATH_MARKER\" == \"yes\" ]] && echo 'SKEL_FOUND' || echo 'SKEL_NOT_FOUND'
 "
 		assert_success
-		# RED phase - main.sh no longer sources from local skel path
-		assert_output "CORRECT_PATH"
+		# GREEN phase - main.sh no longer has skel references
+		assert_output "SKEL_NOT_FOUND"
 	}
 
-	# BASH-15c: System skel takes priority over local fallback at new path
-	@test "BASH-15c: system skel takes priority over .local/share/bash/skel/ fallback" {
+	# BASH-15c: main.sh does not handle skel priority (skel logic removed)
+	@test "BASH-15c: main.sh does not source system or local skel" {
 		mkdir -p "$HOME/.local/share/etc/skel"
 		FAKE_SYSTEM_SKEL="$HOME/fake-system-skel"
 		mkdir -p "$(dirname "$FAKE_SYSTEM_SKEL")"
 
 		cat > "$HOME/.local/share/etc/skel/.bashrc" << 'EOF'
-LOADED_FROM="fallback"
+LOADED_FROM="local_fallback"
 EOF
 
 		cat > "$FAKE_SYSTEM_SKEL" << 'EOF'
@@ -1482,12 +1482,11 @@ EOF
 export HOME='$HOME'
 export SKEL_SYSTEM='$FAKE_SYSTEM_SKEL'
 source '$MAIN_SH'
-[[ \"\$LOADED_FROM\" == \"system\" ]] && echo 'SYSTEM_PRIORITY' || echo 'FALLBACK_PRIORITY'
+[[ \"\$LOADED_FROM\" == \"system\" ]] && echo 'SYSTEM_LOADED' || echo 'SKEL_NOT_LOADED'
 "
 		assert_success
-		# RED phase - main.sh no longer handles local skel fallback; skel logic removed
-		# Expected: FALLBACK_PRIORITY (main.sh doesn't source SKEL_SYSTEM anymore)
-		assert_output "FALLBACK_PRIORITY"
+		# GREEN phase - main.sh no longer handles skel; all skel logic moved to .bashrc
+		assert_output "SKEL_NOT_LOADED"
 	}
 
 	# ---------------------------------------------------------------------------

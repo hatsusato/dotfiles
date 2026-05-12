@@ -2,8 +2,10 @@
 
 # Source skel files with local override support, then source main bash module loader
 if [[ -f "${SKEL_LOCAL_BASHRC:-${HOME}/.local/share/etc/skel/.bashrc}" ]]; then
+	# shellcheck source=/etc/skel/.bashrc
 	source "${SKEL_LOCAL_BASHRC:-${HOME}/.local/share/etc/skel/.bashrc}" || true
 elif [[ -f "${SKEL_SYSTEM:-/etc/skel/.bashrc}" ]]; then
+	# shellcheck source=/etc/skel/.bashrc
 	source "${SKEL_SYSTEM:-/etc/skel/.bashrc}" || true
 fi
 
