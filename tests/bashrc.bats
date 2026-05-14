@@ -55,11 +55,10 @@ EOF
 echo "THIRD" >> "$HOME/.local/share/bash/test-output.log"
 EOF
 
-	# New eval pattern: main.sh outputs source commands, eval executes them in caller's namespace
+	# New eval pattern: loader.sh outputs source commands, eval executes them in caller's namespace
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval \"\$('$LOADER_SH' '$HOME/.local/share/bash/conf.d' '$HOME/.local/share/bash/func.d')\" 2>/dev/null
 "
 
 	assert [ -f "$HOME/.local/share/bash/test-output.log" ]
@@ -74,8 +73,7 @@ eval \"\$output\" 2>/dev/null
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 	assert_success
 }
@@ -93,8 +91,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 	assert_success
 
@@ -112,8 +109,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 	assert_success
 
@@ -143,8 +139,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 	assert_success
 
@@ -174,7 +169,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 type my_func_first && type my_func_second
 "
 	assert_success
@@ -188,8 +183,7 @@ type my_func_first && type my_func_second
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 	assert_success
 }
@@ -207,7 +201,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 type valid_func
 "
 	assert_success
@@ -234,8 +228,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 	assert_success
 
@@ -268,8 +261,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 	assert_success
 
@@ -301,8 +293,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 	assert_success
 
@@ -330,8 +321,7 @@ EOF
 	# After eval, the 'module' variable from main.sh loop should NOT exist in caller's namespace
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 [[ -z \${module+x} ]] && echo 'CLEAN' || echo 'LEAKED'
 "
 	assert_success
@@ -354,8 +344,7 @@ TESTLOG
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 	assert_success
 }
@@ -370,8 +359,7 @@ eval \"\$output\" 2>/dev/null
 	# Should not fail if logging library is missing
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 	assert_success
 }
@@ -394,8 +382,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null || true
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null || true
 "
 
 	assert [ -f "$HOME/.local/share/bash/resilience.log" ]
@@ -413,8 +400,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null || true
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null || true
 "
 
 	# With || true, eval should succeed even though the module has a syntax error
@@ -436,7 +422,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH' 2>/dev/null || true
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}") 2>/dev/null || true
 type func_ok 2>/dev/null && echo 'FOUND'
 "
 	assert_output --partial "FOUND"
@@ -448,8 +434,7 @@ type func_ok 2>/dev/null && echo 'FOUND'
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 	assert_success
 }
@@ -464,8 +449,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null || true
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null || true
 exit 0
 "
 	assert_success
@@ -482,7 +466,7 @@ EOF
 	run bash -c "
 export HOME='$HOME'
 export LOG_LEVEL=error
-source '$MAIN_SH' 2>&1
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}") 2>&1
 "
 
 	assert_output --partial "10-bad"
@@ -499,8 +483,7 @@ EOF
 	run bash -c "
 export HOME='$HOME'
 export LOG_LEVEL=warn
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>&1
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>&1
 "
 	assert_success
 
@@ -518,8 +501,7 @@ EOF
 	run bash -c "
 export HOME='$HOME'
 export LOG_LEVEL=debug
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>&1
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>&1
 "
 	assert_success
 
@@ -539,7 +521,7 @@ EOF
 	run bash -c "
 export HOME='$HOME'
 export LOG_LEVEL=error LOG_NO_COLOR=1
-source '$MAIN_SH' 2>&1
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}") 2>&1
 "
 
 	refute_output --partial $'\033['
@@ -589,7 +571,7 @@ EOF
 	run bash -c "
 export HOME='$HOME'
 export SKEL_SYSTEM='/nonexistent/skel/.bashrc'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 [[ \"\$SKEL_LOADED\" == \"yes\" ]] && echo 'SKEL_LOADED' || echo 'SKEL_NOT_LOADED'
 "
 	assert_success
@@ -610,7 +592,7 @@ EOF
 	run bash -c "
 export HOME='$HOME'
 export SKEL_SYSTEM='/nonexistent/skel/.bashrc'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 [[ \"\$OLD_PATH_MARKER\" == \"yes\" ]] && echo 'OLD_PATH_SOURCED' || echo 'OLD_PATH_NOT_SOURCED'
 "
 	assert_success
@@ -631,8 +613,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null || true
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null || true
 # Shell should continue to completion
 echo 'SHELL_CONTINUED'
 "
@@ -674,7 +655,7 @@ EOF
 	run bash -c "
 export HOME='$HOME'
 ORIGINAL_PATH=\"\$PATH\"
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 [[ \"\$PATH\" == \"\$ORIGINAL_PATH\" ]] && echo 'PATH_NOT_MODIFIED' || echo 'PATH_MODIFIED'
 "
 	assert_success
@@ -699,7 +680,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 echo \"\$PATH\" | cut -d: -f1 | grep -q 'local/bin' && echo 'LOCAL_BIN_FIRST' || echo 'LOCAL_BIN_NOT_FIRST'
 "
 	assert_success
@@ -723,8 +704,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 echo \"\$PATH\" | grep -q \"\$HOME/bin:\" && echo 'BIN_FOUND' || echo 'BIN_NOT_FOUND'
 "
 	assert_success
@@ -749,8 +729,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 echo \"\$PATH\" | grep -q 'local/bin' && echo 'LOCAL_FOUND' || echo 'MISSING'
 "
 	assert_success
@@ -775,8 +754,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 echo \"\$PATH\" | grep -q 'local/bin' && echo 'LOCAL_FOUND' || echo 'MISSING'
 "
 	assert_success
@@ -878,7 +856,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 my_test_function
 "
 
@@ -892,8 +870,7 @@ my_test_function
 
 	run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 	assert_success
 }
@@ -910,7 +887,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 valid_func
 "
 	assert_success
@@ -927,7 +904,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 greet World
 "
 	assert_success
@@ -956,7 +933,7 @@ EOF
 	# Source main.sh; all three functions should be available regardless of creation order
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 func_a
 func_b
 func_c
@@ -983,7 +960,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 declare -f alpha_func >/dev/null && echo 'ALPHA_FOUND' || echo 'ALPHA_MISSING'
 declare -f beta_func  >/dev/null && echo 'BETA_FOUND'  || echo 'BETA_MISSING'
 declare -f gamma_func >/dev/null && echo 'GAMMA_FOUND' || echo 'GAMMA_MISSING'
@@ -1009,7 +986,7 @@ EOF
 	# Use source directly so functions are available in same shell context
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 run_func
 "
 	assert_success
@@ -1046,7 +1023,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH' 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}") 2>/dev/null
 # broken_func should not be available since module was skipped
 declare -f broken_func >/dev/null 2>&1 && echo 'LOADED' || echo 'SKIPPED'
 "
@@ -1065,7 +1042,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH' 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}") 2>/dev/null
 # Function defined but not called at load time => no output yet
 echo 'LOADED_ONLY'
 "
@@ -1088,7 +1065,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH' 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}") 2>/dev/null
 good_func
 "
 	assert_success
@@ -1107,7 +1084,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH' 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}") 2>/dev/null
 declare -f standalone_func >/dev/null && echo 'SUCCESS' || echo 'FAILED'
 "
 	assert_success
@@ -1129,7 +1106,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH' 2>&1
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}") 2>&1
 " 2>&1
 
 	# Warning output should mention Skipping or WARN
@@ -1147,7 +1124,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH' 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}") 2>/dev/null
 declare -f will_not_load >/dev/null 2>&1 && echo 'SOURCED' || echo 'SKIPPED'
 "
 	assert_success
@@ -1170,7 +1147,7 @@ EOF
 
 	run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH' 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}") 2>/dev/null
 good_after_broken
 "
 	assert_success
@@ -1272,8 +1249,7 @@ EOF
 
 		run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 		assert [ -f "$HOME/.local/share/bash/test-output.log" ]
 		grep -q "LOCAL_FIRST" "$HOME/.local/share/bash/test-output.log"
@@ -1286,8 +1262,7 @@ eval \"\$output\" 2>/dev/null
 
 		run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 		assert_success
 	}
@@ -1305,8 +1280,7 @@ EOF
 
 		run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 		assert_success
 
@@ -1324,8 +1298,7 @@ EOF
 
 		run bash -c "
 export HOME='$HOME'
-output=\$(source '$MAIN_SH')
-eval \"\$output\" 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d")" 2>/dev/null
 "
 		assert_success
 
@@ -1350,7 +1323,7 @@ EOF
 
 		run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 type local_func_first && type local_func_second
 "
 		assert_success
@@ -1368,7 +1341,7 @@ EOF
 
 		run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 local_test_func
 "
 		assert_success
@@ -1390,7 +1363,7 @@ EOF
 
 		run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH' 2>/dev/null
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}") 2>/dev/null
 good_local_func
 "
 		assert_success
@@ -1413,7 +1386,7 @@ EOF
 
 		run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 local_func_a
 local_func_b
 local_func_c
@@ -1439,7 +1412,7 @@ EOF
 		run bash -c "
 export HOME='$HOME'
 export SKEL_SYSTEM='/nonexistent/skel/.bashrc'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 [[ \"\$SKEL_LOADED_BY_MAIN\" == \"yes\" ]] && echo 'LOADED' || echo 'NOT_LOADED'
 "
 		assert_success
@@ -1458,7 +1431,7 @@ EOF
 		run bash -c "
 export HOME='$HOME'
 export SKEL_SYSTEM='/nonexistent/skel/.bashrc'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 [[ \"\$SKEL_PATH_MARKER\" == \"yes\" ]] && echo 'SKEL_FOUND' || echo 'SKEL_NOT_FOUND'
 "
 		assert_success
@@ -1483,7 +1456,7 @@ EOF
 		run bash -c "
 export HOME='$HOME'
 export SKEL_SYSTEM='$FAKE_SYSTEM_SKEL'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 [[ \"\$LOADED_FROM\" == \"system\" ]] && echo 'SYSTEM_LOADED' || echo 'SKEL_NOT_LOADED'
 "
 		assert_success
@@ -1499,15 +1472,15 @@ source '$MAIN_SH'
 	@test "BASHRC-SAFETY-01a: explicit if-statement checks main.sh file presence" {
 		mkdir -p "$HOME/.local/share/bash"
 
-		cat > "$HOME/.local/share/bash/main.sh" << 'EOF'
+		cat > "$HOME/.local/share/bash/loader.sh" << 'EOF'
 echo "MAIN_SH_LOADED"
 EOF
 
 		BASHRC="$HOME/.bashrc"
 		cat > "$BASHRC" << 'EOF'
 # Explicit safety check for main.sh
-if [[ -f "$HOME/.local/share/bash/main.sh" ]]; then
-	source "$HOME/.local/share/bash/main.sh"
+if [[ -f "$HOME/.local/share/bash/loader.sh" ]]; then
+ eval "$("$HOME/.local/share/bash/loader.sh" "$HOME/.local/share/bash/conf.d" "$HOME/.local/share/bash/func.d")"
 fi
 EOF
 
@@ -1527,8 +1500,8 @@ source '$BASHRC'
 		BASHRC="$HOME/.bashrc"
 		cat > "$BASHRC" << 'EOF'
 # Explicit safety check for main.sh
-if [[ -f "$HOME/.local/share/bash/main.sh" ]]; then
-	source "$HOME/.local/share/bash/main.sh"
+if [[ -f "$HOME/.local/share/bash/loader.sh" ]]; then
+ eval "$("$HOME/.local/share/bash/loader.sh" "$HOME/.local/share/bash/conf.d" "$HOME/.local/share/bash/func.d")"
 fi
 echo "BASHRC_CONTINUED"
 EOF
@@ -1547,8 +1520,8 @@ source '$BASHRC'
 
 		BASHRC="$HOME/.bashrc"
 		cat > "$BASHRC" << 'EOF'
-if [[ -f "$HOME/.local/share/bash/main.sh" ]]; then
-	source "$HOME/.local/share/bash/main.sh"
+if [[ -f "$HOME/.local/share/bash/loader.sh" ]]; then
+ eval "$("$HOME/.local/share/bash/loader.sh" "$HOME/.local/share/bash/conf.d" "$HOME/.local/share/bash/func.d")"
 fi
 # Additional bashrc setup continues
 export BASHRC_MARKER="loaded"
@@ -1573,7 +1546,7 @@ source '$BASHRC'
 SYSTEM_SKEL_LOADED="yes"
 EOF
 
-		cat > "$HOME/.local/share/bash/main.sh" << 'EOF'
+		cat > "$HOME/.local/share/bash/loader.sh" << 'EOF'
 # main.sh expects system skel to be loaded first
 [[ -z "$SYSTEM_SKEL_LOADED" ]] && echo "WARNING: system skel not loaded first" >&2
 echo "MAIN_SH_LOADED"
@@ -1586,8 +1559,8 @@ if [[ -f "$SKEL_SYSTEM" ]]; then
 	source "$SKEL_SYSTEM"
 fi
 # Then load main.sh
-if [[ -f "$HOME/.local/share/bash/main.sh" ]]; then
-	source "$HOME/.local/share/bash/main.sh"
+if [[ -f "$HOME/.local/share/bash/loader.sh" ]]; then
+ eval "$("$HOME/.local/share/bash/loader.sh" "$HOME/.local/share/bash/conf.d" "$HOME/.local/share/bash/func.d")"
 fi
 EOF
 
@@ -1824,7 +1797,7 @@ EOF
 
 		run bash -c "
 export HOME='$HOME'
-source '$MAIN_SH'
+eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/bash/func.d}")
 func_test
 "
 		assert_success
@@ -2100,9 +2073,8 @@ echo \"\$output\" | grep -q 'source' && echo 'HAS_SOURCE' || echo 'NO_SOURCE'
 	# LOADER-05d: loader.sh does not contain internal eval call (D-02 requirement)
 	@test "LOADER-05d: loader.sh does not contain internal eval (output-based per D-02)" {
 		run bash -c "
-grep -v '^[[:space:]]*#' '$LOADER_SH' | grep -c '\beval\b'
+grep -v '^[[:space:]]*#' '$LOADER_SH' | grep -c '\beval\b' || true
 "
-		assert_success
 		assert_output "0"
 	}
 

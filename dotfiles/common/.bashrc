@@ -9,9 +9,11 @@ elif [[ -f "${SKEL_SYSTEM:-/etc/skel/.bashrc}" ]]; then
 	source "${SKEL_SYSTEM:-/etc/skel/.bashrc}" || true
 fi
 
-# Source main bash configuration loader (modules, functions)
-# Explicit existence check: if file exists, source it; if not, silently skip
-if [[ -f "${HOME}/.local/share/bash/main.sh" ]]; then
-  # shellcheck source=dotfiles/common/.local/share/bash/main.sh
-  source "${HOME}/.local/share/bash/main.sh" || true
+# Invoke loader.sh to generate and eval module source statements (D-02)
+# Explicit existence check: if file exists, execute it and eval output; if not, silently skip
+if [[ -f "${HOME}/.local/share/bash/loader.sh" ]]; then
+  # shellcheck source=dotfiles/common/.local/share/bash/loader.sh
+  eval "$("${HOME}/.local/share/bash/loader.sh" \
+    "${HOME}/.local/share/bash/conf.d" \
+    "${HOME}/.local/share/bash/func.d")" || true
 fi
