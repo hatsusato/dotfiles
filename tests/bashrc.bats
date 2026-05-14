@@ -8,8 +8,10 @@ setup() {
 	mkdir -p "$FAKE_HOME/.local/share/bash"
 	export HOME="$FAKE_HOME"
 
-	# Point to the main.sh in dotfiles (relative to project root)
-	# When tests run from /home/hatsu/dotfiles, the file is at ./dotfiles/common/.local/share/bash/main.sh
+	# Point to the loader.sh in dotfiles (relative to project root)
+	# When tests run from /home/hatsu/dotfiles, the file is at ./dotfiles/common/.local/share/bash/loader.sh
+	LOADER_SH="${PWD}/dotfiles/common/.local/share/bash/loader.sh"
+	# MAIN_SH kept for RED phase backward compatibility (existing tests use MAIN_SH)
 	MAIN_SH="${PWD}/dotfiles/common/.local/share/bash/main.sh"
 
 	# Create fake logging library in ~/.local/lib/logging.sh
@@ -1179,9 +1181,9 @@ good_after_broken
 # Group 12: BASH-12 - bash -n syntax check compatibility
 # ---------------------------------------------------------------------------
 
-# BASH-12a: bash -n passes on main.sh with func.d/ modules loaded
-@test "BASH-12a: bash -n passes on main.sh itself" {
-	run bash -n "$MAIN_SH"
+# BASH-12a: bash -n passes on loader.sh itself
+@test "BASH-12a: bash -n passes on loader.sh itself" {
+	run bash -n "$LOADER_SH"
 	assert_success
 }
 
@@ -1204,11 +1206,11 @@ echo 'ALL_PASS'
 # Group 13: CONF-01 through CONF-04 - Configuration integration
 # ---------------------------------------------------------------------------
 
-# CONF-01: main.sh is sourced from ~/.local/share/bash/main.sh
-@test "CONF-01: main.sh relocated to ~/.local/share/bash/main.sh per XDG spec" {
+# CONF-01: loader.sh is sourced from ~/.local/share/bash/loader.sh
+@test "CONF-01: loader.sh relocated to ~/.local/share/bash/loader.sh per D-01" {
 	# Verify the new location exists in dotfiles
-	MAIN_SH_NEW="${PWD}/dotfiles/common/.local/share/bash/main.sh"
-	run test -f "$MAIN_SH_NEW"
+	LOADER_SH_NEW="${PWD}/dotfiles/common/.local/share/bash/loader.sh"
+	run test -f "$LOADER_SH_NEW"
 	assert_success
 }
 
@@ -1232,20 +1234,20 @@ echo 'ALL_PASS'
 	assert_success
 }
 
-# CONF-04: .bashrc sources main.sh from the new location
-@test "CONF-04: .bashrc sources main.sh from ~/.local/share/bash/main.sh" {
+# CONF-04: .bashrc sources loader.sh from the new location
+@test "CONF-04: .bashrc references loader.sh (not main.sh) per D-01" {
 	BASHRC="${PWD}/dotfiles/common/.bashrc"
 	[[ -f "$BASHRC" ]] || { echo "File not found: $BASHRC"; exit 1; }
 
 	# Check that .bashrc sources from new location
-	run grep -q "\.local/share/bash/main\.sh" "$BASHRC"
+	run grep -q "loader\.sh" "$BASHRC"
 	assert_success
 }
 
-# CONF-04b: XDG directory structure is complete and valid
-@test "CONF-04b: XDG Base Directory structure is complete for bash and readline" {
+# CONF-04b: XDG directory structure uses loader.sh
+@test "CONF-04b: XDG Base Directory structure uses loader.sh per D-01" {
 	run bash -c '
-	[[ -f "${PWD}/dotfiles/common/.local/share/bash/main.sh" ]] || exit 1
+	[[ -f "${PWD}/dotfiles/common/.local/share/bash/loader.sh" ]] || exit 1
 	[[ -f "${PWD}/dotfiles/common/.config/readline/inputrc" ]] || exit 1
 	[[ -f "${PWD}/dotfiles/common/.inputrc" ]] || exit 1
 	[[ -f "${PWD}/dotfiles/common/.bashrc" ]] || exit 1
@@ -1795,16 +1797,16 @@ source '$BASHRC_PATH'
 	# Group 20: EVAL-OPT - Tests for main.sh eval optimization
 	# ---------------------------------------------------------------------------
 
-	# EVAL-OPT-01: main.sh contains exactly one eval call
-	@test "EVAL-OPT-01: main.sh contains exactly one eval call" {
-		MAIN_SH_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/bash/main.sh"
+	# EVAL-OPT-01: loader.sh contains zero eval calls (output-based design per D-02)
+	@test "EVAL-OPT-01: loader.sh contains zero eval calls (output-based design per D-02)" {
+		LOADER_SH_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/bash/loader.sh"
 
 		run bash -c "
-grep -v '^[[:space:]]*#' '$MAIN_SH_FILE' | grep -c '\beval\b'
+grep -v '^[[:space:]]*#' '$LOADER_SH_FILE' | grep -c '\beval\b'
 "
 		assert_success
-		# RED phase - main.sh still has two eval calls
-		assert_output "1"
+		# RED phase - loader.sh doesn't exist yet; this test will fail
+		assert_output "0"
 	}
 
 	# EVAL-OPT-02: main.sh loads conf.d before func.d via single combined eval
@@ -1830,4 +1832,371 @@ func_test
 		# This test confirms the ordering behavior is already correct
 		assert_output --partial "CONF_LOADED"
 		assert_output --partial "FUNC_LOADED"
+	}
+
+	# ---------------------------------------------------------------------------
+	# Group 21: LOADER-01 - loader.sh output format and basic operation
+	# ---------------------------------------------------------------------------
+	# RED phase: loader.sh does not exist yet; these tests fail until 35-03
+
+	# LOADER-01a: loader.sh outputs lines matching [[ -f PATH ]] && source PATH || true format
+	@test "LOADER-01a: loader.sh output lines match [[ -f PATH ]] && source PATH || true format" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+		cat > "$HOME/.local/share/bash/conf.d/05-test.sh" << 'EOF'
+# Test module
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+output=\$('$LOADER_SH' '$HOME/.local/share/bash/conf.d')
+echo \"\$output\" | grep -E '\[\[ -f .* \]\] && source .* \|\| true' > /dev/null
+"
+		assert_success
+	}
+
+	# LOADER-01b: loader.sh output is valid bash syntax (bash -n on captured output passes)
+	@test "LOADER-01b: loader.sh output is valid bash (bash -n on captured output passes)" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+		cat > "$HOME/.local/share/bash/conf.d/05-test.sh" << 'EOF'
+# Test module
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+output=\$('$LOADER_SH' '$HOME/.local/share/bash/conf.d')
+bash -n <<< \"\$output\"
+"
+		assert_success
+	}
+
+	# LOADER-01c: eval of loader.sh output loads modules into caller namespace
+	@test "LOADER-01c: eval of loader.sh output loads modules into caller namespace" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+		cat > "$HOME/.local/share/bash/conf.d/05-test.sh" << 'EOF'
+TEST_MODULE_LOADED="yes"
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+output=\$('$LOADER_SH' '$HOME/.local/share/bash/conf.d')
+eval \"\$output\" 2>/dev/null
+[[ \"\$TEST_MODULE_LOADED\" == \"yes\" ]] && echo 'SUCCESS' || echo 'FAILED'
+"
+		assert_success
+		assert_output "SUCCESS"
+	}
+
+	# LOADER-01d: loader.sh with no arguments exits 0 with empty output
+	@test "LOADER-01d: loader.sh with no arguments exits 0 with empty output" {
+		run "$LOADER_SH"
+		assert_success
+		assert_output ""
+	}
+
+	# ---------------------------------------------------------------------------
+	# Group 22: LOADER-02 - Multiple directory arguments
+	# ---------------------------------------------------------------------------
+
+	# LOADER-02a: loader.sh with 2 directories outputs modules from both dirs in order
+	@test "LOADER-02a: loader.sh with 2 directories outputs modules from both in arg order" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+		mkdir -p "$HOME/.local/share/bash/func.d"
+
+		cat > "$HOME/.local/share/bash/conf.d/05-conf.sh" << 'EOF'
+# Conf module
+EOF
+		cat > "$HOME/.local/share/bash/func.d/05-func.sh" << 'EOF'
+# Func module
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+output=\$('$LOADER_SH' '$HOME/.local/share/bash/conf.d' '$HOME/.local/share/bash/func.d')
+echo \"\$output\" | grep -c 'source'
+"
+		assert_success
+		assert_output "2"
+	}
+
+	# LOADER-02b: loader.sh with 3 directories outputs modules from all 3 in order
+	@test "LOADER-02b: loader.sh with 3 directories outputs modules from all 3" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+		mkdir -p "$HOME/.local/share/bash/func.d"
+		mkdir -p "$HOME/.local/share/bash/extra.d"
+
+		cat > "$HOME/.local/share/bash/conf.d/05-a.sh" << 'EOF'
+# Module A
+EOF
+		cat > "$HOME/.local/share/bash/func.d/05-b.sh" << 'EOF'
+# Module B
+EOF
+		cat > "$HOME/.local/share/bash/extra.d/05-c.sh" << 'EOF'
+# Module C
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+output=\$('$LOADER_SH' '$HOME/.local/share/bash/conf.d' '$HOME/.local/share/bash/func.d' '$HOME/.local/share/bash/extra.d')
+echo \"\$output\" | grep -c 'source'
+"
+		assert_success
+		assert_output "3"
+	}
+
+	# LOADER-02c: loader.sh skips missing directories silently (exit 0, no output for that dir)
+	@test "LOADER-02c: loader.sh skips missing directories silently" {
+		run "$LOADER_SH" "/nonexistent/dir"
+		assert_success
+		assert_output ""
+	}
+
+	# LOADER-02d: loader.sh with one empty dir and one populated dir outputs only populated
+	@test "LOADER-02d: loader.sh outputs only from populated dir when one empty" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+		mkdir -p "$HOME/.local/share/bash/func.d"
+
+		cat > "$HOME/.local/share/bash/conf.d/05-test.sh" << 'EOF'
+# Test module
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+output=\$('$LOADER_SH' '$HOME/.local/share/bash/func.d' '$HOME/.local/share/bash/conf.d')
+echo \"\$output\" | grep -c 'source'
+"
+		assert_success
+		assert_output "1"
+	}
+
+	# ---------------------------------------------------------------------------
+	# Group 23: LOADER-03 - Special character escaping
+	# ---------------------------------------------------------------------------
+
+	# LOADER-03a: Path with space character is escaped in output (printf %q behavior)
+	@test "LOADER-03a: path with space character is escaped in output" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+		cat > "$HOME/.local/share/bash/conf.d/05-my conf.sh" << 'EOF'
+# Module with spaces in name
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+output=\$('$LOADER_SH' '$HOME/.local/share/bash/conf.d')
+echo \"\$output\" | grep -F 'my\\ conf' > /dev/null
+"
+		assert_success
+	}
+
+	# LOADER-03b: Path with single quote character is escaped in output
+	@test "LOADER-03b: path with single quote character is escaped in output" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+		cat > "$HOME/.local/share/bash/conf.d/05-file'quote.sh" << 'EOF'
+# Module with quote in name
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+output=\$('$LOADER_SH' '$HOME/.local/share/bash/conf.d')
+# Verify output can be eval'd without syntax error
+bash -n <<< \"\$output\"
+"
+		assert_success
+	}
+
+	# LOADER-03c: Path with dollar sign is escaped in output
+	@test "LOADER-03c: path with dollar sign is escaped in output" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+		cat > "$HOME/.local/share/bash/conf.d/05-file\$var.sh" << 'EOF'
+# Module with dollar sign in name
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+output=\$('$LOADER_SH' '$HOME/.local/share/bash/conf.d')
+# Verify output can be eval'd without syntax error
+bash -n <<< \"\$output\"
+"
+		assert_success
+	}
+
+	# ---------------------------------------------------------------------------
+	# Group 24: LOADER-04 - log_debug conditional output
+	# ---------------------------------------------------------------------------
+
+	# LOADER-04a: loader.sh produces no stderr output when LOG_LEVEL is unset
+	@test "LOADER-04a: loader.sh produces no stderr when LOG_LEVEL unset" {
+		run bash -c "
+export HOME='$HOME'
+'$LOADER_SH' /nonexistent/dir 2>&1 | grep -q . && echo 'HAS_OUTPUT' || echo 'NO_OUTPUT'
+"
+		assert_success
+		assert_output "NO_OUTPUT"
+	}
+
+	# LOADER-04b: loader.sh produces no stderr output when LOG_LEVEL=info
+	@test "LOADER-04b: loader.sh produces no stderr when LOG_LEVEL=info" {
+		run bash -c "
+export HOME='$HOME'
+export LOG_LEVEL=info
+'$LOADER_SH' /nonexistent/dir 2>&1 | grep -q . && echo 'HAS_OUTPUT' || echo 'NO_OUTPUT'
+"
+		assert_success
+		assert_output "NO_OUTPUT"
+	}
+
+	# LOADER-04c: loader.sh produces stderr with [DEBUG] when LOG_LEVEL=debug and dir missing
+	@test "LOADER-04c: loader.sh produces stderr with [DEBUG] when LOG_LEVEL=debug" {
+		run bash -c "
+export HOME='$HOME'
+export LOG_LEVEL=debug
+'$LOADER_SH' /nonexistent/dir 2>&1 | grep -q DEBUG && echo 'HAS_DEBUG' || echo 'NO_DEBUG'
+"
+		assert_success
+		assert_output "HAS_DEBUG"
+	}
+
+	# LOADER-04d: debug output goes to stderr; stdout stays clean when LOG_LEVEL=debug
+	@test "LOADER-04d: debug output to stderr; stdout clean when LOG_LEVEL=debug" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+		cat > "$HOME/.local/share/bash/conf.d/05-test.sh" << 'EOF'
+# Test module
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+export LOG_LEVEL=debug
+output=\$('$LOADER_SH' '$HOME/.local/share/bash/conf.d' 2>/dev/null)
+# stdout should contain source lines, not [DEBUG] markers
+echo \"\$output\" | grep -q 'source' && echo 'HAS_SOURCE' || echo 'NO_SOURCE'
+"
+		assert_success
+		assert_output "HAS_SOURCE"
+	}
+
+	# ---------------------------------------------------------------------------
+	# Group 25: LOADER-05 - Static analysis of loader.sh
+	# ---------------------------------------------------------------------------
+	# RED phase: loader.sh does not exist yet; these tests fail until 35-03
+
+	# LOADER-05a: loader.sh passes bash -n syntax check
+	@test "LOADER-05a: loader.sh passes bash -n syntax check" {
+		run bash -n "$LOADER_SH"
+		assert_success
+	}
+
+	# LOADER-05b: loader.sh passes shellcheck -x
+	@test "LOADER-05b: loader.sh passes shellcheck -x" {
+		command -v shellcheck >/dev/null 2>&1 || skip "shellcheck not installed"
+		run shellcheck -x "$LOADER_SH"
+		assert_success
+	}
+
+	# LOADER-05c: loader.sh contains set -euo pipefail (D-02 requirement)
+	@test "LOADER-05c: loader.sh contains set -euo pipefail per D-02" {
+		run grep -q "set -euo pipefail" "$LOADER_SH"
+		assert_success
+	}
+
+	# LOADER-05d: loader.sh does not contain internal eval call (D-02 requirement)
+	@test "LOADER-05d: loader.sh does not contain internal eval (output-based per D-02)" {
+		run bash -c "
+grep -v '^[[:space:]]*#' '$LOADER_SH' | grep -c '\beval\b'
+"
+		assert_success
+		assert_output "0"
+	}
+
+	# ---------------------------------------------------------------------------
+	# Group 26: LOADER-06 - Syntax error handling
+	# ---------------------------------------------------------------------------
+
+	# LOADER-06a: syntax-broken module is skipped; remaining modules appear in output
+	@test "LOADER-06a: syntax-broken module skipped; remaining modules in output" {
+		mkdir -p "$HOME/.local/share/bash/func.d"
+
+		cat > "$HOME/.local/share/bash/func.d/a_broken.sh" << 'EOF'
+broken_func() {
+    echo "unclosed"
+EOF
+
+		cat > "$HOME/.local/share/bash/func.d/b_good.sh" << 'EOF'
+good_func() { echo "GOOD"; }
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+output=\$('$LOADER_SH' '$HOME/.local/share/bash/func.d')
+echo \"\$output\" | grep -c 'source'
+"
+		assert_success
+		assert_output "1"
+	}
+
+	# LOADER-06b: syntax-broken module produces debug log when LOG_LEVEL=debug
+	@test "LOADER-06b: syntax-broken module logged when LOG_LEVEL=debug" {
+		mkdir -p "$HOME/.local/share/bash/func.d"
+
+		cat > "$HOME/.local/share/bash/func.d/a_broken.sh" << 'EOF'
+broken_func() {
+    echo "unclosed"
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+export LOG_LEVEL=debug
+'$LOADER_SH' '$HOME/.local/share/bash/func.d' 2>&1 | grep -q 'broken\\|Skipping\\|DEBUG' && echo 'LOGGED' || echo 'NOT_LOGGED'
+"
+		assert_success
+		assert_output "LOGGED"
+	}
+
+	# ---------------------------------------------------------------------------
+	# Group 27: LOADER-07 - Integration with .bashrc
+	# ---------------------------------------------------------------------------
+
+	# LOADER-07a: .bashrc eval pattern: eval of loader.sh output loads all modules
+	@test "LOADER-07a: .bashrc eval pattern loads all modules from loader.sh output" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+		mkdir -p "$HOME/.local/share/bash/func.d"
+
+		cat > "$HOME/.local/share/bash/conf.d/05-conf-test.sh" << 'EOF'
+CONF_MARKER="loaded"
+EOF
+
+		cat > "$HOME/.local/share/bash/func.d/05-func-test.sh" << 'EOF'
+func_marker() { echo "function ready"; }
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+eval \"\$('$LOADER_SH' '$HOME/.local/share/bash/conf.d' '$HOME/.local/share/bash/func.d')\" 2>/dev/null
+[[ \"\$CONF_MARKER\" == \"loaded\" ]] && func_marker && echo 'SUCCESS' || echo 'FAILED'
+"
+		assert_success
+		assert_output "function ready
+SUCCESS"
+	}
+
+	# LOADER-07b: .bashrc still sources skel independently (skel not in loader.sh scope per D-03)
+	@test "LOADER-07b: .bashrc sources skel independently (skel not in loader.sh)" {
+		mkdir -p "$HOME/.local/share/bash/conf.d"
+		mkdir -p "$HOME/.local/share/etc/skel"
+
+		cat > "$HOME/.local/share/etc/skel/.bashrc" << 'EOF'
+SKEL_MARKER="yes"
+EOF
+
+		cat > "$HOME/.local/share/bash/conf.d/05-conf.sh" << 'EOF'
+CONF_MARKER="yes"
+EOF
+
+		run bash -c "
+export HOME='$HOME'
+# Simulate .bashrc pattern: source skel first, then eval loader.sh output
+[[ -f \"\$HOME/.local/share/etc/skel/.bashrc\" ]] && source \"\$HOME/.local/share/etc/skel/.bashrc\"
+eval \"\$('$LOADER_SH' '$HOME/.local/share/bash/conf.d')\" 2>/dev/null
+[[ \"\$SKEL_MARKER\" == \"yes\" ]] && [[ \"\$CONF_MARKER\" == \"yes\" ]] && echo 'BOTH_LOADED' || echo 'MISSING'
+"
+		assert_success
+		assert_output "BOTH_LOADED"
 	}
