@@ -113,12 +113,12 @@ STUB
 	mkdir -p "$RUNTIME_DIR/btash"
 	touch "$RUNTIME_DIR/btash/btash-1000" "$RUNTIME_DIR/btash/btash-2000"
 	cat >"$RUNTIME_DIR/btash/btash-1000.meta" <<'META'
-cwd=/tmp/one
-created_at=20240101-010101
+declare -- cwd="/tmp/one"
+declare -- created_at="20240101-010101"
 META
 	cat >"$RUNTIME_DIR/btash/btash-2000.meta" <<'META'
-cwd=/tmp/two
-created_at=20240202-020202
+declare -- cwd="/tmp/two"
+declare -- created_at="20240202-020202"
 META
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
@@ -138,12 +138,12 @@ META
 	mkdir -p "$RUNTIME_DIR/btash"
 	touch "$RUNTIME_DIR/btash/btash-live"
 	cat >"$RUNTIME_DIR/btash/btash-live.meta" <<'META'
-cwd=/tmp/live
-created_at=20240101-010101
+declare -- cwd="/tmp/live"
+declare -- created_at="20240101-010101"
 META
 	cat >"$RUNTIME_DIR/btash/btash-dead.meta" <<'META'
-cwd=/tmp/dead
-created_at=20240101-010101
+declare -- cwd="/tmp/dead"
+declare -- created_at="20240101-010101"
 META
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
@@ -169,8 +169,8 @@ META
 	mkdir -p "$RUNTIME_DIR/btash"
 	touch "$RUNTIME_DIR/btash/btash-1234"
 	cat >"$RUNTIME_DIR/btash/btash-1234.meta" <<'META'
-cwd=/tmp/attach
-created_at=20240101-010101
+declare -- cwd="/tmp/attach"
+declare -- created_at="20240101-010101"
 META
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
@@ -187,8 +187,8 @@ META
 	create_fake_id
 	mkdir -p "$RUNTIME_DIR/btash"
 	cat >"$RUNTIME_DIR/btash/btash-stale.meta" <<'META'
-cwd=/tmp/stale
-created_at=20240101-010101
+declare -- cwd="/tmp/stale"
+declare -- created_at="20240101-010101"
 META
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
