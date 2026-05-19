@@ -136,12 +136,12 @@ META
 	create_fake_date
 	create_fake_id
 	mkdir -p "$RUNTIME_DIR/btash"
-	touch "$RUNTIME_DIR/btash/btash-live"
-	cat >"$RUNTIME_DIR/btash/btash-live.meta" <<'META'
+	touch "$RUNTIME_DIR/btash/btash-1000"
+	cat >"$RUNTIME_DIR/btash/btash-1000.meta" <<'META'
 declare -- cwd="/tmp/live"
 declare -- created_at="20240101-010101"
 META
-	cat >"$RUNTIME_DIR/btash/btash-dead.meta" <<'META'
+	cat >"$RUNTIME_DIR/btash/btash-2000.meta" <<'META'
 declare -- cwd="/tmp/dead"
 declare -- created_at="20240101-010101"
 META
@@ -150,9 +150,9 @@ META
 		"$BASH_BIN" -c "printf 'y\n' | \"$BTASH\" cleanup"
 
 	assert_success
-	[[ -f "$RUNTIME_DIR/btash/btash-live" ]]
-	[[ -f "$RUNTIME_DIR/btash/btash-live.meta" ]]
-	[[ ! -f "$RUNTIME_DIR/btash/btash-dead.meta" ]]
+	[[ -f "$RUNTIME_DIR/btash/btash-1000" ]]
+	[[ -f "$RUNTIME_DIR/btash/btash-1000.meta" ]]
+	[[ ! -f "$RUNTIME_DIR/btash/btash-2000.meta" ]]
 }
 
 @test "BTASH-06 [D-07]: attach subcommand is rejected with non-zero exit" {
@@ -186,7 +186,7 @@ META
 	create_fake_date
 	create_fake_id
 	mkdir -p "$RUNTIME_DIR/btash"
-	cat >"$RUNTIME_DIR/btash/btash-stale.meta" <<'META'
+	cat >"$RUNTIME_DIR/btash/btash-1234.meta" <<'META'
 declare -- cwd="/tmp/stale"
 declare -- created_at="20240101-010101"
 META
@@ -195,7 +195,7 @@ META
 		"$BASH_BIN" -c "printf '2\nq\n' | \"$BTASH\""
 
 	assert_success
-	[[ ! -f "$RUNTIME_DIR/btash/btash-stale.meta" ]]
+	[[ ! -f "$RUNTIME_DIR/btash/btash-1234.meta" ]]
 	assert_output --partial "Create new session"
 }
 
