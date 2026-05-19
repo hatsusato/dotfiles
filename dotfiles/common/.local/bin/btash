@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
+# Helpers read runtime_dir and socket_dir from main's locals via Bash's dynamic scope.
+# Print CLI usage to stderr.
 usage() {
 	cat >&2 <<'EOF'
 Usage: btash [new|list|cleanup]
 Attach is available from the interactive menu only.
 EOF
 }
-
+# Require dtach in PATH before running any session command.
 require_dtach() {
 	if ! command -v dtach >/dev/null 2>&1; then
 		echo "Error: dtach is required but not installed." >&2
 		return 1
 	fi
 }
-
-init_runtime_dir() {
+# Initialize runtime_dir and socket_dir from XDG_RUNTIME_DIR or an id-based fallback.
+init_runtime_paths() {
 	if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
 		runtime_dir="${XDG_RUNTIME_DIR}"
 	else
@@ -23,186 +24,189 @@ init_runtime_dir() {
 		uid="$(id -u)"
 		runtime_dir="/run/user/${uid}"
 	fi
+	socket_dir="${runtime_dir}/btash"
 }
-
+# Ensure runtime_dir exists and create socket_dir inside it.
 ensure_socket_dir() {
 	if [[ ! -d "${runtime_dir}" ]]; then
 		echo "Error: runtime directory does not exist: ${runtime_dir}" >&2
 		return 1
 	fi
-
 	mkdir -p "${socket_dir}"
 }
-
-collect_sessions() {
-	[[ -d "${socket_dir}" ]] || return 0
-
-	local nullglob_state="shopt -u nullglob"
-	if shopt -q nullglob; then
-		nullglob_state="shopt -s nullglob"
+# Return success when socket_path points to an active dtach session.
+session_is_live() {
+	local socket_path="${1}"
+	[[ -e "${socket_path}" ]] && dtach -p "${socket_path}" >/dev/null 2>&1
+}
+# Return success when socket_path is missing or no longer attachable.
+session_is_stale() {
+	local socket_path="${1}"
+	! session_is_live "${socket_path}"
+}
+# Emit shell assignments for created_at, name, cwd, socket_path, and meta_path.
+# Args: session_name; metadata is loaded from session_name.meta when present.
+emit_session_record() {
+	local name="${1}"
+	local socket_path="${socket_dir}/${name}"
+	local meta_path="${socket_path}.meta"
+	local cwd="" created_at="" meta_assignments var
+	if [[ -f "${meta_path}" ]]; then
+		meta_assignments="$(grep -E '^declare -- (cwd|created_at)=' "${meta_path}" || true)"
+		[[ -n "${meta_assignments}" ]] && eval "${meta_assignments}"
 	fi
+	: "${cwd:=unknown}"
+	: "${created_at:=00000000-000000}"
+	for var in created_at name cwd socket_path meta_path; do
+		printf '%s; ' "$(declare -p "${var}")"
+	done
+	printf '\n'
+}
+# Emit shell assignments for sessions backed by real socket files.
+# Args: optional filter function name; it receives socket_path and returns 0 to include a record.
+emit_session_records() {
+	local filter_fn="${1:-}"
+	local nullglob_state="$(shopt -p nullglob)"
+	local path base socket_path
 	shopt -s nullglob
-
-	local path base name meta_path socket_path cwd created_at meta_assignments
-
 	for path in "${socket_dir}"/btash-*; do
 		base="$(basename "${path}")"
-		[[ "${base}" =~ ^btash-[0-9]+(\.meta)?$ ]] || continue
-
-		name="${base%.meta}"
-		socket_path="${socket_dir}/${name}"
-		meta_path="${socket_dir}/${name}.meta"
-		cwd=""
-		created_at=""
-
-		if [[ -f "${meta_path}" ]]; then
-			meta_assignments="$(grep -E '^declare -- (cwd|created_at)=' "${meta_path}" || true)"
-			[[ -n "${meta_assignments}" ]] && eval "${meta_assignments}"
+		[[ "${base}" == btash-+([0-9]) ]] || continue
+		socket_path="${socket_dir}/${base}"
+		if [[ -n "${filter_fn}" ]] && ! "${filter_fn}" "${socket_path}"; then
+			continue
 		fi
-		: "${cwd:=unknown}"
-		: "${created_at:=00000000-000000}"
-
-		printf '%s; %s; %s; %s; %s\n' "$(declare -p created_at)" "$(declare -p name)" "$(declare -p cwd)" "$(declare -p socket_path)" "$(declare -p meta_path)"
+		emit_session_record "${base}"
 	done | sort -r -u
-
 	eval "${nullglob_state}"
 }
-
+# Create a new dtach session and write its metadata file alongside the socket.
 create_new_session() {
 	local session_name socket_path meta_path created_at cwd
 	session_name="btash-$$"
 	socket_path="${socket_dir}/${session_name}"
 	meta_path="${socket_path}.meta"
-
 	if [[ -e "${socket_path}" || -e "${meta_path}" ]]; then
 		echo "Error: session already exists: ${session_name}" >&2
 		return 1
 	fi
-
 	created_at="$(date '+%Y%m%d-%H%M%S')"
 	cwd="$(pwd)"
 	declare -p cwd created_at >"${meta_path}"
-
 	if ! dtach -c "${socket_path}" bash; then
 		rm -f "${meta_path}"
 		return 1
 	fi
 }
-
+# Print sessions as "name created_at cwd" in newest-first order.
 list_sessions() {
 	local name created_at cwd session_record
-
 	while IFS= read -r session_record; do
 		[[ -n "${session_record}" ]] || continue
 		eval "${session_record}"
 		[[ -n "${name}" ]] || continue
 		printf '%s %s %s\n' "${name}" "${created_at}" "${cwd}"
-	done < <(collect_sessions)
+	done < <(emit_session_records)
 }
-
+# Emit stale session records for cleanup flows.
 gather_stale_candidates() {
-	local name socket_path meta_path session_record
-
-	while IFS= read -r session_record; do
-		[[ -n "${session_record}" ]] || continue
-		eval "${session_record}"
-		[[ -n "${name}" ]] || continue
-
-		if [[ -e "${socket_path}" ]] && dtach -p "${socket_path}" >/dev/null 2>&1; then
-			continue
-		fi
-
-		printf '%s; %s; %s\n' "$(declare -p name)" "$(declare -p socket_path)" "$(declare -p meta_path)"
-	done < <(collect_sessions)
+	local nullglob_state="$(shopt -p nullglob)"
+	local path base socket_path
+	{
+		emit_session_records session_is_stale
+		shopt -s nullglob
+		for path in "${socket_dir}"/btash-*.meta; do
+			base="$(basename "${path}")"
+			[[ "${base}" == btash-+([0-9]).meta ]] || continue
+			socket_path="${socket_dir}/${base%.meta}"
+			[[ -e "${socket_path}" ]] && continue
+			emit_session_record "${base%.meta}"
+		done
+	} | sort -r -u
+	eval "${nullglob_state}"
 }
-
+# Ask whether stale sessions should be removed and print yes or no.
 confirm_cleanup() {
 	local answer
 	read -r -p "Delete stale sessions? [y/N]: " answer
-
 	if [[ "${answer}" == "y" || "${answer}" == "Y" ]]; then
 		echo "yes"
 		return 0
 	fi
-
 	echo "no"
 }
-
+# Always approve cleanup for non-interactive retry paths.
 always_yes() {
 	echo "yes"
 }
-
+# Delete stale session sockets and metadata.
+# Args: optional prompt function name that prints yes or no.
 cleanup_sessions() {
 	local prompt="${1:-confirm_cleanup}"
 	local -a candidates=()
 	local session_record entry name socket_path meta_path
-
 	while IFS= read -r session_record; do
 		[[ -n "${session_record}" ]] || continue
 		candidates+=("${session_record}")
 	done < <(gather_stale_candidates)
-
 	if [[ "${#candidates[@]}" -eq 0 ]]; then
 		echo "No stale sessions found."
 		return 0
 	fi
-
 	echo "Stale sessions:"
 	for entry in "${candidates[@]}"; do
 		eval "${entry}"
 		echo "  - ${name}"
 	done
-
 	if [[ "$("${prompt}")" != "yes" ]]; then
 		echo "Aborted."
 		return 0
 	fi
-
 	for entry in "${candidates[@]}"; do
 		eval "${entry}"
 		rm -f "${socket_path}" "${meta_path}"
 	done
 }
-
+# Attach to a session by name.
+# Args: session_name and result_var; result_var is set to attached or retry in the caller.
 attach_selected_session() {
 	local session_name="${1}"
+	local result_var="${2}"
 	local socket_path="${socket_dir}/${session_name}"
-
-	attach_result="attached"
+	printf -v "${result_var}" '%s' attached
 	if [[ ! -e "${socket_path}" ]]; then
 		echo "Selected session socket is missing: ${session_name}" >&2
 		cleanup_sessions always_yes
-		attach_result="retry"
+		printf -v "${result_var}" '%s' retry
 		return 0
 	fi
-
 	dtach -a "${socket_path}"
 }
-
+# Show the interactive selector.
+# menu_action is retried after stale or invalid selections and returned otherwise.
 show_menu() {
 	local -a options session_names
-	local name created_at cwd session_record choice index session_name
-
+	local name created_at cwd session_record choice index session_name menu_action
 	while true; do
 		options=("Create new session")
 		session_names=()
-
 		while IFS= read -r session_record; do
 			[[ -n "${session_record}" ]] || continue
 			eval "${session_record}"
 			[[ -n "${name}" ]] || continue
 			options+=("Attach: ${name} (${created_at}, ${cwd})")
 			session_names+=("${name}")
-		done < <(collect_sessions)
-
+		done < <(emit_session_records)
 		options+=("List sessions")
 		options+=("Cleanup stale sessions")
 		options+=("Quit")
-
 		PS3="Select action: "
 		select choice in "${options[@]}"; do
+			menu_action="return"
 			case "${choice:-}" in
-			"") return 0 ;;
+			"" | "Quit")
+				return 0
+				;;
 			"Create new session")
 				create_new_session
 				return 0
@@ -215,42 +219,40 @@ show_menu() {
 				cleanup_sessions confirm_cleanup
 				return 0
 				;;
-			"Quit")
-				return 0
-				;;
 			Attach:*)
 				index=$((REPLY - 2))
 				if ((index >= 0 && index < ${#session_names[@]})); then
 					session_name="${session_names[index]}"
-					attach_selected_session "${session_name}"
-					if [[ "${attach_result}" == "retry" ]]; then
-						break
+					attach_selected_session "${session_name}" menu_action
+					if [[ "${menu_action}" != "retry" ]]; then
+						return 0
 					fi
-					return 0
+				else
+					menu_action="retry"
 				fi
 				;;
 			*)
 				echo "Invalid selection" >&2
+				menu_action="retry"
 				;;
 			esac
+			if [[ "${menu_action}" == "retry" ]]; then
+				break
+			fi
 		done
 	done
 }
-
+# Dispatch the subcommand after initializing shared runtime paths.
 main() {
 	local command="${1:-}"
-	local runtime_dir="" socket_dir="" attach_result="attached"
-
-	init_runtime_dir
-	socket_dir="${runtime_dir}/btash"
-
+	local runtime_dir="" socket_dir=""
+	init_runtime_paths
 	case "${command}" in
 	"" | new | list | cleanup)
 		require_dtach
 		ensure_socket_dir
 		;;
 	esac
-
 	case "${command}" in
 	"")
 		show_menu
@@ -270,5 +272,4 @@ main() {
 		;;
 	esac
 }
-
 main "${@}"

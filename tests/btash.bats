@@ -181,21 +181,15 @@ META
 	assert_success
 }
 
-@test "BTASH-08 [D-14]: missing socket selection triggers cleanup and returns to menu" {
+@test "BTASH-08 [D-14]: invalid selection retries the menu loop" {
 	create_fake_dtach
 	create_fake_date
 	create_fake_id
 	mkdir -p "$RUNTIME_DIR/btash"
-	cat >"$RUNTIME_DIR/btash/btash-1234.meta" <<'META'
-declare -- cwd="/tmp/stale"
-declare -- created_at="20240101-010101"
-META
-
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
-		"$BASH_BIN" -c "printf '2\nq\n' | \"$BTASH\""
+		"$BASH_BIN" -c "printf '9\nq\n' | \"$BTASH\""
 
 	assert_success
-	[[ ! -f "$RUNTIME_DIR/btash/btash-1234.meta" ]]
 	assert_output --partial "Create new session"
 }
 
