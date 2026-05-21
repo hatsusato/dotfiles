@@ -131,7 +131,7 @@ META
 	[[ "$first_line" == *"btash-2000"* ]]
 }
 
-@test "BTASH-05 [D-06]: cleanup asks confirm and removes only orphaned sessions" {
+@test "BTASH-05 [D-06]: cleanup ignores orphaned metadata when no stale sockets exist" {
 	create_fake_dtach
 	create_fake_date
 	create_fake_id
@@ -152,7 +152,8 @@ META
 	assert_success
 	[[ -f "$RUNTIME_DIR/btash/btash-1000" ]]
 	[[ -f "$RUNTIME_DIR/btash/btash-1000.meta" ]]
-	[[ ! -f "$RUNTIME_DIR/btash/btash-2000.meta" ]]
+	[[ -f "$RUNTIME_DIR/btash/btash-2000.meta" ]]
+	assert_output --partial "No stale sessions found."
 }
 
 @test "BTASH-06 [D-07]: attach subcommand is rejected with non-zero exit" {

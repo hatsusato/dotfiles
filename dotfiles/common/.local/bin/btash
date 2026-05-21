@@ -17,32 +17,21 @@ EOF
 # - Overwrites runtime_dir in the caller's scope.
 # - Overwrites socket_dir in the caller's scope.
 initialize_runtime() {
-	if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
-		runtime_dir="${XDG_RUNTIME_DIR}"
-	else
-		local uid
-		uid="$(id -u)"
-		runtime_dir="/run/user/${uid}"
-	fi
-	socket_dir="${runtime_dir}/btash"
 	if ! command -v dtach >/dev/null 2>&1; then
 		echo "Error: dtach is required but not installed." >&2
 		return 1
+	fi
+	if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
+		runtime_dir="${XDG_RUNTIME_DIR}"
+	else
+		runtime_dir="/run/user/$(id -u)"
 	fi
 	if [[ ! -d "${runtime_dir}" ]]; then
 		echo "Error: runtime directory does not exist: ${runtime_dir}" >&2
 		return 1
 	fi
+	socket_dir="${runtime_dir}/btash"
 	mkdir -p "${socket_dir}"
-}
-
-# Print the caller's current session record as shell assignments.
-print_session_record() {
-	local var
-	for var in created_at name cwd socket_path; do
-		printf '%s; ' "$(declare -p "${var}")"
-	done
-	printf '\n'
 }
 
 # Print the caller's current session summary line.
@@ -52,7 +41,12 @@ print_session_summary() {
 
 # Append the caller's current session record into candidates.
 append_candidate_record() {
-	candidates+=("$(print_session_record)")
+	local var record=""
+	for var in created_at name cwd socket_path; do
+		record+="$(declare -p "${var}")"
+		record+='; '
+	done
+	candidates+=("${record}")
 }
 
 # Append the caller's current session into both session_names and options.
@@ -61,13 +55,16 @@ append_menu_session() {
 	options+=("Attach: ${name} (${created_at}, ${cwd})")
 }
 
+# Append the caller's current session name into session_names.
+append_session_name() {
+	session_names+=("${name}")
+}
+
 # Visit live socket-backed sessions.
 # Args:
-# - action_fn: function invoked for each included session
-# - filter_fn: optional predicate that reads name/socket_path/cwd/created_at from caller scope
+# - action_fn: function invoked for each session and can read name/socket_path/cwd/created_at from caller scope
 emit_session_records() {
 	local action_fn="${1}"
-	local filter_fn="${2:-}"
 	local glob_state
 	local socket_path meta_assignments
 	glob_state="$(shopt -p nullglob extglob || true)"
@@ -80,31 +77,6 @@ emit_session_records() {
 			meta_assignments="$(grep -E '^declare -- (cwd|created_at)=' "${socket_path}.meta" || true)"
 			[[ -n "${meta_assignments}" ]] && eval "${meta_assignments}"
 		fi
-		if [[ -n "${filter_fn}" ]] && ! "${filter_fn}"; then
-			continue
-		fi
-		"${action_fn}"
-	done
-	eval "${glob_state}"
-}
-
-# Visit orphaned metadata files that have no matching socket.
-# Args:
-# - action_fn: function invoked for each orphaned metadata record
-emit_orphan_metadata_records() {
-	local action_fn="${1}"
-	local glob_state
-	local path meta_assignments
-	glob_state="$(shopt -p nullglob extglob || true)"
-	shopt -s nullglob extglob
-	for path in "${socket_dir}"/btash-+([0-9]).meta; do
-		socket_path="${path%.meta}"
-		[[ -e "${socket_path}" ]] && continue
-		name="$(basename "${socket_path}")"
-		cwd="unknown"
-		created_at="00000000-000000"
-		meta_assignments="$(grep -E '^declare -- (cwd|created_at)=' "${path}" || true)"
-		[[ -n "${meta_assignments}" ]] && eval "${meta_assignments}"
 		"${action_fn}"
 	done
 	eval "${glob_state}"
@@ -142,10 +114,22 @@ is_stale_session() {
 # Args: optional prompt function name that prints yes or no.
 cleanup_sessions() {
 	local prompt="${1:-confirm_cleanup}"
-	local -a candidates=()
+	local -a candidates=() session_names=()
 	local entry name socket_path
-	emit_session_records append_candidate_record is_stale_session
-	emit_orphan_metadata_records append_candidate_record
+	emit_session_records append_session_name
+	for name in "${session_names[@]}"; do
+		socket_path="${socket_dir}/${name}"
+		if is_stale_session; then
+			cwd="unknown"
+			created_at="00000000-000000"
+			if [[ -f "${socket_path}.meta" ]]; then
+				local meta_assignments
+				meta_assignments="$(grep -E '^declare -- (cwd|created_at)=' "${socket_path}.meta" || true)"
+				[[ -n "${meta_assignments}" ]] && eval "${meta_assignments}"
+			fi
+			append_candidate_record
+		fi
+	done
 	if [[ "${#candidates[@]}" -eq 0 ]]; then
 		echo "No stale sessions found."
 		return 0
@@ -155,7 +139,7 @@ cleanup_sessions() {
 		eval "${entry}"
 		echo "  - ${name}"
 	done
-	if [[ "$("${prompt}")" != "yes" ]]; then
+	if [[ "$(eval "${prompt}")" != "yes" ]]; then
 		echo "Aborted."
 		return 0
 	fi
@@ -176,23 +160,19 @@ confirm_cleanup() {
 	fi
 }
 
-# Always approve cleanup for non-interactive retry paths.
-always_yes() {
-	echo "yes"
-}
-
 # Attach to the caller-provided session_name.
 # Input:
 # - session_name: selected session name from the caller's scope
 # - socket_dir: session root from the caller's scope
+# - socket_path: derived from session_name in the caller's scope
 # Output:
-# - menu_action: attached or break in the caller's scope
+# - menu_action: return or break in the caller's scope
 attach_selected_session() {
 	socket_path="${socket_dir}/${session_name}"
-	menu_action="attached"
-	if [[ ! -e "${socket_path}" ]]; then
+	menu_action="return"
+	if is_stale_session; then
 		echo "Selected session socket is missing: ${session_name}" >&2
-		cleanup_sessions always_yes
+		cleanup_sessions "echo yes"
 		menu_action="break"
 		return 0
 	fi
@@ -239,11 +219,10 @@ show_menu() {
 				menu_action="break"
 				;;
 			esac
-			if [[ "${menu_action}" == "return" ]]; then
+			if [[ "${menu_action}" != "break" ]]; then
 				return 0
 			fi
-			[[ "${menu_action}" == "break" ]] && break
-			return 0
+			break
 		done
 	done
 }
