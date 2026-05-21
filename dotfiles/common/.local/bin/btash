@@ -13,9 +13,11 @@ EOF
 }
 
 # Initialize all shared runtime state used by subcommands.
-# - Reads XDG_RUNTIME_DIR when available, otherwise falls back to /run/user/<uid>.
-# - Overwrites runtime_dir in the caller's scope.
-# - Overwrites socket_dir in the caller's scope.
+# Input:
+# - XDG_RUNTIME_DIR: optional runtime directory override from the environment
+# Output:
+# - runtime_dir: runtime directory path in the caller's scope
+# - socket_dir: btash socket directory path in the caller's scope
 initialize_runtime() {
 	if ! command -v dtach >/dev/null 2>&1; then
 		echo "Error: dtach is required but not installed." >&2
@@ -42,17 +44,10 @@ print_session_summary() {
 # Append the caller's current session record into candidates.
 append_candidate_record() {
 	local var record=""
-	for var in created_at name cwd socket_path; do
-		record+="$(declare -p "${var}")"
-		record+='; '
+	for var in name socket_path; do
+		record+="$(declare -p "${var}"); "
 	done
 	candidates+=("${record}")
-}
-
-# Append the caller's current session into both session_names and options.
-append_menu_session() {
-	session_names+=("${name}")
-	options+=("Attach: ${name} (${created_at}, ${cwd})")
 }
 
 # Append the caller's current session name into session_names.
@@ -60,13 +55,16 @@ append_session_name() {
 	session_names+=("${name}")
 }
 
+# Append the caller's current session into options.
+append_menu_option() {
+	options+=("Attach: ${name} (${created_at}, ${cwd})")
+}
+
 # Visit live socket-backed sessions.
 # Args:
-# - action_fn: function invoked for each session and can read name/socket_path/cwd/created_at from caller scope
+# - function names to invoke for each session; each can read name/socket_path/cwd/created_at from caller scope
 emit_session_records() {
-	local action_fn="${1}"
-	local glob_state
-	local socket_path meta_assignments
+	local glob_state socket_path meta_assignments action_fn
 	glob_state="$(shopt -p nullglob extglob || true)"
 	shopt -s nullglob extglob
 	for socket_path in "${socket_dir}"/btash-+([0-9]); do
@@ -77,7 +75,9 @@ emit_session_records() {
 			meta_assignments="$(grep -E '^declare -- (cwd|created_at)=' "${socket_path}.meta" || true)"
 			[[ -n "${meta_assignments}" ]] && eval "${meta_assignments}"
 		fi
-		"${action_fn}"
+		for action_fn in "${@}"; do
+			"${action_fn}"
+		done
 	done
 	eval "${glob_state}"
 }
@@ -87,17 +87,16 @@ create_new_session() {
 	local session_name socket_path created_at cwd
 	session_name="btash-$$"
 	socket_path="${socket_dir}/${session_name}"
-	if [[ -e "${socket_path}" || -e "${socket_path}.meta" ]]; then
+	if ! is_stale_session || [[ -e "${socket_path}.meta" ]]; then
 		echo "Error: session already exists: ${session_name}" >&2
 		return 1
 	fi
 	created_at="$(date '+%Y%m%d-%H%M%S')"
 	cwd="$(pwd)"
 	declare -p cwd created_at >"${socket_path}.meta"
-	if ! dtach -c "${socket_path}" bash; then
-		rm -f "${socket_path}.meta"
-		return 1
-	fi
+	trap 'rm -f "${socket_path}.meta"' RETURN
+	dtach -c "${socket_path}" bash
+	trap - RETURN
 }
 
 # Print sessions as "name created_at cwd" in newest-first order.
@@ -116,20 +115,7 @@ cleanup_sessions() {
 	local prompt="${1:-confirm_cleanup}"
 	local -a candidates=() session_names=()
 	local entry name socket_path
-	emit_session_records append_session_name
-	for name in "${session_names[@]}"; do
-		socket_path="${socket_dir}/${name}"
-		if is_stale_session; then
-			cwd="unknown"
-			created_at="00000000-000000"
-			if [[ -f "${socket_path}.meta" ]]; then
-				local meta_assignments
-				meta_assignments="$(grep -E '^declare -- (cwd|created_at)=' "${socket_path}.meta" || true)"
-				[[ -n "${meta_assignments}" ]] && eval "${meta_assignments}"
-			fi
-			append_candidate_record
-		fi
-	done
+	emit_session_records append_session_name append_stale_candidate_record
 	if [[ "${#candidates[@]}" -eq 0 ]]; then
 		echo "No stale sessions found."
 		return 0
@@ -147,6 +133,13 @@ cleanup_sessions() {
 		eval "${entry}"
 		rm -f "${socket_path}" "${socket_path}.meta"
 	done
+}
+
+# Append the caller's current session record when its socket is stale.
+append_stale_candidate_record() {
+	if is_stale_session; then
+		append_candidate_record
+	fi
 }
 
 # Ask whether stale sessions should be removed and print yes or no.
@@ -183,47 +176,44 @@ attach_selected_session() {
 show_menu() {
 	local -a options session_names
 	local name created_at cwd choice index session_name menu_action socket_path
-	while true; do
-		options=("Create new session")
-		session_names=()
-		emit_session_records append_menu_session
-		options+=("List sessions")
-		options+=("Cleanup stale sessions")
-		options+=("Quit")
-		PS3="Select action: "
-		select choice in "${options[@]}"; do
-			menu_action="return"
-			case "${choice:-}" in
-			"" | "Quit")
-				;;
-			"Create new session")
-				create_new_session
-				;;
-			"List sessions")
-				list_sessions
-				;;
-			"Cleanup stale sessions")
-				cleanup_sessions confirm_cleanup
-				;;
-			Attach:*)
-				index=$((REPLY - 2))
-				if ((index >= 0 && index < ${#session_names[@]})); then
-					session_name="${session_names[index]}"
-					attach_selected_session
-				else
-					menu_action="break"
-				fi
-				;;
-			*)
-				echo "Invalid selection" >&2
+	options=("Create new session")
+	session_names=()
+	emit_session_records append_session_name append_menu_option
+	options+=("List sessions")
+	options+=("Cleanup stale sessions")
+	options+=("Quit")
+	PS3="Select action: "
+	select choice in "${options[@]}"; do
+		menu_action="return"
+		case "${choice:-}" in
+		"" | "Quit")
+			;;
+		"Create new session")
+			create_new_session
+			;;
+		"List sessions")
+			list_sessions
+			;;
+		"Cleanup stale sessions")
+			cleanup_sessions confirm_cleanup
+			;;
+		Attach:*)
+			index=$((REPLY - 2))
+			if ((index >= 0 && index < ${#session_names[@]})); then
+				session_name="${session_names[index]}"
+				attach_selected_session
+			else
 				menu_action="break"
-				;;
-			esac
-			if [[ "${menu_action}" != "break" ]]; then
-				return 0
 			fi
-			break
-		done
+			;;
+		*)
+			echo "Invalid selection" >&2
+			menu_action="break"
+			;;
+		esac
+		if [[ "${menu_action}" != "break" ]]; then
+			return 0
+		fi
 	done
 }
 
