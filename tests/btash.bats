@@ -45,12 +45,38 @@ STUB
 	chmod +x "$FAKE_BIN/dtach"
 }
 
+create_fake_dtach_runs_command() {
+	cat >"$FAKE_BIN/dtach" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "$*" >> "${BATS_TEST_TMPDIR}/dtach.log"
+mode="${1:-}"
+socket="${2:-}"
+case "$mode" in
+-c)
+	: >"$socket"
+	eval "meta_path=\${$#}"
+	rm -f "$meta_path"
+	exit 0
+	;;
+-a | -p)
+	[[ -e "$socket" ]] && exit 0
+	exit 1
+	;;
+*)
+	exit 0
+	;;
+esac
+STUB
+	chmod +x "$FAKE_BIN/dtach"
+}
+
 create_fake_date() {
 	cat >"$FAKE_BIN/date" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 case "${1:-}" in
-+%Y%m%d-%H%M%S) echo "20260101-010203" ;;
++%Y-%m-%d\ %H:%M:%S) echo "2026-01-01 01:02:03" ;;
 +%s) echo "1735689723" ;;
 *) echo "1735689723" ;;
 esac
@@ -110,7 +136,34 @@ STUB
 	assert_success
 	run grep -q "$PWD" "$RUNTIME_DIR/btash/"*.meta
 	assert_success
-	run grep -q "20260101-010203" "$RUNTIME_DIR/btash/"*.meta
+	run grep -q "2026-01-01 01:02:03" "$RUNTIME_DIR/btash/"*.meta
+	assert_success
+}
+
+@test "BTASH-03b: new subcommand removes metadata after session shell exits" {
+	create_fake_dtach_runs_command
+	create_fake_date
+	create_fake_id
+
+	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
+		"$BASH_BIN" "$BTASH" new
+
+	assert_success
+	run find "$RUNTIME_DIR/btash" -name '*.meta'
+	assert_success
+	[[ -z "$output" ]]
+}
+
+@test "BTASH-03c: stale socket path is replaced when creating a new session" {
+	create_fake_dtach
+	create_fake_date
+	create_fake_id
+	mkdir -p "$RUNTIME_DIR/btash"
+	: >"$RUNTIME_DIR/btash/btash-$$"
+
+	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
+		"$BASH_BIN" "$BTASH" new
+
 	assert_success
 }
 
@@ -122,11 +175,11 @@ STUB
 	touch "$RUNTIME_DIR/btash/btash-1000" "$RUNTIME_DIR/btash/btash-2000"
 	cat >"$RUNTIME_DIR/btash/btash-1000.meta" <<'META'
 declare -- cwd="/tmp/one"
-declare -- created_at="20240101-010101"
+declare -- created_at="2024-01-01 01:01:01"
 META
 	cat >"$RUNTIME_DIR/btash/btash-2000.meta" <<'META'
 declare -- cwd="/tmp/two"
-declare -- created_at="20240202-020202"
+declare -- created_at="2024-02-02 02:02:02"
 META
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
@@ -134,7 +187,7 @@ META
 
 	assert_success
 	assert_output --partial "/tmp/two"
-	assert_output --partial "20240202-020202"
+	assert_output --partial "2024-02-02 02:02:02"
 	first_line="$(printf '%s\n' "$output" | sed -n '1p')"
 	[[ "$first_line" == *"btash-2000"* ]]
 }
@@ -147,11 +200,11 @@ META
 	touch "$RUNTIME_DIR/btash/btash-1000"
 	cat >"$RUNTIME_DIR/btash/btash-1000.meta" <<'META'
 declare -- cwd="/tmp/live"
-declare -- created_at="20240101-010101"
+declare -- created_at="2024-01-01 01:01:01"
 META
 	cat >"$RUNTIME_DIR/btash/btash-2000.meta" <<'META'
 declare -- cwd="/tmp/dead"
-declare -- created_at="20240101-010101"
+declare -- created_at="2024-01-01 01:01:01"
 META
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
@@ -179,7 +232,7 @@ META
 	touch "$RUNTIME_DIR/btash/btash-1234"
 	cat >"$RUNTIME_DIR/btash/btash-1234.meta" <<'META'
 declare -- cwd="/tmp/attach"
-declare -- created_at="20240101-010101"
+declare -- created_at="2024-01-01 01:01:01"
 META
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
@@ -196,7 +249,7 @@ META
 	create_fake_id
 	mkdir -p "$RUNTIME_DIR/btash"
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
-		"$BASH_BIN" -c "printf '9\nq\n' | \"$BTASH\""
+		"$BASH_BIN" -c "printf '9\n2\n' | \"$BTASH\""
 
 	assert_success
 	assert_output --partial "Create new session"
