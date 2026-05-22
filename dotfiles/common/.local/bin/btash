@@ -209,7 +209,7 @@ attach_selected_session() {
 # - presents attach/new/quit actions and runs the selected action
 show_menu() {
 	local -a options socket_paths
-	local choice index menu_outcome socket_path
+	local choice menu_outcome socket_path
 	options=()
 	socket_paths=()
 	emit_session_records append_socket_path append_menu_option
@@ -220,13 +220,8 @@ show_menu() {
 		menu_outcome="done"
 		case "${choice:-Quit}" in
 		Attach:*)
-			index=$((REPLY - 1))
-			if ((index >= 0 && index < ${#socket_paths[@]})); then
-				socket_path="${socket_paths[index]}"
-				attach_selected_session
-			else
-				menu_outcome="retry"
-			fi
+			socket_path="${socket_paths[REPLY - 1]}"
+			attach_selected_session
 			;;
 		"Create new session")
 			create_new_session
