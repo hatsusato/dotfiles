@@ -38,37 +38,28 @@ initialize_runtime() {
 
 # Print the caller's current session summary line.
 print_session_summary() {
-	printf '%s %s %s\n' "${name}" "${created_at}" "${cwd}"
-}
-
-# Append the caller's current session record into candidates.
-append_candidate_record() {
-	local var record=""
-	for var in name socket_path; do
-		record+="$(declare -p "${var}"); "
-	done
-	candidates+=("${record}")
-}
-
-# Append the caller's current session name into session_names.
-append_session_name() {
-	session_names+=("${name}")
+	printf '%s %s %s\n' "${session_name}" "${created_at}" "${cwd}"
 }
 
 # Append the caller's current session into options.
 append_menu_option() {
-	options+=("Attach: ${name} (${created_at}, ${cwd})")
+	options+=("Attach: ${session_name} (${created_at}, ${cwd})")
+}
+
+# Append the caller's current socket path into socket_paths.
+append_socket_path() {
+	socket_paths+=("${socket_path}")
 }
 
 # Visit live socket-backed sessions.
 # Args:
-# - function names to invoke for each session; each can read name/socket_path/cwd/created_at from caller scope
+# - function names to invoke for each session; each can read session_name/socket_path/cwd/created_at from caller scope
 emit_session_records() {
 	local glob_state socket_path meta_assignments action_fn
 	glob_state="$(shopt -p nullglob extglob || true)"
 	shopt -s nullglob extglob
 	for socket_path in "${socket_dir}"/btash-+([0-9]); do
-		name="$(basename "${socket_path}")"
+		session_name="$(basename "${socket_path}")"
 		cwd="unknown"
 		created_at="00000000-000000"
 		if [[ -f "${socket_path}.meta" ]]; then
@@ -87,7 +78,7 @@ create_new_session() {
 	local session_name socket_path created_at cwd
 	session_name="btash-$$"
 	socket_path="${socket_dir}/${session_name}"
-	if ! is_stale_session || [[ -e "${socket_path}.meta" ]]; then
+	if [[ -e "${socket_path}" ]]; then
 		echo "Error: session already exists: ${session_name}" >&2
 		return 1
 	fi
@@ -106,39 +97,44 @@ list_sessions() {
 
 # Return success when the caller's socket_path is stale.
 is_stale_session() {
-	! [[ -e "${socket_path}" ]] || ! dtach -p "${socket_path}" >/dev/null 2>&1
+	if [[ ! -e "${socket_path}" ]]; then
+		return 0
+	fi
+	if dtach -p "${socket_path}" >/dev/null 2>&1; then
+		return 1
+	fi
+	return 0
 }
 
 # Delete stale session sockets and metadata.
 # Args: optional prompt function name that prints yes or no.
 cleanup_sessions() {
 	local prompt="${1:-confirm_cleanup}"
-	local -a candidates=() session_names=()
-	local entry name socket_path
-	emit_session_records append_session_name append_stale_candidate_record
+	local -a candidates=()
+	local socket_path session_name
+	emit_session_records append_socket_path append_stale_candidate_record
 	if [[ "${#candidates[@]}" -eq 0 ]]; then
 		echo "No stale sessions found."
 		return 0
 	fi
 	echo "Stale sessions:"
-	for entry in "${candidates[@]}"; do
-		eval "${entry}"
-		echo "  - ${name}"
+	for socket_path in "${candidates[@]}"; do
+		session_name="$(basename "${socket_path}")"
+		echo "  - ${session_name}"
 	done
 	if [[ "$(eval "${prompt}")" != "yes" ]]; then
 		echo "Aborted."
 		return 0
 	fi
-	for entry in "${candidates[@]}"; do
-		eval "${entry}"
+	for socket_path in "${candidates[@]}"; do
 		rm -f "${socket_path}" "${socket_path}.meta"
 	done
 }
 
-# Append the caller's current session record when its socket is stale.
+# Append the caller's current socket path when it is stale.
 append_stale_candidate_record() {
 	if is_stale_session; then
-		append_candidate_record
+		candidates+=("${socket_path}")
 	fi
 }
 
@@ -155,13 +151,12 @@ confirm_cleanup() {
 
 # Attach to the caller-provided session_name.
 # Input:
-# - session_name: selected session name from the caller's scope
-# - socket_dir: session root from the caller's scope
-# - socket_path: derived from session_name in the caller's scope
+# - socket_path: selected socket path from the caller's scope
 # Output:
 # - menu_action: return or break in the caller's scope
 attach_selected_session() {
-	socket_path="${socket_dir}/${session_name}"
+	local session_name
+	session_name="$(basename "${socket_path}")"
 	menu_action="return"
 	if is_stale_session; then
 		echo "Selected session socket is missing: ${session_name}" >&2
@@ -174,11 +169,11 @@ attach_selected_session() {
 
 # Show the interactive selector.
 show_menu() {
-	local -a options session_names
-	local name created_at cwd choice index session_name menu_action socket_path
+	local -a options socket_paths
+	local session_name created_at cwd choice index menu_action socket_path
 	options=("Create new session")
-	session_names=()
-	emit_session_records append_session_name append_menu_option
+	socket_paths=()
+	emit_session_records append_socket_path append_menu_option
 	options+=("List sessions")
 	options+=("Cleanup stale sessions")
 	options+=("Quit")
@@ -195,12 +190,12 @@ show_menu() {
 			list_sessions
 			;;
 		"Cleanup stale sessions")
-			cleanup_sessions confirm_cleanup
+			cleanup_sessions
 			;;
 		Attach:*)
 			index=$((REPLY - 2))
-			if ((index >= 0 && index < ${#session_names[@]})); then
-				session_name="${session_names[index]}"
+			if ((index >= 0 && index < ${#socket_paths[@]})); then
+				socket_path="${socket_paths[index]}"
 				attach_selected_session
 			else
 				menu_action="break"
@@ -233,7 +228,7 @@ main() {
 		list_sessions
 		;;
 	cleanup)
-		cleanup_sessions confirm_cleanup
+		cleanup_sessions
 		;;
 	*)
 		usage
