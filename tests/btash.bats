@@ -155,7 +155,7 @@ declare -- created_at="20240101-010101"
 META
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
-		"$BASH_BIN" -c "printf 'y\n' | \"$BTASH\" cleanup"
+		"$BASH_BIN" -c "printf 'y\n' | \"$BTASH\" clean"
 
 	assert_success
 	[[ -f "$RUNTIME_DIR/btash/btash-1000" ]]

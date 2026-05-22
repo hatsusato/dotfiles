@@ -6,7 +6,7 @@ shopt -s extglob
 # Print CLI usage to stderr and return the CLI error status.
 usage() {
 	cat >&2 <<'EOF'
-Usage: btash [menu|new|list|cleanup]
+Usage: btash [menu|new|list|clean]
 Attach is available from the interactive menu only.
 EOF
 	return 2
@@ -124,7 +124,7 @@ cleanup_sessions() {
 	local -a candidates=()
 	local socket_path session_name
 	emit_session_records append_stale_candidate_record
-	if [[ "${#candidates[@]}" -eq 0 ]]; then
+	if ((${#candidates[@]} == 0)); then
 		echo "No stale sessions found."
 		return 0
 	fi
@@ -218,12 +218,7 @@ show_menu() {
 	PS3="Select action: "
 	select choice in "${options[@]}"; do
 		menu_outcome="done"
-		case "${choice:-}" in
-		"" | "Quit")
-			;;
-		"Create new session")
-			create_new_session
-			;;
+		case "${choice:-Quit}" in
 		Attach:*)
 			index=$((REPLY - 1))
 			if ((index >= 0 && index < ${#socket_paths[@]})); then
@@ -232,6 +227,11 @@ show_menu() {
 			else
 				menu_outcome="retry"
 			fi
+			;;
+		"Create new session")
+			create_new_session
+			;;
+		"Quit")
 			;;
 		*)
 			echo "Invalid selection" >&2
@@ -246,7 +246,7 @@ show_menu() {
 
 # Dispatch the subcommand after initializing shared runtime state.
 # Input:
-# - command: menu/new/list/cleanup
+# - command: menu/new/list/clean
 main() {
 	local command="${1:-menu}"
 	local runtime_dir="" socket_dir=""
@@ -261,7 +261,7 @@ main() {
 	list)
 		list_sessions
 		;;
-	cleanup)
+	clean)
 		cleanup_sessions
 		;;
 	*)
