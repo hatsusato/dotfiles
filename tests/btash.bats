@@ -85,6 +85,8 @@ STUB
 
 	assert_success
 	assert_output --partial "Create new session"
+	refute_output --partial "List sessions"
+	refute_output --partial "Cleanup stale sessions"
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
 		"$BASH_BIN" -c "printf '1\n' | \"$BTASH\" menu"
@@ -181,7 +183,7 @@ declare -- created_at="20240101-010101"
 META
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
-		"$BASH_BIN" -c "printf '2\n' | \"$BTASH\""
+		"$BASH_BIN" -c "printf '1\n' | \"$BTASH\""
 
 	assert_success
 	run grep -q -- "-a $RUNTIME_DIR/btash/btash-1234" "$BATS_TEST_TMPDIR/dtach.log"

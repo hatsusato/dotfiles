@@ -37,10 +37,12 @@ initialize_runtime() {
 }
 
 # Visit live socket-backed sessions.
-# Args:
+# Input:
 # - function names to invoke for each session; each can read socket_path/cwd/created_at from caller scope
+# Output:
+# - invokes each callback with socket_path/cwd/created_at available in this scope
 emit_session_records() {
-	local glob_state socket_path meta_assignments action_fn
+	local glob_state socket_path cwd created_at meta_assignments action_fn
 	glob_state="$(shopt -p nullglob extglob || true)"
 	shopt -s nullglob extglob
 	for socket_path in "${socket_dir}"/btash-+([0-9]); do
@@ -58,6 +60,10 @@ emit_session_records() {
 }
 
 # Create a new dtach session and write its metadata file alongside the socket.
+# Input:
+# - socket_dir: btash socket directory path in the caller's scope
+# Output:
+# - creates a new socket and metadata file, then attaches dtach
 create_new_session() {
 	local session_name socket_path created_at cwd
 	session_name="btash-$$"
@@ -75,30 +81,44 @@ create_new_session() {
 }
 
 # Print the caller's current session summary line.
+# Input:
+# - socket_path/cwd/created_at: session fields in the caller's scope
+# Output:
+# - prints "session_name created_at cwd" to stdout
 print_session_summary() {
 	local session_name
 	session_name="$(basename "${socket_path}")"
 	printf '%s %s %s\n' "${session_name}" "${created_at}" "${cwd}"
 }
 
-# Print sessions as "name created_at cwd" in newest-first order.
+# Print sessions as "session_name created_at cwd" in newest-first order.
+# Output:
+# - prints one session summary per line to stdout
 list_sessions() {
 	emit_session_records print_session_summary | sort -r
 }
 
 # Return success when the caller's socket_path is live.
+# Input:
+# - socket_path: session socket path in the caller's scope
+# Output:
+# - exit status 0 when the socket is live, 1 otherwise
 is_live_session() {
 	if [[ ! -e "${socket_path}" ]]; then
 		return 1
-	fi
-	if dtach -p "${socket_path}" >/dev/null 2>&1; then
+	elif dtach -p "${socket_path}" >/dev/null 2>&1; then
 		return 0
+	else
+		return 1
 	fi
-	return 1
 }
 
 # Delete stale session sockets and metadata.
-# Args: optional prompt function name that prints yes or no.
+# Input:
+# - prompt: optional function name that prints yes or no
+# - socket_dir: btash socket directory path in the caller's scope
+# Output:
+# - removes stale sockets and metadata after confirmation
 cleanup_sessions() {
 	local prompt="${1:-confirm_cleanup}"
 	local -a candidates=()
@@ -123,6 +143,10 @@ cleanup_sessions() {
 }
 
 # Append the caller's current socket path when it is stale.
+# Input:
+# - socket_path: session socket path in the caller's scope
+# Output:
+# - appends stale socket paths to candidates in the caller's scope
 append_stale_candidate_record() {
 	if ! is_live_session; then
 		candidates+=("${socket_path}")
@@ -130,6 +154,8 @@ append_stale_candidate_record() {
 }
 
 # Ask whether stale sessions should be removed and print yes or no.
+# Output:
+# - prints yes or no to stdout
 confirm_cleanup() {
 	local answer
 	read -r -p "Delete stale sessions? [y/N]: " answer
@@ -141,11 +167,19 @@ confirm_cleanup() {
 }
 
 # Append the caller's current socket path into socket_paths.
+# Input:
+# - socket_path: session socket path in the caller's scope
+# Output:
+# - appends socket_path to socket_paths in the caller's scope
 append_socket_path() {
 	socket_paths+=("${socket_path}")
 }
 
 # Append the caller's current session into options.
+# Input:
+# - socket_path/cwd/created_at: session fields in the caller's scope
+# Output:
+# - appends one attach option to options in the caller's scope
 append_menu_option() {
 	local session_name
 	session_name="$(basename "${socket_path}")"
@@ -171,14 +205,15 @@ attach_selected_session() {
 }
 
 # Show the interactive selector.
+# Output:
+# - presents attach/new/quit actions and runs the selected action
 show_menu() {
 	local -a options socket_paths
-	local created_at cwd choice index menu_outcome socket_path
-	options=("Create new session")
+	local choice index menu_outcome socket_path
+	options=()
 	socket_paths=()
 	emit_session_records append_socket_path append_menu_option
-	options+=("List sessions")
-	options+=("Cleanup stale sessions")
+	options+=("Create new session")
 	options+=("Quit")
 	PS3="Select action: "
 	select choice in "${options[@]}"; do
@@ -189,14 +224,8 @@ show_menu() {
 		"Create new session")
 			create_new_session
 			;;
-		"List sessions")
-			list_sessions
-			;;
-		"Cleanup stale sessions")
-			cleanup_sessions
-			;;
 		Attach:*)
-			index=$((REPLY - 2))
+			index=$((REPLY - 1))
 			if ((index >= 0 && index < ${#socket_paths[@]})); then
 				socket_path="${socket_paths[index]}"
 				attach_selected_session
@@ -216,6 +245,8 @@ show_menu() {
 }
 
 # Dispatch the subcommand after initializing shared runtime state.
+# Input:
+# - command: menu/new/list/cleanup
 main() {
 	local command="${1:-menu}"
 	local runtime_dir="" socket_dir=""
