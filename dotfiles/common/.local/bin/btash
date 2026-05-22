@@ -6,7 +6,7 @@ shopt -s extglob
 # Print CLI usage to stderr and return the CLI error status.
 usage() {
 	cat >&2 <<'EOF'
-Usage: btash [new|list|cleanup]
+Usage: btash [menu|new|list|cleanup]
 Attach is available from the interactive menu only.
 EOF
 	return 2
@@ -36,30 +36,14 @@ initialize_runtime() {
 	mkdir -p "${socket_dir}"
 }
 
-# Print the caller's current session summary line.
-print_session_summary() {
-	printf '%s %s %s\n' "${session_name}" "${created_at}" "${cwd}"
-}
-
-# Append the caller's current session into options.
-append_menu_option() {
-	options+=("Attach: ${session_name} (${created_at}, ${cwd})")
-}
-
-# Append the caller's current socket path into socket_paths.
-append_socket_path() {
-	socket_paths+=("${socket_path}")
-}
-
 # Visit live socket-backed sessions.
 # Args:
-# - function names to invoke for each session; each can read session_name/socket_path/cwd/created_at from caller scope
+# - function names to invoke for each session; each can read socket_path/cwd/created_at from caller scope
 emit_session_records() {
 	local glob_state socket_path meta_assignments action_fn
 	glob_state="$(shopt -p nullglob extglob || true)"
 	shopt -s nullglob extglob
 	for socket_path in "${socket_dir}"/btash-+([0-9]); do
-		session_name="$(basename "${socket_path}")"
 		cwd="unknown"
 		created_at="00000000-000000"
 		if [[ -f "${socket_path}.meta" ]]; then
@@ -90,20 +74,27 @@ create_new_session() {
 	trap - RETURN
 }
 
+# Print the caller's current session summary line.
+print_session_summary() {
+	local session_name
+	session_name="$(basename "${socket_path}")"
+	printf '%s %s %s\n' "${session_name}" "${created_at}" "${cwd}"
+}
+
 # Print sessions as "name created_at cwd" in newest-first order.
 list_sessions() {
 	emit_session_records print_session_summary | sort -r
 }
 
-# Return success when the caller's socket_path is stale.
-is_stale_session() {
+# Return success when the caller's socket_path is live.
+is_live_session() {
 	if [[ ! -e "${socket_path}" ]]; then
-		return 0
-	fi
-	if dtach -p "${socket_path}" >/dev/null 2>&1; then
 		return 1
 	fi
-	return 0
+	if dtach -p "${socket_path}" >/dev/null 2>&1; then
+		return 0
+	fi
+	return 1
 }
 
 # Delete stale session sockets and metadata.
@@ -112,7 +103,7 @@ cleanup_sessions() {
 	local prompt="${1:-confirm_cleanup}"
 	local -a candidates=()
 	local socket_path session_name
-	emit_session_records append_socket_path append_stale_candidate_record
+	emit_session_records append_stale_candidate_record
 	if [[ "${#candidates[@]}" -eq 0 ]]; then
 		echo "No stale sessions found."
 		return 0
@@ -133,7 +124,7 @@ cleanup_sessions() {
 
 # Append the caller's current socket path when it is stale.
 append_stale_candidate_record() {
-	if is_stale_session; then
+	if ! is_live_session; then
 		candidates+=("${socket_path}")
 	fi
 }
@@ -149,19 +140,31 @@ confirm_cleanup() {
 	fi
 }
 
+# Append the caller's current socket path into socket_paths.
+append_socket_path() {
+	socket_paths+=("${socket_path}")
+}
+
+# Append the caller's current session into options.
+append_menu_option() {
+	local session_name
+	session_name="$(basename "${socket_path}")"
+	options+=("Attach: ${session_name} (${created_at}, ${cwd})")
+}
+
 # Attach to the caller-provided session_name.
 # Input:
 # - socket_path: selected socket path from the caller's scope
 # Output:
-# - menu_action: return or break in the caller's scope
+# - menu_outcome: done or retry in the caller's scope
 attach_selected_session() {
 	local session_name
 	session_name="$(basename "${socket_path}")"
-	menu_action="return"
-	if is_stale_session; then
+	menu_outcome="done"
+	if ! is_live_session; then
 		echo "Selected session socket is missing: ${session_name}" >&2
 		cleanup_sessions "echo yes"
-		menu_action="break"
+		menu_outcome="retry"
 		return 0
 	fi
 	dtach -a "${socket_path}"
@@ -170,7 +173,7 @@ attach_selected_session() {
 # Show the interactive selector.
 show_menu() {
 	local -a options socket_paths
-	local session_name created_at cwd choice index menu_action socket_path
+	local created_at cwd choice index menu_outcome socket_path
 	options=("Create new session")
 	socket_paths=()
 	emit_session_records append_socket_path append_menu_option
@@ -179,7 +182,7 @@ show_menu() {
 	options+=("Quit")
 	PS3="Select action: "
 	select choice in "${options[@]}"; do
-		menu_action="return"
+		menu_outcome="done"
 		case "${choice:-}" in
 		"" | "Quit")
 			;;
@@ -198,15 +201,15 @@ show_menu() {
 				socket_path="${socket_paths[index]}"
 				attach_selected_session
 			else
-				menu_action="break"
+				menu_outcome="retry"
 			fi
 			;;
 		*)
 			echo "Invalid selection" >&2
-			menu_action="break"
+			menu_outcome="retry"
 			;;
 		esac
-		if [[ "${menu_action}" != "break" ]]; then
+		if [[ "${menu_outcome}" == "done" ]]; then
 			return 0
 		fi
 	done
@@ -214,11 +217,11 @@ show_menu() {
 
 # Dispatch the subcommand after initializing shared runtime state.
 main() {
-	local command="${1:-}"
+	local command="${1:-menu}"
 	local runtime_dir="" socket_dir=""
 	initialize_runtime
 	case "${command}" in
-	"")
+	menu)
 		show_menu
 		;;
 	new)

@@ -85,6 +85,12 @@ STUB
 
 	assert_success
 	assert_output --partial "Create new session"
+
+	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
+		"$BASH_BIN" -c "printf '1\n' | \"$BTASH\" menu"
+
+	assert_success
+	assert_output --partial "Create new session"
 }
 
 @test "BTASH-03 [D-03,D-13]: new subcommand creates socket and metadata with cwd/timestamp" {
