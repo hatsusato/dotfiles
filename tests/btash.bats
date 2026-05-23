@@ -63,8 +63,39 @@ socket="${2:-}"
 case "$mode" in
 -c)
 	: >"$socket"
-	eval "meta_path=\${$#}"
+	script="${5:-}"
+	meta_assignments="$(printf '%s\n' "$script" | grep -E '^declare -- meta_path=' || true)"
+	eval "${meta_assignments}"
 	rm -f "$meta_path"
+	exit 0
+	;;
+-a | -p)
+	[[ -e "$socket" ]] && exit 0
+	exit 1
+	;;
+*)
+	exit 0
+	;;
+esac
+STUB
+	chmod +x "$FAKE_BIN/dtach"
+}
+
+create_fake_dtach_creates_meta() {
+	cat >"$FAKE_BIN/dtach" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "$*" >> "${BATS_TEST_TMPDIR}/dtach.log"
+mode="${1:-}"
+socket="${2:-}"
+case "$mode" in
+-c)
+	: >"$socket"
+	script="${5:-}"
+	meta_assignments="$(printf '%s\n' "$script" | grep -E '^declare -- (cwd|created_at|meta_path)=' || true)"
+	eval "${meta_assignments}"
+	session_pid=4242
+	declare -p cwd created_at session_pid >"$meta_path"
 	exit 0
 	;;
 -a | -p)
@@ -136,7 +167,7 @@ start_live_session_pid() {
 }
 
 @test "BTASH-03 [D-03,D-13]: new subcommand creates socket and metadata with cwd/timestamp" {
-	create_fake_dtach
+	create_fake_dtach_creates_meta
 	create_fake_date
 	create_fake_id
 

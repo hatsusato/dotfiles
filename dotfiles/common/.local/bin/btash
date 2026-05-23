@@ -36,6 +36,28 @@ initialize_runtime() {
 	mkdir -p "${socket_dir}"
 }
 
+# Load selected declare lines from the metadata file for a socket path.
+# Input:
+# - socket_path: session socket path
+# Args:
+# - variable names to extract from the metadata file
+# Output:
+# - prints matching declare lines to stdout
+load_meta_assignments() {
+	local socket_path="${1}" meta_path line var_name
+	shift
+	meta_path="${socket_path}.meta"
+	[[ -f "${meta_path}" ]] || return 0
+	while IFS= read -r line; do
+		for var_name in "${@}"; do
+			if [[ "${line}" == "declare -- ${var_name}="* ]]; then
+				printf '%s\n' "${line}"
+				break
+			fi
+		done
+	done <"${meta_path}"
+}
+
 # Visit live socket-backed sessions.
 # Input:
 # - function names to invoke for each session; each can read socket_path/cwd/created_at/session_pid from caller scope
@@ -49,10 +71,8 @@ emit_session_records() {
 		cwd=""
 		created_at=""
 		session_pid=""
-		if [[ -f "${socket_path}.meta" ]]; then
-			meta_assignments="$(grep -E '^declare -- (cwd|created_at|session_pid)=' "${socket_path}.meta" || true)"
-			eval "${meta_assignments}"
-		fi
+		meta_assignments="$(load_meta_assignments "${socket_path}" cwd created_at session_pid)"
+		eval "${meta_assignments}"
 		for action_fn in "${@}"; do
 			"${action_fn}"
 		done
@@ -62,14 +82,19 @@ emit_session_records() {
 
 # Run the session shell and clean up metadata after exit.
 # Input:
-# - meta_path: metadata file path
+# - cwd/created_at/meta_path: session metadata in the caller's scope
 # Output:
-# - records session_pid in metadata, then removes metadata after the shell exits
+# - writes session metadata including session_pid, then removes metadata after the shell exits
 run_session_shell() {
-	local meta_path="${1}"
-	printf 'declare -- session_pid=%q\n' "$$" >>"${meta_path}"
-	bash
-	local status=$?
+	local session_pid="$$" status
+	declare -p cwd created_at session_pid >"${meta_path}"
+	trap 'rm -f -- "${meta_path}"' EXIT
+	if bash; then
+		status=0
+	else
+		status=$?
+	fi
+	trap - EXIT
 	rm -f -- "${meta_path}"
 	return "${status}"
 }
@@ -80,19 +105,22 @@ run_session_shell() {
 # Output:
 # - creates a new socket and metadata file, then removes metadata after the shell exits
 create_new_session() {
-	local session_name socket_path created_at cwd session_pid="" session_runner
+	local session_name socket_path meta_path created_at cwd session_pid="" session_runner
 	session_name="btash-$$"
 	socket_path="${socket_dir}/${session_name}"
 	if is_live_session; then
 		echo "Error: session already exists: ${session_name}" >&2
 		return 1
 	fi
-	rm -f "${socket_path}" "${socket_path}.meta"
+	meta_path="${socket_path}.meta"
+	rm -f "${socket_path}" "${meta_path}"
 	created_at="$(date '+%Y-%m-%d %H:%M:%S')"
 	cwd="$(pwd)"
-	declare -p cwd created_at >"${socket_path}.meta"
 	session_runner="$(declare -pf run_session_shell)"
-	dtach -c "${socket_path}" bash -c "${session_runner}; run_session_shell \"\$1\"" bash "${socket_path}.meta"
+	session_runner+=$'\n'
+	session_runner+="$(declare -p cwd created_at meta_path)"
+	session_runner+=$'\n'
+	dtach -c "${socket_path}" bash -c "${session_runner}run_session_shell"
 }
 
 # Print the caller's current session summary line.
@@ -125,20 +153,18 @@ is_live_session() {
 		return 0
 	elif [[ ! -S "${socket_path}" ]]; then
 		return 1
-	elif [[ ! -r /proc/net/unix ]]; then
-		return 0
 	elif dtach -p "${socket_path}" </dev/null >/dev/null 2>&1; then
 		return 0
-	elif awk -v path="${socket_path}" 'NR > 1 && $8 == path { found = 1; exit } END { exit(found ? 0 : 1) }' /proc/net/unix; then
-		return 0
+	else
+		return 1
 	fi
-	return 1
 }
 
 # Delete stale session sockets and metadata.
 # Input:
-# - prompt: optional function name that prints yes or no
 # - socket_dir: btash socket directory path in the caller's scope
+# Args:
+# - prompt: optional function name that prints yes or no
 # Output:
 # - removes stale sockets and metadata after confirmation
 cleanup_sessions() {
@@ -216,10 +242,8 @@ append_menu_option() {
 attach_selected_session() {
 	local session_name session_pid="" meta_assignments=""
 	session_name="$(basename "${socket_path}")"
-	if [[ -f "${socket_path}.meta" ]]; then
-		meta_assignments="$(grep -E '^declare -- session_pid=' "${socket_path}.meta" || true)"
-		eval "${meta_assignments}"
-	fi
+	meta_assignments="$(load_meta_assignments "${socket_path}" session_pid)"
+	eval "${meta_assignments}"
 	menu_outcome="done"
 	if ! is_live_session; then
 		echo "Selected session socket is missing: ${session_name}" >&2
