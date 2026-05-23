@@ -172,7 +172,7 @@ STUB
 	create_fake_date
 	create_fake_id
 	mkdir -p "$RUNTIME_DIR/btash"
-	touch "$RUNTIME_DIR/btash/btash-1000" "$RUNTIME_DIR/btash/btash-2000"
+	touch "$RUNTIME_DIR/btash/btash-0500" "$RUNTIME_DIR/btash/btash-1000" "$RUNTIME_DIR/btash/btash-2000"
 	cat >"$RUNTIME_DIR/btash/btash-1000.meta" <<'META'
 declare -- cwd="/tmp/one"
 declare -- created_at="2024-01-01 01:01:01"
@@ -188,6 +188,7 @@ META
 	assert_success
 	assert_output --partial "/tmp/two"
 	assert_output --partial "2024-02-02 02:02:02"
+	refute_output --partial "unknown"
 	first_line="$(printf '%s\n' "$output" | sed -n '1p')"
 	[[ "$first_line" == *"btash-2000"* ]]
 }

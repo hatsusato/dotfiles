@@ -46,7 +46,7 @@ emit_session_records() {
 	glob_state="$(shopt -p nullglob extglob || true)"
 	shopt -s nullglob extglob
 	for socket_path in "${socket_dir}"/btash-+([0-9]); do
-		cwd="unknown"
+		cwd=""
 		created_at=""
 		if [[ -f "${socket_path}.meta" ]]; then
 			meta_assignments="$(grep -E '^declare -- (cwd|created_at)=' "${socket_path}.meta" || true)"
