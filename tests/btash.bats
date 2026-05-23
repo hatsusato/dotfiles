@@ -3,12 +3,20 @@
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 
+teardown() {
+	if [[ -n "${LIVE_SESSION_PID:-}" ]]; then
+		kill "$LIVE_SESSION_PID" 2>/dev/null || true
+		wait "$LIVE_SESSION_PID" 2>/dev/null || true
+	fi
+}
+
 setup() {
 	PROJECT_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
 	BASH_BIN="$(command -v bash)"
 	BTASH="$PROJECT_ROOT/dotfiles/common/.local/bin/btash"
 	FAKE_BIN="$BATS_TEST_TMPDIR/fake_bin"
 	RUNTIME_DIR="$BATS_TEST_TMPDIR/runtime"
+	LIVE_SESSION_PID=""
 
 	mkdir -p "$FAKE_BIN" "$RUNTIME_DIR"
 }
@@ -97,6 +105,11 @@ STUB
 	chmod +x "$FAKE_BIN/id"
 }
 
+start_live_session_pid() {
+	sleep 300 &
+	LIVE_SESSION_PID=$!
+}
+
 @test "BTASH-01 [D-01,D-12]: script-first entrypoint exists and is executable" {
 	[[ -x "$BTASH" ]]
 }
@@ -113,6 +126,7 @@ STUB
 	assert_output --partial "Create new session"
 	refute_output --partial "List sessions"
 	refute_output --partial "Cleanup stale sessions"
+	rm -rf "$RUNTIME_DIR/btash"
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
 		"$BASH_BIN" -c "printf '1\n' | \"$BTASH\" menu"
@@ -199,10 +213,12 @@ META
 	create_fake_id
 	mkdir -p "$RUNTIME_DIR/btash"
 	touch "$RUNTIME_DIR/btash/btash-1000"
+	start_live_session_pid
 	cat >"$RUNTIME_DIR/btash/btash-1000.meta" <<'META'
 declare -- cwd="/tmp/live"
 declare -- created_at="2024-01-01 01:01:01"
 META
+	printf 'declare -- session_pid="%s"\n' "$LIVE_SESSION_PID" >>"$RUNTIME_DIR/btash/btash-1000.meta"
 	cat >"$RUNTIME_DIR/btash/btash-2000.meta" <<'META'
 declare -- cwd="/tmp/dead"
 declare -- created_at="2024-01-01 01:01:01"
@@ -231,10 +247,12 @@ META
 	create_fake_id
 	mkdir -p "$RUNTIME_DIR/btash"
 	touch "$RUNTIME_DIR/btash/btash-1234"
+	start_live_session_pid
 	cat >"$RUNTIME_DIR/btash/btash-1234.meta" <<'META'
 declare -- cwd="/tmp/attach"
 declare -- created_at="2024-01-01 01:01:01"
 META
+	printf 'declare -- session_pid="%s"\n' "$LIVE_SESSION_PID" >>"$RUNTIME_DIR/btash/btash-1234.meta"
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
 		"$BASH_BIN" -c "printf '1\n' | \"$BTASH\""

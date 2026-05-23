@@ -38,19 +38,20 @@ initialize_runtime() {
 
 # Visit live socket-backed sessions.
 # Input:
-# - function names to invoke for each session; each can read socket_path/cwd/created_at from caller scope
+# - function names to invoke for each session; each can read socket_path/cwd/created_at/session_pid from caller scope
 # Output:
-# - invokes each callback with socket_path/cwd/created_at available in this scope
+# - invokes each callback with socket_path/cwd/created_at/session_pid available in this scope
 emit_session_records() {
-	local glob_state socket_path cwd created_at meta_assignments action_fn
+	local glob_state socket_path cwd created_at session_pid meta_assignments action_fn
 	glob_state="$(shopt -p nullglob extglob || true)"
 	shopt -s nullglob extglob
 	for socket_path in "${socket_dir}"/btash-+([0-9]); do
 		cwd=""
 		created_at=""
+		session_pid=""
 		if [[ -f "${socket_path}.meta" ]]; then
-			meta_assignments="$(grep -E '^declare -- (cwd|created_at)=' "${socket_path}.meta" || true)"
-			[[ -n "${meta_assignments}" ]] && eval "${meta_assignments}"
+			meta_assignments="$(grep -E '^declare -- (cwd|created_at|session_pid)=' "${socket_path}.meta" || true)"
+			eval "${meta_assignments}"
 		fi
 		for action_fn in "${@}"; do
 			"${action_fn}"
@@ -59,13 +60,27 @@ emit_session_records() {
 	eval "${glob_state}"
 }
 
+# Run the session shell and clean up metadata after exit.
+# Input:
+# - meta_path: metadata file path
+# Output:
+# - records session_pid in metadata, then removes metadata after the shell exits
+run_session_shell() {
+	local meta_path="${1}"
+	printf 'declare -- session_pid=%q\n' "$$" >>"${meta_path}"
+	bash
+	local status=$?
+	rm -f -- "${meta_path}"
+	return "${status}"
+}
+
 # Create a new dtach session and write its metadata file alongside the socket.
 # Input:
 # - socket_dir: btash socket directory path in the caller's scope
 # Output:
 # - creates a new socket and metadata file, then removes metadata after the shell exits
 create_new_session() {
-	local session_name socket_path created_at cwd
+	local session_name socket_path created_at cwd session_pid="" session_runner
 	session_name="btash-$$"
 	socket_path="${socket_dir}/${session_name}"
 	if is_live_session; then
@@ -76,7 +91,8 @@ create_new_session() {
 	created_at="$(date '+%Y-%m-%d %H:%M:%S')"
 	cwd="$(pwd)"
 	declare -p cwd created_at >"${socket_path}.meta"
-	dtach -c "${socket_path}" bash -c 'bash; status=$?; rm -f -- "$1"; exit "$status"' bash "${socket_path}.meta"
+	session_runner="$(declare -pf run_session_shell)"
+	dtach -c "${socket_path}" bash -c "${session_runner}; run_session_shell \"\$1\"" bash "${socket_path}.meta"
 }
 
 # Print the caller's current session summary line.
@@ -99,15 +115,19 @@ list_sessions() {
 
 # Return success when the caller's socket_path is live.
 # Input:
-# - socket_path: session socket path in the caller's scope
+# - socket_path/session_pid: session state in the caller's scope
 # Output:
 # - exit status 0 when the socket is live, 1 otherwise
 is_live_session() {
 	if [[ ! -e "${socket_path}" ]]; then
 		return 1
-	elif [[ ! -S "${socket_path}" ]]; then
+	elif [[ -n "${session_pid}" ]] && kill -0 "${session_pid}" 2>/dev/null; then
 		return 0
+	elif [[ ! -S "${socket_path}" ]]; then
+		return 1
 	elif [[ ! -r /proc/net/unix ]]; then
+		return 0
+	elif dtach -p "${socket_path}" </dev/null >/dev/null 2>&1; then
 		return 0
 	elif awk -v path="${socket_path}" 'NR > 1 && $8 == path { found = 1; exit } END { exit(found ? 0 : 1) }' /proc/net/unix; then
 		return 0
@@ -194,8 +214,12 @@ append_menu_option() {
 # Output:
 # - menu_outcome: done or retry in the caller's scope
 attach_selected_session() {
-	local session_name
+	local session_name session_pid="" meta_assignments=""
 	session_name="$(basename "${socket_path}")"
+	if [[ -f "${socket_path}.meta" ]]; then
+		meta_assignments="$(grep -E '^declare -- session_pid=' "${socket_path}.meta" || true)"
+		eval "${meta_assignments}"
+	fi
 	menu_outcome="done"
 	if ! is_live_session; then
 		echo "Selected session socket is missing: ${session_name}" >&2
