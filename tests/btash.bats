@@ -64,7 +64,7 @@ case "$mode" in
 -c)
 	: >"$socket"
 	script="${5:-}"
-	meta_assignments="$(printf '%s\n' "$script" | grep -E '^declare -- meta_path=' || true)"
+	meta_assignments="$(printf '%s\n' "$script" | grep -E '^declare -- meta_path=' | sed 's/; run_session_shell$//' || true)"
 	eval "${meta_assignments}"
 	rm -f "$meta_path"
 	exit 0
@@ -92,7 +92,7 @@ case "$mode" in
 -c)
 	: >"$socket"
 	script="${5:-}"
-	meta_assignments="$(printf '%s\n' "$script" | grep -E '^declare -- (cwd|created_at|meta_path)=' || true)"
+	meta_assignments="$(printf '%s\n' "$script" | grep -E '^declare -- (cwd|created_at|meta_path)=' | sed 's/; run_session_shell$//' || true)"
 	eval "${meta_assignments}"
 	session_pid=4242
 	declare -p cwd created_at session_pid >"$meta_path"

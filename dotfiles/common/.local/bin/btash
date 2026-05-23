@@ -36,26 +36,22 @@ initialize_runtime() {
 	mkdir -p "${socket_dir}"
 }
 
-# Load selected declare lines from the metadata file for a socket path.
+# Load selected declare lines from the metadata file for the current socket.
 # Input:
-# - socket_path: session socket path
+# - socket_path: session socket path in the caller's scope
 # Args:
 # - variable names to extract from the metadata file
 # Output:
-# - prints matching declare lines to stdout
+# - sets matching variables in the caller's scope
 load_meta_assignments() {
-	local socket_path="${1}" meta_path line var_name
-	shift
+	local meta_path meta_assignments pattern="" var_name
 	meta_path="${socket_path}.meta"
 	[[ -f "${meta_path}" ]] || return 0
-	while IFS= read -r line; do
-		for var_name in "${@}"; do
-			if [[ "${line}" == "declare -- ${var_name}="* ]]; then
-				printf '%s\n' "${line}"
-				break
-			fi
-		done
-	done <"${meta_path}"
+	for var_name in "${@}"; do
+		pattern+="${pattern:+|}${var_name}"
+	done
+	meta_assignments="$(grep -E "^declare -- (${pattern})=" "${meta_path}" | sed 's/^declare -- //' || true)"
+	eval "${meta_assignments}"
 }
 
 # Visit live socket-backed sessions.
@@ -64,15 +60,14 @@ load_meta_assignments() {
 # Output:
 # - invokes each callback with socket_path/cwd/created_at/session_pid available in this scope
 emit_session_records() {
-	local glob_state socket_path cwd created_at session_pid meta_assignments action_fn
+	local glob_state socket_path cwd created_at session_pid action_fn
 	glob_state="$(shopt -p nullglob extglob || true)"
 	shopt -s nullglob extglob
 	for socket_path in "${socket_dir}"/btash-+([0-9]); do
 		cwd=""
 		created_at=""
 		session_pid=""
-		meta_assignments="$(load_meta_assignments "${socket_path}" cwd created_at session_pid)"
-		eval "${meta_assignments}"
+		load_meta_assignments cwd created_at session_pid
 		for action_fn in "${@}"; do
 			"${action_fn}"
 		done
@@ -86,16 +81,10 @@ emit_session_records() {
 # Output:
 # - writes session metadata including session_pid, then removes metadata after the shell exits
 run_session_shell() {
-	local session_pid="$$" status
+	local session_pid="$$" status=0
 	declare -p cwd created_at session_pid >"${meta_path}"
 	trap 'rm -f -- "${meta_path}"' EXIT
-	if bash; then
-		status=0
-	else
-		status=$?
-	fi
-	trap - EXIT
-	rm -f -- "${meta_path}"
+	bash || status=$?
 	return "${status}"
 }
 
@@ -105,7 +94,7 @@ run_session_shell() {
 # Output:
 # - creates a new socket and metadata file, then removes metadata after the shell exits
 create_new_session() {
-	local session_name socket_path meta_path created_at cwd session_pid="" session_runner
+	local session_name socket_path meta_path created_at cwd session_runner
 	session_name="btash-$$"
 	socket_path="${socket_dir}/${session_name}"
 	if is_live_session; then
@@ -116,11 +105,11 @@ create_new_session() {
 	rm -f "${socket_path}" "${meta_path}"
 	created_at="$(date '+%Y-%m-%d %H:%M:%S')"
 	cwd="$(pwd)"
-	session_runner="$(declare -pf run_session_shell)"
+	session_runner="$(declare -pf run_session_shell); "
 	session_runner+=$'\n'
-	session_runner+="$(declare -p cwd created_at meta_path)"
-	session_runner+=$'\n'
-	dtach -c "${socket_path}" bash -c "${session_runner}run_session_shell"
+	session_runner+="$(declare -p cwd created_at meta_path); "
+	session_runner+='run_session_shell'
+	dtach -c "${socket_path}" bash -c "${session_runner}"
 }
 
 # Print the caller's current session summary line.
@@ -240,10 +229,9 @@ append_menu_option() {
 # Output:
 # - menu_outcome: done or retry in the caller's scope
 attach_selected_session() {
-	local session_name session_pid="" meta_assignments=""
+	local session_name session_pid=""
 	session_name="$(basename "${socket_path}")"
-	meta_assignments="$(load_meta_assignments "${socket_path}" session_pid)"
-	eval "${meta_assignments}"
+	load_meta_assignments session_pid
 	menu_outcome="done"
 	if ! is_live_session; then
 		echo "Selected session socket is missing: ${session_name}" >&2
