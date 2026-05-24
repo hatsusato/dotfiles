@@ -86,7 +86,7 @@ create_new_session() {
 		return 1
 	fi
 	rm -f "${socket_path}" "${socket_path}.meta"
-	dtach -c "${socket_path}" "${btash_path}" __run-session "${socket_path}"
+	dtach -c "${socket_path}" "${btash_path}" __run_session "${socket_path}"
 }
 
 # Run the internal session shell entrypoint and clean up metadata after exit.
@@ -242,21 +242,15 @@ attach_selected_session() {
 # Output:
 # - exit status 0 when menu handling is complete, 1 when menu should retry
 dispatch_menu_selection() {
-	case "${choice:-}" in
-	Attach:*)
+	if [[ "${choice:-}" == Attach:* ]]; then
 		socket_path="${socket_paths[REPLY - 1]}"
 		attach_selected_session
-		;;
-	"Create new session")
+	elif [[ "${choice:-}" == "Create new session" ]]; then
 		create_new_session
-		;;
-	"Quit")
-		;;
-	*)
+	elif [[ "${choice:-}" != "Quit" ]]; then
 		echo "Invalid selection" >&2
 		return 1
-		;;
-	esac
+	fi
 }
 
 # Show the interactive selector.
@@ -280,11 +274,12 @@ show_menu() {
 
 # Dispatch the subcommand after initializing shared runtime state.
 # Args:
-# - command: menu/new/list/clean/__run-session
+# - command: menu/new/list/clean/__run_session
+# - socket_path: required when command is __run_session
 main() {
 	local command="${1:-menu}"
 	local socket_dir=""
-	if [[ "${command}" == "__run-session" ]]; then
+	if [[ "${command}" == "__run_session" ]]; then
 		run_internal_session "${2:-}"
 		return 0
 	fi
