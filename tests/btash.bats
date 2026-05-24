@@ -93,7 +93,8 @@ case "$mode" in
 	cwd="$PWD"
 	created_at="$(date '+%Y-%m-%d %H:%M:%S')"
 	session_pid=4242
-	declare -p cwd created_at session_pid >"$meta_path"
+	printf 'cwd=%q\ncreated_at=%q\nsession_pid=%q\n' \
+		"$cwd" "$created_at" "$session_pid" >"$meta_path"
 	exit 0
 	;;
 -a | -p)
@@ -179,7 +180,7 @@ start_live_session_pid() {
 	assert_success
 	run grep -q "$PWD" "$RUNTIME_DIR/btash/"*.meta
 	assert_success
-	run grep -q "2026-01-01 01:02:03" "$RUNTIME_DIR/btash/"*.meta
+	run grep -q "2026-01-01\\\\ 01:02:03" "$RUNTIME_DIR/btash/"*.meta
 	assert_success
 }
 
@@ -217,12 +218,12 @@ start_live_session_pid() {
 	mkdir -p "$RUNTIME_DIR/btash"
 	touch "$RUNTIME_DIR/btash/btash-0500" "$RUNTIME_DIR/btash/btash-1000" "$RUNTIME_DIR/btash/btash-2000"
 	cat >"$RUNTIME_DIR/btash/btash-1000.meta" <<'META'
-declare -- cwd="/tmp/one"
-declare -- created_at="2024-01-01 01:01:01"
+cwd="/tmp/one"
+created_at="2024-01-01 01:01:01"
 META
 	cat >"$RUNTIME_DIR/btash/btash-2000.meta" <<'META'
-declare -- cwd="/tmp/two"
-declare -- created_at="2024-02-02 02:02:02"
+cwd="/tmp/two"
+created_at="2024-02-02 02:02:02"
 META
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
@@ -244,13 +245,13 @@ META
 	touch "$RUNTIME_DIR/btash/btash-1000"
 	start_live_session_pid
 	cat >"$RUNTIME_DIR/btash/btash-1000.meta" <<'META'
-declare -- cwd="/tmp/live"
-declare -- created_at="2024-01-01 01:01:01"
+cwd="/tmp/live"
+created_at="2024-01-01 01:01:01"
 META
-	printf 'declare -- session_pid="%s"\n' "$LIVE_SESSION_PID" >>"$RUNTIME_DIR/btash/btash-1000.meta"
+	printf 'session_pid=%q\n' "$LIVE_SESSION_PID" >>"$RUNTIME_DIR/btash/btash-1000.meta"
 	cat >"$RUNTIME_DIR/btash/btash-2000.meta" <<'META'
-declare -- cwd="/tmp/dead"
-declare -- created_at="2024-01-01 01:01:01"
+cwd="/tmp/dead"
+created_at="2024-01-01 01:01:01"
 META
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
@@ -278,10 +279,10 @@ META
 	touch "$RUNTIME_DIR/btash/btash-1234"
 	start_live_session_pid
 	cat >"$RUNTIME_DIR/btash/btash-1234.meta" <<'META'
-declare -- cwd="/tmp/attach"
-declare -- created_at="2024-01-01 01:01:01"
+cwd="/tmp/attach"
+created_at="2024-01-01 01:01:01"
 META
-	printf 'declare -- session_pid="%s"\n' "$LIVE_SESSION_PID" >>"$RUNTIME_DIR/btash/btash-1234.meta"
+	printf 'session_pid=%q\n' "$LIVE_SESSION_PID" >>"$RUNTIME_DIR/btash/btash-1234.meta"
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
 		"$BASH_BIN" -c "printf '1\n' | \"$BTASH\""
