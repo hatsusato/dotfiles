@@ -222,18 +222,39 @@ append_menu_option() {
 # Input:
 # - socket_path: selected socket path from the caller's scope
 # Output:
-# - menu_outcome: done or retry in the caller's scope
+# - exit status 0 when attach succeeds, 1 when menu should retry
 attach_selected_session() {
 	local session_name
 	session_name="$(basename "${socket_path}")"
-	menu_outcome="done"
 	if ! is_live_session; then
 		echo "Selected session socket is missing: ${session_name}" >&2
 		cleanup_sessions "echo yes"
-		menu_outcome="retry"
-		return 0
+		return 1
 	fi
 	dtach -a "${socket_path}"
+}
+
+# Run the selected interactive menu action.
+# Input:
+# - choice/REPLY/socket_paths: menu state from the caller's scope
+# Output:
+# - exit status 0 when menu handling is complete, 1 when menu should retry
+dispatch_menu_selection() {
+	case "${choice:-}" in
+	Attach:*)
+		socket_path="${socket_paths[REPLY - 1]}"
+		attach_selected_session
+		;;
+	"Create new session")
+		create_new_session
+		;;
+	"Quit")
+		;;
+	*)
+		echo "Invalid selection" >&2
+		return 1
+		;;
+	esac
 }
 
 # Show the interactive selector.
@@ -241,7 +262,7 @@ attach_selected_session() {
 # - presents attach/new/quit actions and runs the selected action
 show_menu() {
 	local -a options socket_paths
-	local choice menu_outcome socket_path
+	local choice socket_path
 	options=()
 	socket_paths=()
 	visit_session_sockets append_socket_path append_menu_option
@@ -249,23 +270,7 @@ show_menu() {
 	options+=("Quit")
 	PS3="Select action: "
 	select choice in "${options[@]}"; do
-		menu_outcome="done"
-		case "${choice:-}" in
-		Attach:*)
-			socket_path="${socket_paths[REPLY - 1]}"
-			attach_selected_session
-			;;
-		"Create new session")
-			create_new_session
-			;;
-		"Quit")
-			;;
-		*)
-			echo "Invalid selection" >&2
-			menu_outcome="retry"
-			;;
-		esac
-		if [[ "${menu_outcome}" == "done" ]]; then
+		if dispatch_menu_selection; then
 			return 0
 		fi
 	done
