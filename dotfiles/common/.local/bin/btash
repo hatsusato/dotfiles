@@ -36,7 +36,7 @@ initialize_runtime() {
 	mkdir -p "${socket_dir}"
 }
 
-# Load selected assignment lines from the metadata file for the current socket.
+# Load selected metadata values from the metadata file for the current socket.
 # Input:
 # - socket_path: session socket path in the caller's scope
 # Args:
@@ -44,12 +44,17 @@ initialize_runtime() {
 # Output:
 # - sets matching variables in the caller's scope
 load_meta_assignments() {
-	local meta_path meta_assignments pattern
+	local key meta_path value var_name
 	meta_path="${socket_path}.meta"
 	[[ -f "${meta_path}" ]] || return 0
-	pattern=$(IFS='|'; echo "^(${*})=")
-	meta_assignments="$(grep -E "${pattern}" "${meta_path}" || true)"
-	eval "${meta_assignments}"
+	while IFS=$'\t' read -r key value; do
+		for var_name in "${@}"; do
+			if [[ "${key}" == "${var_name}" ]]; then
+				printf -v "${var_name}" '%s' "${value}"
+				break
+			fi
+		done
+	done <"${meta_path}"
 }
 
 # Visit session socket paths.
@@ -93,18 +98,19 @@ create_new_session() {
 # Args:
 # - socket_path: session socket path
 run_internal_session() {
-	local meta_path socket_path="${1:-}"
+	local cleanup_command meta_path socket_path="${1:-}"
 	if [[ -z "${socket_path}" ]]; then
 		echo "Error: socket path is required." >&2
 		return 2
 	fi
 	meta_path="${socket_path}.meta"
 	{
-		printf '%s=%q\n' cwd "$(pwd)"
-		printf '%s=%q\n' created_at "$(date '+%Y-%m-%d %H:%M:%S')"
-		printf '%s=%q\n' session_pid "$$"
+		printf '%s\t%s\n' cwd "$(pwd)"
+		printf '%s\t%s\n' created_at "$(date '+%Y-%m-%d %H:%M:%S')"
+		printf '%s\t%s\n' session_pid "$$"
 	} >"${meta_path}"
-	trap 'rm -f -- "${meta_path}"' EXIT
+	printf -v cleanup_command 'rm -f -- %q' "${meta_path}"
+	trap "${cleanup_command}" EXIT
 	bash
 }
 
@@ -120,11 +126,27 @@ print_session_summary() {
 	printf '%s %s %s\n' "${session_name}" "${created_at}" "${cwd}"
 }
 
+# Print the caller's session summary in a sortable format.
+# Input:
+# - socket_path: session socket path in the caller's scope
+# Output:
+# - prints "created_at<TAB>session_name<TAB>cwd" to stdout
+print_sortable_session_summary() {
+	local session_name cwd="" created_at=""
+	load_meta_assignments cwd created_at
+	session_name="$(basename "${socket_path}")"
+	printf '%s\t%s\t%s\n' "${created_at}" "${session_name}" "${cwd}"
+}
+
 # Print sessions as "session_name created_at cwd" in newest-first order.
 # Output:
 # - prints one session summary per line to stdout
 list_sessions() {
-	visit_session_sockets print_session_summary | sort -r
+	visit_session_sockets print_sortable_session_summary |
+		sort -r |
+		while IFS=$'\t' read -r created_at session_name cwd; do
+			printf '%s %s %s\n' "${session_name}" "${created_at}" "${cwd}"
+		done
 }
 
 # Return success when the caller's socket_path is live.
@@ -243,7 +265,7 @@ attach_selected_session() {
 # - exit status 0 when menu handling is complete, 1 when menu should retry
 dispatch_menu_selection() {
 	if [[ "${choice:-}" == Attach:* ]]; then
-		socket_path="${socket_paths[REPLY - 1]}"
+		socket_path="${socket_paths[REPLY - 2]}"
 		attach_selected_session
 	elif [[ "${choice:-}" == "Create new session" ]]; then
 		create_new_session
@@ -259,10 +281,9 @@ dispatch_menu_selection() {
 show_menu() {
 	local -a options socket_paths
 	local choice socket_path
-	options=()
+	options=("Create new session")
 	socket_paths=()
 	visit_session_sockets append_socket_path append_menu_option
-	options+=("Create new session")
 	options+=("Quit")
 	PS3="Select action: "
 	select choice in "${options[@]}"; do
