@@ -77,12 +77,13 @@ visit_session_sockets() {
 # Output:
 # - writes session metadata including session_pid, then removes metadata after the shell exits
 run_session_shell() {
-	local meta_path cwd created_at session_pid="$$"
+	local meta_path
 	meta_path="${socket_path}.meta"
-	cwd="$(pwd)"
-	created_at="$(date '+%Y-%m-%d %H:%M:%S')"
-	printf 'cwd=%q\ncreated_at=%q\nsession_pid=%q\n' \
-		"${cwd}" "${created_at}" "${session_pid}" >"${meta_path}"
+	{
+		printf '%s=%q\n' cwd "$(pwd)"
+		printf '%s=%q\n' created_at "$(date '+%Y-%m-%d %H:%M:%S')"
+		printf '%s=%q\n' session_pid "$$"
+	} >"${meta_path}"
 	trap 'rm -f -- "${meta_path}"' EXIT
 	bash
 }
@@ -237,6 +238,7 @@ attach_selected_session() {
 # Run the selected interactive menu action.
 # Input:
 # - choice/REPLY/socket_paths: menu state from the caller's scope
+# - socket_dir: btash socket directory path in the caller's scope
 # Output:
 # - exit status 0 when menu handling is complete, 1 when menu should retry
 dispatch_menu_selection() {
