@@ -71,23 +71,6 @@ visit_session_sockets() {
 	eval "${glob_state}"
 }
 
-# Run the session shell and clean up metadata after exit.
-# Input:
-# - socket_path: session socket path in the caller's scope
-# Output:
-# - writes session metadata including session_pid, then removes metadata after the shell exits
-run_session_shell() {
-	local meta_path
-	meta_path="${socket_path}.meta"
-	{
-		printf '%s=%q\n' cwd "$(pwd)"
-		printf '%s=%q\n' created_at "$(date '+%Y-%m-%d %H:%M:%S')"
-		printf '%s=%q\n' session_pid "$$"
-	} >"${meta_path}"
-	trap 'rm -f -- "${meta_path}"' EXIT
-	bash
-}
-
 # Create a new dtach session and write its metadata file alongside the socket.
 # Input:
 # - socket_dir: btash socket directory path in the caller's scope
@@ -106,16 +89,23 @@ create_new_session() {
 	dtach -c "${socket_path}" "${btash_path}" __run-session "${socket_path}"
 }
 
-# Run the internal session shell entrypoint.
+# Run the internal session shell entrypoint and clean up metadata after exit.
 # Args:
 # - socket_path: session socket path
 run_internal_session() {
-	local socket_path="${1:-}"
+	local meta_path socket_path="${1:-}"
 	if [[ -z "${socket_path}" ]]; then
 		echo "Error: socket path is required." >&2
 		return 2
 	fi
-	run_session_shell
+	meta_path="${socket_path}.meta"
+	{
+		printf '%s=%q\n' cwd "$(pwd)"
+		printf '%s=%q\n' created_at "$(date '+%Y-%m-%d %H:%M:%S')"
+		printf '%s=%q\n' session_pid "$$"
+	} >"${meta_path}"
+	trap 'rm -f -- "${meta_path}"' EXIT
+	bash
 }
 
 # Print the caller's current session summary line.
@@ -294,30 +284,22 @@ show_menu() {
 main() {
 	local command="${1:-menu}"
 	local socket_dir=""
-	case "${command}" in
-	__run-session)
+	if [[ "${command}" == "__run-session" ]]; then
 		run_internal_session "${2:-}"
 		return 0
-		;;
-	esac
+	fi
 	initialize_runtime
-	case "${command}" in
-	menu)
+	if [[ "${command}" == "menu" ]]; then
 		show_menu
-		;;
-	new)
+	elif [[ "${command}" == "new" ]]; then
 		create_new_session
-		;;
-	list)
+	elif [[ "${command}" == "list" ]]; then
 		list_sessions
-		;;
-	clean)
+	elif [[ "${command}" == "clean" ]]; then
 		cleanup_sessions
-		;;
-	*)
+	else
 		usage
-		;;
-	esac
+	fi
 }
 
 main "${@}"
