@@ -177,6 +177,8 @@ start_live_session_pid() {
 	run ls "$RUNTIME_DIR/btash"/btash-*
 	assert_success
 	[[ "$output" =~ btash-[0-9a-f]{8} ]]
+	run grep -F -- "$BTASH __run-session" "$BATS_TEST_TMPDIR/dtach.log"
+	assert_success
 	run ls "$RUNTIME_DIR/btash"/btash-*.meta
 	assert_success
 	run grep -q "$PWD" "$RUNTIME_DIR/btash/"*.meta
@@ -193,6 +195,8 @@ start_live_session_pid() {
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
 		"$BASH_BIN" "$BTASH" new
 
+	assert_success
+	run grep -F -- "$BTASH __run-session" "$BATS_TEST_TMPDIR/dtach.log"
 	assert_success
 	run find "$RUNTIME_DIR/btash" -name '*.meta'
 	assert_success

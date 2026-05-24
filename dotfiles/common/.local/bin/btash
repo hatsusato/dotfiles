@@ -94,7 +94,8 @@ run_session_shell() {
 # Output:
 # - creates a new socket and metadata file, then removes metadata after the shell exits
 create_new_session() {
-	local session_name socket_path session_runner
+	local btash_path session_name socket_path
+	btash_path="$(command -v -- "${BASH_SOURCE[0]}")"
 	session_name=$(printf 'btash-%04x%04x' "${RANDOM}" "${RANDOM}")
 	socket_path="${socket_dir}/${session_name}"
 	if is_live_session; then
@@ -102,10 +103,19 @@ create_new_session() {
 		return 1
 	fi
 	rm -f "${socket_path}" "${socket_path}.meta"
-	session_runner="$(declare -pf run_session_shell); "
-	session_runner+="$(declare -p socket_path); "
-	session_runner+='run_session_shell'
-	dtach -c "${socket_path}" bash -c "${session_runner}"
+	dtach -c "${socket_path}" "${btash_path}" __run-session "${socket_path}"
+}
+
+# Run the internal session shell entrypoint.
+# Args:
+# - socket_path: session socket path
+run_internal_session() {
+	local socket_path="${1:-}"
+	if [[ -z "${socket_path}" ]]; then
+		echo "Error: socket path is required." >&2
+		return 2
+	fi
+	run_session_shell
 }
 
 # Print the caller's current session summary line.
@@ -280,10 +290,16 @@ show_menu() {
 
 # Dispatch the subcommand after initializing shared runtime state.
 # Args:
-# - command: menu/new/list/clean
+# - command: menu/new/list/clean/__run-session
 main() {
 	local command="${1:-menu}"
 	local socket_dir=""
+	case "${command}" in
+	__run-session)
+		run_internal_session "${2:-}"
+		return 0
+		;;
+	esac
 	initialize_runtime
 	case "${command}" in
 	menu)
