@@ -176,6 +176,7 @@ start_live_session_pid() {
 	assert_success
 	run ls "$RUNTIME_DIR/btash"/btash-*
 	assert_success
+	[[ "$output" =~ btash-[0-9a-f]{8} ]]
 	run ls "$RUNTIME_DIR/btash"/btash-*.meta
 	assert_success
 	run grep -q "$PWD" "$RUNTIME_DIR/btash/"*.meta
@@ -198,17 +199,20 @@ start_live_session_pid() {
 	[[ -z "$output" ]]
 }
 
-@test "BTASH-03c: stale socket path is replaced when creating a new session" {
+@test "BTASH-03c: existing stale session does not block creating a new session" {
 	create_fake_dtach
 	create_fake_date
 	create_fake_id
 	mkdir -p "$RUNTIME_DIR/btash"
-	: >"$RUNTIME_DIR/btash/btash-$$"
+	: >"$RUNTIME_DIR/btash/btash-deadbeef"
 
 	run env PATH="$FAKE_BIN:$PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" \
 		"$BASH_BIN" "$BTASH" new
 
 	assert_success
+	run "$BASH_BIN" -c "find \"$RUNTIME_DIR/btash\" -maxdepth 1 -name 'btash-*' | wc -l"
+	assert_success
+	[[ "$output" -ge 2 ]]
 }
 
 @test "BTASH-04 [D-04]: list subcommand shows newest-first with human metadata" {

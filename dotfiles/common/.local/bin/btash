@@ -63,7 +63,7 @@ visit_session_sockets() {
 	local glob_state socket_path action_fn
 	glob_state="$(shopt -p nullglob extglob || true)"
 	shopt -s nullglob extglob
-	for socket_path in "${socket_dir}"/btash-+([0-9]); do
+	for socket_path in "${socket_dir}"/btash-+([0-9a-f]); do
 		for action_fn in "${@}"; do
 			"${action_fn}"
 		done
@@ -94,13 +94,19 @@ run_session_shell() {
 # Output:
 # - creates a new socket and metadata file, then removes metadata after the shell exits
 create_new_session() {
-	local session_name socket_path session_runner
-	session_name="btash-$$"
-	socket_path="${socket_dir}/${session_name}"
-	if is_live_session; then
-		echo "Error: session already exists: ${session_name}" >&2
-		return 1
-	fi
+	local session_name socket_path session_runner attempt_count=0
+	while :; do
+		session_name=$(printf 'btash-%04x%04x' "${RANDOM}" "${RANDOM}")
+		socket_path="${socket_dir}/${session_name}"
+		if ! is_live_session; then
+			break
+		fi
+		attempt_count=$((attempt_count + 1))
+		if [[ "${attempt_count}" -ge 8 ]]; then
+			echo "Error: could not allocate a unique session name." >&2
+			return 1
+		fi
+	done
 	rm -f "${socket_path}" "${socket_path}.meta"
 	session_runner="$(declare -pf run_session_shell); "
 	session_runner+="$(declare -p socket_path); "
