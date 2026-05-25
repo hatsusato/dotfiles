@@ -47,7 +47,7 @@ load_meta_assignments() {
 	local key meta_path value var_name
 	meta_path="${socket_path}.meta"
 	[[ -f "${meta_path}" ]] || return 0
-	while IFS=$'\t' read -r key value; do
+	while IFS='=' read -r key value; do
 		for var_name in "${@}"; do
 			if [[ "${key}" == "${var_name}" ]]; then
 				printf -v "${var_name}" '%s' "${value}"
@@ -105,9 +105,9 @@ run_internal_session() {
 	fi
 	meta_path="${socket_path}.meta"
 	{
-		printf '%s\t%s\n' cwd "$(pwd)"
-		printf '%s\t%s\n' created_at "$(date '+%Y-%m-%d %H:%M:%S')"
-		printf '%s\t%s\n' session_pid "$$"
+		printf '%s=%s\n' cwd "$(pwd)"
+		printf '%s=%s\n' created_at "$(date '+%Y-%m-%d %H:%M:%S')"
+		printf '%s=%s\n' session_pid "$$"
 	} >"${meta_path}"
 	printf -v cleanup_command 'rm -f -- %q' "${meta_path}"
 	trap "${cleanup_command}" EXIT
@@ -143,7 +143,7 @@ print_sortable_session_summary() {
 # - prints one session summary per line to stdout
 list_sessions() {
 	visit_session_sockets print_sortable_session_summary |
-		sort -r |
+		sort -r -k1,1 |
 		while IFS=$'\t' read -r created_at session_name cwd; do
 			printf '%s %s %s\n' "${session_name}" "${created_at}" "${cwd}"
 		done
@@ -157,9 +157,9 @@ list_sessions() {
 is_live_session() {
 	local session_pid=""
 	load_meta_assignments session_pid
-	if [[ -n "${session_pid}" ]] && kill -0 "${session_pid}" 2>/dev/null; then
-		return 0
-	elif dtach -p "${socket_path}" </dev/null >/dev/null 2>&1; then
+	if [[ -n "${session_pid}" ]] &&
+		kill -0 "${session_pid}" 2>/dev/null &&
+		dtach -p "${socket_path}" </dev/null >/dev/null 2>&1; then
 		return 0
 	else
 		return 1
@@ -281,9 +281,10 @@ dispatch_menu_selection() {
 show_menu() {
 	local -a options socket_paths
 	local choice socket_path
-	options=("Create new session")
+	options=()
 	socket_paths=()
 	visit_session_sockets append_socket_path append_menu_option
+	options+=("Create new session")
 	options+=("Quit")
 	PS3="Select action: "
 	select choice in "${options[@]}"; do
