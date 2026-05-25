@@ -122,25 +122,12 @@ print_session_summary() {
 	printf '%s %s %s\n' "${session_name}" "${created_at}" "${cwd}"
 }
 
-# Print the caller's session summary in a sortable format.
-# Input:
-# - socket_path: session socket path in the caller's scope
-# Output:
-# - prints "session_name<TAB>created_at<TAB>cwd" to stdout
-print_sortable_session_summary() {
-	local session_name cwd="" created_at=""
-	load_meta_assignments cwd created_at
-	session_name="$(basename "${socket_path}")"
-	printf '%s\t%s\t%s\n' "${session_name}" "${created_at}" "${cwd}"
-}
-
 # Print sessions as "session_name created_at cwd" in newest-first order.
 # Output:
 # - prints one session summary per line to stdout
 list_sessions() {
-	visit_session_sockets print_sortable_session_summary |
-		sort -r -t $'\t' -k2,2 |
-		sed $'s/\t/ /; s/\t/ /'
+	visit_session_sockets print_session_summary |
+		sort -r -k2,3
 }
 
 # Return success when the caller's socket_path is live.
