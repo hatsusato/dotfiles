@@ -178,6 +178,7 @@ META
 	assert_success
 	first_line="$(printf '%s\n' "$output" | sed -n '1p')"
 	[[ "$first_line" == 1\)*"Attach:"* ]]
+	[[ "$first_line" == *"(2024-01-01 01:01:01 - /tmp/existing)"* ]]
 }
 
 @test "BTASH-03 [D-03,D-13]: new subcommand creates socket and metadata with cwd/timestamp" {

@@ -216,7 +216,7 @@ append_menu_option() {
 	local session_name cwd="" created_at=""
 	load_meta_assignments cwd created_at
 	session_name="$(basename "${socket_path}")"
-	options+=("Attach: ${session_name} (${created_at}, ${cwd})")
+	options+=("Attach: ${session_name} (${created_at} - ${cwd})")
 }
 
 # Attach to the caller-provided session_name.
