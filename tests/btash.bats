@@ -144,7 +144,7 @@ start_live_session_pid() {
 	[[ -x "$BTASH" ]]
 }
 
-@test "BTASH-02 [D-02,D-09,D-10]: interactive menu shows create first and allows selection" {
+@test "BTASH-02 [D-02,D-09,D-10]: interactive menu orders create and attach options correctly" {
 	create_fake_dtach
 	create_fake_date
 	create_fake_id

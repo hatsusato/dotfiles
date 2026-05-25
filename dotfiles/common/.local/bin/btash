@@ -44,17 +44,13 @@ initialize_runtime() {
 # Output:
 # - sets matching variables in the caller's scope
 load_meta_assignments() {
-	local key meta_path value var_name
+	local key meta_path pattern value
 	meta_path="${socket_path}.meta"
 	[[ -f "${meta_path}" ]] || return 0
+	pattern=$(IFS='|'; echo "^(${*})=")
 	while IFS='=' read -r key value; do
-		for var_name in "${@}"; do
-			if [[ "${key}" == "${var_name}" ]]; then
-				printf -v "${var_name}" '%s' "${value}"
-				break
-			fi
-		done
-	done <"${meta_path}"
+		printf -v "${key}" '%s' "${value}"
+	done < <(grep -E "${pattern}" "${meta_path}" || true)
 }
 
 # Visit session socket paths.
@@ -130,12 +126,12 @@ print_session_summary() {
 # Input:
 # - socket_path: session socket path in the caller's scope
 # Output:
-# - prints "created_at<TAB>session_name<TAB>cwd" to stdout
+# - prints "session_name<TAB>created_at<TAB>cwd" to stdout
 print_sortable_session_summary() {
 	local session_name cwd="" created_at=""
 	load_meta_assignments cwd created_at
 	session_name="$(basename "${socket_path}")"
-	printf '%s\t%s\t%s\n' "${created_at}" "${session_name}" "${cwd}"
+	printf '%s\t%s\t%s\n' "${session_name}" "${created_at}" "${cwd}"
 }
 
 # Print sessions as "session_name created_at cwd" in newest-first order.
@@ -143,10 +139,8 @@ print_sortable_session_summary() {
 # - prints one session summary per line to stdout
 list_sessions() {
 	visit_session_sockets print_sortable_session_summary |
-		sort -r -k1,1 |
-		while IFS=$'\t' read -r created_at session_name cwd; do
-			printf '%s %s %s\n' "${session_name}" "${created_at}" "${cwd}"
-		done
+		sort -r -t $'\t' -k2,2 |
+		sed $'s/\t/ /; s/\t/ /'
 }
 
 # Return success when the caller's socket_path is live.
