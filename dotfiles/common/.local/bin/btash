@@ -1,0 +1,299 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+shopt -s extglob
+
+# Print CLI usage to stderr and return the CLI error status.
+usage() {
+	cat >&2 <<'EOF'
+Usage: btash [menu|new|list|clean]
+Attach is available from the interactive menu only.
+EOF
+	return 2
+}
+
+# Initialize all shared runtime state used by subcommands.
+# Input:
+# - XDG_RUNTIME_DIR: optional runtime directory override from the environment
+# Output:
+# - socket_dir: btash socket directory path in the caller's scope
+initialize_runtime() {
+	local runtime_dir
+	if ! command -v dtach >/dev/null 2>&1; then
+		echo "Error: dtach is required but not installed." >&2
+		return 1
+	fi
+	if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
+		runtime_dir="${XDG_RUNTIME_DIR}"
+	else
+		runtime_dir="/run/user/$(id -u)"
+	fi
+	if [[ ! -d "${runtime_dir}" ]]; then
+		echo "Error: runtime directory does not exist: ${runtime_dir}" >&2
+		return 1
+	fi
+	socket_dir="${runtime_dir}/btash"
+	mkdir -p "${socket_dir}"
+}
+
+# Load selected metadata values from the metadata file for the current socket.
+# Input:
+# - socket_path: session socket path in the caller's scope
+# Args:
+# - variable names to extract from the metadata file
+# Output:
+# - sets matching variables in the caller's scope
+load_meta_assignments() {
+	local key meta_path pattern value
+	meta_path="${socket_path}.meta"
+	[[ -f "${meta_path}" ]] || return 0
+	pattern=$(IFS='|'; echo "^(${*})=")
+	while IFS='=' read -r key value; do
+		printf -v "${key}" '%s' "${value}"
+	done < <(grep -E "${pattern}" "${meta_path}" || true)
+}
+
+# Visit session socket paths.
+# Input:
+# - socket_dir: btash socket directory path in the caller's scope
+# Args:
+# - function names to invoke for each session; each can read socket_path from caller scope
+# Output:
+# - invokes each callback with socket_path available in this scope
+visit_session_sockets() {
+	local glob_state socket_path action_fn
+	glob_state="$(shopt -p nullglob extglob || true)"
+	shopt -s nullglob extglob
+	for socket_path in "${socket_dir}"/btash-+([0-9a-f]); do
+		for action_fn in "${@}"; do
+			"${action_fn}"
+		done
+	done
+	eval "${glob_state}"
+}
+
+# Create a new dtach session and write its metadata file alongside the socket.
+# Input:
+# - socket_dir: btash socket directory path in the caller's scope
+# Output:
+# - creates a new socket and metadata file, then removes metadata after the shell exits
+create_new_session() {
+	local btash_path session_name socket_path
+	btash_path="$(command -v -- "${BASH_SOURCE[0]}")"
+	session_name=$(printf 'btash-%04x%04x' "${RANDOM}" "${RANDOM}")
+	socket_path="${socket_dir}/${session_name}"
+	if is_live_session; then
+		echo "Error: session already exists: ${session_name}" >&2
+		return 1
+	fi
+	rm -f "${socket_path}" "${socket_path}.meta"
+	dtach -c "${socket_path}" "${btash_path}" __run_session "${socket_path}"
+}
+
+# Run the internal session shell entrypoint and clean up metadata after exit.
+# Args:
+# - socket_path: session socket path
+run_internal_session() {
+	local cleanup_command meta_path socket_path="${1:-}"
+	if [[ -z "${socket_path}" ]]; then
+		echo "Error: socket path is required." >&2
+		return 2
+	fi
+	meta_path="${socket_path}.meta"
+	{
+		printf '%s=%s\n' cwd "$(pwd)"
+		printf '%s=%s\n' created_at "$(date '+%Y-%m-%d %H:%M:%S')"
+		printf '%s=%s\n' session_pid "$$"
+	} >"${meta_path}"
+	printf -v cleanup_command 'rm -f -- %q' "${meta_path}"
+	trap "${cleanup_command}" EXIT
+	bash
+}
+
+# Print the caller's current session summary line.
+# Input:
+# - socket_path: session socket path in the caller's scope
+# Output:
+# - prints "session_name created_at cwd" to stdout
+print_session_summary() {
+	local session_name cwd="" created_at=""
+	load_meta_assignments cwd created_at
+	session_name="$(basename "${socket_path}")"
+	printf '%s %s %s\n' "${session_name}" "${created_at}" "${cwd}"
+}
+
+# Print sessions as "session_name created_at cwd" in newest-first order.
+# Output:
+# - prints one session summary per line to stdout
+list_sessions() {
+	visit_session_sockets print_session_summary | sort -r -k2,3
+}
+
+# Return success when the caller's socket_path is live.
+# Input:
+# - socket_path: session socket path in the caller's scope
+# Output:
+# - exit status 0 when the socket is live, 1 otherwise
+is_live_session() {
+	local session_pid=""
+	load_meta_assignments session_pid
+	[[ -n "${session_pid}" ]] || return 1
+	kill -0 "${session_pid}" 2>/dev/null || return 1
+	dtach -p "${socket_path}" </dev/null >/dev/null 2>&1 || return 1
+	return 0
+}
+
+# Delete stale session sockets and metadata.
+# Input:
+# - socket_dir: btash socket directory path in the caller's scope
+# Args:
+# - prompt: optional function name that prints yes or no
+# Output:
+# - removes stale sockets and metadata after confirmation
+cleanup_sessions() {
+	local prompt="${1:-confirm_cleanup}"
+	local -a candidates=()
+	local socket_path session_name
+	visit_session_sockets append_stale_socket_path
+	if ((${#candidates[@]} == 0)); then
+		echo "No stale sessions found."
+		return 0
+	fi
+	echo "Stale sessions:"
+	for socket_path in "${candidates[@]}"; do
+		session_name="$(basename "${socket_path}")"
+		echo "  - ${session_name}"
+	done
+	if [[ "$(eval "${prompt}")" != "yes" ]]; then
+		echo "Aborted."
+		return 0
+	fi
+	for socket_path in "${candidates[@]}"; do
+		rm -f "${socket_path}" "${socket_path}.meta"
+	done
+}
+
+# Append the caller's current socket path when it is stale.
+# Input:
+# - socket_path: session socket path in the caller's scope
+# Output:
+# - appends stale socket paths to candidates in the caller's scope
+append_stale_socket_path() {
+	if ! is_live_session; then
+		candidates+=("${socket_path}")
+	fi
+}
+
+# Ask whether stale sessions should be removed and print yes or no.
+# Output:
+# - prints yes or no to stdout
+confirm_cleanup() {
+	local answer
+	read -r -p "Delete stale sessions? [y/N]: " answer
+	if [[ "${answer}" == [yY]* ]]; then
+		echo "yes"
+	else
+		echo "no"
+	fi
+}
+
+# Append the caller's current socket path into socket_paths.
+# Input:
+# - socket_path: session socket path in the caller's scope
+# Output:
+# - appends socket_path to socket_paths in the caller's scope
+append_socket_path() {
+	socket_paths+=("${socket_path}")
+}
+
+# Append the caller's current session into options.
+# Input:
+# - socket_path: session socket path in the caller's scope
+# Output:
+# - appends one attach option to options in the caller's scope
+append_menu_option() {
+	local session_name cwd="" created_at=""
+	load_meta_assignments cwd created_at
+	session_name="$(basename "${socket_path}")"
+	options+=("Attach: ${session_name} (${created_at} - ${cwd})")
+}
+
+# Attach to the caller-provided session_name.
+# Input:
+# - socket_path: selected socket path from the caller's scope
+# Output:
+# - exit status 0 when attach succeeds, 1 when menu should retry
+attach_selected_session() {
+	local session_name
+	session_name="$(basename "${socket_path}")"
+	if ! is_live_session; then
+		echo "Selected session socket is missing: ${session_name}" >&2
+		cleanup_sessions "echo yes"
+		return 1
+	fi
+	dtach -a "${socket_path}"
+}
+
+# Run the selected interactive menu action.
+# Input:
+# - choice/REPLY/socket_paths: menu state from the caller's scope
+# - socket_dir: btash socket directory path in the caller's scope
+# Output:
+# - exit status 0 when menu handling is complete, 1 when menu should retry
+dispatch_menu_selection() {
+	if [[ "${choice:-}" == Attach:* ]]; then
+		socket_path="${socket_paths[REPLY - 2]}"
+		attach_selected_session
+	elif [[ "${choice:-}" == "Create new session" ]]; then
+		create_new_session
+	elif [[ "${choice:-}" != "Quit" ]]; then
+		echo "Invalid selection" >&2
+		return 1
+	fi
+}
+
+# Show the interactive selector.
+# Output:
+# - presents attach/new/quit actions and runs the selected action
+show_menu() {
+	local -a options socket_paths
+	local choice socket_path
+	options=()
+	socket_paths=()
+	visit_session_sockets append_socket_path append_menu_option
+	options+=("Create new session")
+	options+=("Quit")
+	PS3="Select action: "
+	select choice in "${options[@]}"; do
+		if dispatch_menu_selection; then
+			return 0
+		fi
+	done
+}
+
+# Dispatch the subcommand after initializing shared runtime state.
+# Args:
+# - command: menu/new/list/clean/__run_session
+# - socket_path: required when command is __run_session
+main() {
+	local command="${1:-menu}"
+	local socket_dir=""
+	if [[ "${command}" == "__run_session" ]]; then
+		run_internal_session "${2:-}"
+		return 0
+	fi
+	initialize_runtime
+	if [[ "${command}" == "menu" ]]; then
+		show_menu
+	elif [[ "${command}" == "new" ]]; then
+		create_new_session
+	elif [[ "${command}" == "list" ]]; then
+		list_sessions
+	elif [[ "${command}" == "clean" ]]; then
+		cleanup_sessions
+	else
+		usage
+	fi
+}
+
+main "${@}"
