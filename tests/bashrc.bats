@@ -1073,7 +1073,7 @@ good_func
 }
 
 # BASH-10e: Module works independently without other modules (D-04 requirement)
-@test "BASH-10e: btash.sh works independently without string_utils.sh" {
+@test "BASH-10e: standalone func.d module works independently without others" {
 	mkdir -p "$HOME/.local/share/bash/func.d"
 
 	# Create only a standalone module (not dependent on any other func.d/ module)

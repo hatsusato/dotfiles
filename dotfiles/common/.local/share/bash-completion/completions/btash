@@ -1,5 +1,5 @@
 _btash() {
-	local cur
+	local cur prev words cword
 
 	_init_completion || return
 	COMPREPLY=()
