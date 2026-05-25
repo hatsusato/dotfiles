@@ -126,8 +126,7 @@ print_session_summary() {
 # Output:
 # - prints one session summary per line to stdout
 list_sessions() {
-	visit_session_sockets print_session_summary |
-		sort -r -k2,3
+	visit_session_sockets print_session_summary | sort -r -k2,3
 }
 
 # Return success when the caller's socket_path is live.
