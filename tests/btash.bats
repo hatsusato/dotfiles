@@ -338,6 +338,7 @@ META
 
 @test "BTASH-10: bash completion suggests public btash subcommands" {
 	run "$BASH_BIN" -c "
+		_init_completion() { cur=\${COMP_WORDS[COMP_CWORD]:-}; }
 		source \"$BTASH_COMPLETION\"
 		COMP_WORDS=(btash l)
 		COMP_CWORD=1
