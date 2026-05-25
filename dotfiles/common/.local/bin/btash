@@ -151,13 +151,10 @@ list_sessions() {
 is_live_session() {
 	local session_pid=""
 	load_meta_assignments session_pid
-	if [[ -n "${session_pid}" ]] &&
-		kill -0 "${session_pid}" 2>/dev/null &&
-		dtach -p "${socket_path}" </dev/null >/dev/null 2>&1; then
-		return 0
-	else
-		return 1
-	fi
+	[[ -n "${session_pid}" ]] || return 1
+	kill -0 "${session_pid}" 2>/dev/null || return 1
+	dtach -p "${socket_path}" </dev/null >/dev/null 2>&1 || return 1
+	return 0
 }
 
 # Delete stale session sockets and metadata.
