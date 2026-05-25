@@ -14,6 +14,7 @@ setup() {
 	PROJECT_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
 	BASH_BIN="$(command -v bash)"
 	BTASH="$PROJECT_ROOT/dotfiles/common/.local/bin/btash"
+	BTASH_COMPLETION="$PROJECT_ROOT/dotfiles/common/.local/share/bash-completion/completions/btash"
 	FAKE_BIN="$BATS_TEST_TMPDIR/fake_bin"
 	RUNTIME_DIR="$BATS_TEST_TMPDIR/runtime"
 	LIVE_SESSION_PID=""
@@ -332,4 +333,17 @@ META
 
 	assert_failure
 	assert_output --partial "dtach"
+}
+
+@test "BTASH-10: bash completion suggests public btash subcommands" {
+	run "$BASH_BIN" -c "
+		source \"$BTASH_COMPLETION\"
+		COMP_WORDS=(btash l)
+		COMP_CWORD=1
+		_btash
+		printf '%s\n' \"\${COMPREPLY[@]}\"
+	"
+
+	assert_success
+	assert_output "list"
 }

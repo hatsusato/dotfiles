@@ -1,0 +1,12 @@
+_btash() {
+	local cur
+
+	cur="${COMP_WORDS[COMP_CWORD]:-}"
+	COMPREPLY=()
+
+	if [[ ${COMP_CWORD} -eq 1 ]]; then
+		COMPREPLY=($(compgen -W 'menu new list clean' -- "${cur}"))
+	fi
+}
+
+complete -F _btash btash
