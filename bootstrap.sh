@@ -7,34 +7,89 @@ set -euo pipefail
 
 DOTFILES_DIR="${DOTFILES_DIR:-${HOME}/.local/share/dotfiles}"
 REPO_URL="https://github.com/hatsusato/dotfiles.git"
+PROC_VERSION_FILE="${PROC_VERSION_FILE:-/proc/version}"
 
 # ---------------------------------------------------------------------------
-# Minimal env detection for pre-clone phase (lib/env-detect.sh not yet available)
+# Environment detection functions (self-contained, no external dependencies)
 # ---------------------------------------------------------------------------
 
-detect_package_manager() {
-	local pm
-	for pm in apt dnf pacman; do
-		if command -v "${pm}" >/dev/null 2>&1; then
-			echo "${pm}"
-			return 0
-		fi
-	done
-	echo "[bootstrap] ERROR: no supported package manager found (apt/dnf/pacman)" >&2
-	exit 1
+is_wsl() {
+	local kernel
+	kernel="$(uname -r 2>/dev/null)" || kernel=""
+	if echo "${kernel}" | grep -qi 'microsoft' 2>/dev/null; then
+		return 0
+	fi
+	if [[ -r "${PROC_VERSION_FILE}" ]] && grep -qi 'microsoft' "${PROC_VERSION_FILE}" 2>/dev/null; then
+		return 0
+	fi
+	return 1
 }
 
-has_sudo() {
-	command -v sudo >/dev/null 2>&1 && echo "true" || echo "false"
+is_gitbash() {
+	[[ -n "${MSYSTEM:-}" ]]
+}
+
+detect_env_type() {
+	local _is_wsl _is_gitbash _uname_s
+	is_wsl
+	_is_wsl=$?
+	is_gitbash
+	_is_gitbash=$?
+	_uname_s=$(uname -s 2>/dev/null) || _uname_s=""
+	if [[ ${_is_wsl} -eq 0 ]]; then
+		echo "wsl"
+	elif [[ ${_is_gitbash} -eq 0 ]]; then
+		echo "gitbash"
+	elif [[ "${_uname_s}" == "Linux" ]]; then
+		echo "linux"
+	else
+		echo "[bootstrap] ERROR: unknown OS" >&2
+		return 1
+	fi
+}
+
+detect_package_manager() {
+	local env_type="${1}" pm
+	if [[ "${env_type}" == "gitbash" ]]; then
+		if command -v scoop >/dev/null 2>&1; then
+			echo "scoop"
+		else
+			echo "[bootstrap] ERROR: no package manager found" >&2
+			return 1
+		fi
+	else
+		for pm in apt dnf pacman; do
+			if command -v "${pm}" >/dev/null 2>&1; then
+				echo "${pm}"
+				return 0
+			fi
+		done
+		echo "[bootstrap] ERROR: no package manager found" >&2
+		return 1
+	fi
+}
+
+detect_has_sudo() {
+	if command -v sudo >/dev/null 2>&1; then
+		echo "true"
+	else
+		echo "false"
+	fi
 }
 
 install_pkg() {
 	local pkg="${1}"
-	local pm
-	pm="$(detect_package_manager)"
-	local sudo_cmd=()
+	local pm sudo_cmd=()
 	local _has_sudo
-	_has_sudo=$(has_sudo)
+
+	# Try to find an available package manager (apt, dnf, or pacman)
+	for pm in apt dnf pacman; do
+		if command -v "${pm}" >/dev/null 2>&1; then
+			break
+		fi
+	done
+
+	_has_sudo=$(detect_has_sudo)
 	[[ "${_has_sudo}" == "true" ]] && sudo_cmd=(sudo)
 	case "${pm}" in
 	apt)

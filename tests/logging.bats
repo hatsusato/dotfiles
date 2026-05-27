@@ -10,7 +10,7 @@ setup() {
 
 	# Copy the canonical logging library to the fake home
 	# (This reflects the deployed structure where logging.sh is at ~/.local/lib/logging.sh)
-	cp "${PWD}/dotfiles/common/.local/lib/logging.sh" "$HOME/.local/lib/logging.sh"
+	cp "${PWD}/common/.local/lib/logging.sh" "$HOME/.local/lib/logging.sh"
 }
 
 # ---------------------------------------------------------------------------

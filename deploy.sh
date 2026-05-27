@@ -2,6 +2,75 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROC_VERSION_FILE="${PROC_VERSION_FILE:-/proc/version}"
+
+# ---------------------------------------------------------------------------
+# Environment detection functions (self-contained, no external dependencies)
+# ---------------------------------------------------------------------------
+
+is_wsl() {
+	local kernel
+	kernel="$(uname -r 2>/dev/null)" || kernel=""
+	if echo "${kernel}" | grep -qi 'microsoft' 2>/dev/null; then
+		return 0
+	fi
+	if [[ -r "${PROC_VERSION_FILE}" ]] && grep -qi 'microsoft' "${PROC_VERSION_FILE}" 2>/dev/null; then
+		return 0
+	fi
+	return 1
+}
+
+is_gitbash() {
+	[[ -n "${MSYSTEM:-}" ]]
+}
+
+detect_env_type() {
+	local _is_wsl _is_gitbash _uname_s
+	is_wsl
+	_is_wsl=$?
+	is_gitbash
+	_is_gitbash=$?
+	_uname_s=$(uname -s 2>/dev/null) || _uname_s=""
+	if [[ ${_is_wsl} -eq 0 ]]; then
+		echo "wsl"
+	elif [[ ${_is_gitbash} -eq 0 ]]; then
+		echo "gitbash"
+	elif [[ "${_uname_s}" == "Linux" ]]; then
+		echo "linux"
+	else
+		echo "ERROR: unknown OS" >&2
+		return 1
+	fi
+}
+
+detect_package_manager() {
+	local env_type="${1}" pm
+	if [[ "${env_type}" == "gitbash" ]]; then
+		if command -v scoop >/dev/null 2>&1; then
+			echo "scoop"
+		else
+			echo "ERROR: no package manager found" >&2
+			return 1
+		fi
+	else
+		for pm in apt dnf pacman; do
+			if command -v "${pm}" >/dev/null 2>&1; then
+				echo "${pm}"
+				return 0
+			fi
+		done
+		echo "ERROR: no package manager found" >&2
+		return 1
+	fi
+}
+
+detect_has_sudo() {
+	if command -v sudo >/dev/null 2>&1; then
+		echo "true"
+	else
+		echo "false"
+	fi
+}
 
 # Environment variable validation (D-07)
 # ENV_TYPE must be pre-set by bootstrap.sh or caller; deploy.sh does not auto-detect.
@@ -15,7 +84,7 @@ TRASH_DIR="${TRASH_DIR:-${HOME}/.trash}"
 LOG_PREFIX="${LOG_PREFIX:-deploy}"
 LOG_LEVEL="${LOG_LEVEL:-warn}"
 
-# Logging functions (D-06) — inlined from dotfiles/common/.local/lib/logging.sh
+# Logging functions (D-06) — inlined from common/.local/lib/logging.sh
 # Level hierarchy: debug < info < warn < error
 # A message at level X is shown when LOG_LEVEL <= X (debug shows all, error shows only errors).
 
@@ -121,15 +190,16 @@ copy_file() {
 deploy_by_path() {
 	local rel_path="${1}"
 	local src="${DOTFILES_ROOT}/${rel_path}"
-	local file target
+	local file target src_rel_path
+	src_rel_path="${rel_path}"
 
-	# If path is a directory, deploy all files under it
+	# If path is a directory, deploy all files under it (git ls-files filtered)
 	if [[ -d "${src}" ]]; then
-		while IFS= read -r -d '' file; do
-			rel_path="${file#"${DOTFILES_ROOT}/"}"
-			target="${HOME}/${rel_path#*/}"
-			copy_file "${file}" "${target}"
-		done < <(find "${src}" -type f -print0 || true)
+		while IFS= read -r file; do
+			[[ -f "${DOTFILES_ROOT}/${file}" ]] || continue
+			target="${HOME}/${file#"${rel_path}"/}"
+			copy_file "${DOTFILES_ROOT}/${file}" "${target}"
+		done < <(git ls-files "${src_rel_path}" || true)
 	# If path is a file, deploy just that file
 	elif [[ -f "${src}" ]]; then
 		target="${HOME}/${rel_path#*/}"

@@ -19,7 +19,7 @@ import pytest
 from conftest import MockTrashEnv
 
 # Absolute path to the trash script under test
-TRASH_SCRIPT = Path(__file__).parent.parent / "dotfiles/common/.local/bin/trash"
+TRASH_SCRIPT = Path(__file__).parent.parent / "common/.local/bin/trash"
 
 
 def run_trash(*args: str) -> "subprocess.CompletedProcess[str]":
@@ -1878,7 +1878,7 @@ class TestTrashPathSuperNew:
 
     def test_trashpath_no_type_ignore_misc(self) -> None:
         """TrashPath.__new__ must not use # type: ignore[misc] after Phase 26."""
-        trash_script = Path(__file__).parent.parent / "dotfiles/common/.local/bin/trash"
+        trash_script = Path(__file__).parent.parent / "common/.local/bin/trash"
         source = trash_script.read_text()
         assert "type: ignore[misc]" not in source, (
             "type: ignore[misc] must be removed from TrashPath (D-01)"
