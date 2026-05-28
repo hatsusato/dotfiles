@@ -25,40 +25,12 @@ log_error() {
 # Environment detection functions (self-contained, no external dependencies)
 # ---------------------------------------------------------------------------
 
-is_wsl() {
-	uname -r 2>/dev/null | grep -qi 'microsoft'
-}
-
-is_gitbash() {
-	[[ -v MSYSTEM ]]
-}
-
-is_linux() {
+detect_env_type() {
+	uname -r 2>/dev/null | grep -qi 'microsoft' && echo "wsl" && return 0
+	[[ -v MSYSTEM ]] && echo "gitbash" && return 0
 	local uname_s
 	uname_s=$(uname -s 2>/dev/null) || return 1
-	[[ "${uname_s}" == "Linux" ]]
-}
-
-detect_env_type() {
-	local _result
-	is_wsl
-	_result=$?
-	if [[ ${_result} -eq 0 ]]; then
-		echo "wsl"
-		return 0
-	fi
-	is_gitbash
-	_result=$?
-	if [[ ${_result} -eq 0 ]]; then
-		echo "gitbash"
-		return 0
-	fi
-	is_linux
-	_result=$?
-	if [[ ${_result} -eq 0 ]]; then
-		echo "linux"
-		return 0
-	fi
+	[[ "${uname_s}" == "Linux" ]] && echo "linux" && return 0
 	log_error "unknown OS"
 	return 1
 }
@@ -67,22 +39,32 @@ detect_sudo_cmd() {
 	command -v sudo >/dev/null 2>&1 && echo "sudo"
 }
 
+# shellcheck disable=SC2120,SC2119
 install_prerequisites() {
+	local packages=("$@")
+	[[ ${#packages[@]} -eq 0 ]] && packages=("git" "make")
 	local pm sudo_cmd
 	sudo_cmd=$(detect_sudo_cmd)
 	for pm in apt dnf pacman; do
-		if command -v "${pm}" >/dev/null 2>&1; then
-			if [[ "${pm}" == "apt" ]]; then
-				DEBIAN_FRONTEND=noninteractive ${sudo_cmd} apt-get install -y git make
-				return
-			elif [[ "${pm}" == "dnf" ]]; then
-				${sudo_cmd} dnf install -y git make
-				return
-			elif [[ "${pm}" == "pacman" ]]; then
-				${sudo_cmd} pacman -S --noconfirm git make
-				return
-			fi
-		fi
+		command -v "${pm}" >/dev/null 2>&1 || continue
+		case "${pm}" in
+		apt)
+			DEBIAN_FRONTEND=noninteractive ${sudo_cmd} apt-get install -y "${packages[@]}"
+			return 0
+			;;
+		dnf)
+			${sudo_cmd} dnf install -y "${packages[@]}"
+			return 0
+			;;
+		pacman)
+			${sudo_cmd} pacman -S --noconfirm "${packages[@]}"
+			return 0
+			;;
+		*)
+			log_error "unsupported package manager: ${pm}"
+			return 1
+			;;
+		esac
 	done
 	log_error "no package manager found"
 	return 1

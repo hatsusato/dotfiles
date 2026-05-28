@@ -4,53 +4,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROC_VERSION_FILE="${PROC_VERSION_FILE:-/proc/version}"
 
-# ---------------------------------------------------------------------------
-# Environment detection functions (self-contained, no external dependencies)
-# ---------------------------------------------------------------------------
-
-is_wsl() {
-	uname -r 2>/dev/null | grep -qi 'microsoft'
-}
-
-is_gitbash() {
-	[[ -v MSYSTEM ]]
-}
-
-is_linux() {
-	local uname_s
-	uname_s=$(uname -s 2>/dev/null) || return 1
-	[[ "${uname_s}" == "Linux" ]]
-}
-
-detect_env_type() {
-	local _result
-	is_wsl
-	_result=$?
-	if [[ ${_result} -eq 0 ]]; then
-		echo "wsl"
-		return 0
-	fi
-	is_gitbash
-	_result=$?
-	if [[ ${_result} -eq 0 ]]; then
-		echo "gitbash"
-		return 0
-	fi
-	is_linux
-	_result=$?
-	if [[ ${_result} -eq 0 ]]; then
-		echo "linux"
-		return 0
-	fi
-	log_error "unknown OS"
-	return 1
-}
-
-# Auto-detect ENV_TYPE if not already set (D-07)
-if [[ -z "${ENV_TYPE:-}" ]]; then
-	ENV_TYPE=$(detect_env_type)
-fi
-
 # Constants — all overridable via environment variables
 TRASH_DIR="${TRASH_DIR:-${HOME}/.trash}"
 LOG_PREFIX="${LOG_PREFIX:-deploy}"
@@ -104,9 +57,28 @@ log_debug() {
 	return 0
 }
 
-set_log_prefix() {
-	LOG_PREFIX="${1}"
+# ---------------------------------------------------------------------------
+# Environment detection functions (self-contained, no external dependencies)
+# ---------------------------------------------------------------------------
+
+detect_env_type() {
+	uname -r 2>/dev/null | grep -qi 'microsoft' && echo "wsl" && return 0
+	[[ -v MSYSTEM ]] && echo "gitbash" && return 0
+	local uname_s
+	uname_s=$(uname -s 2>/dev/null) || return 1
+	[[ "${uname_s}" == "Linux" ]] && echo "linux" && return 0
+	log_error "unknown OS"
+	return 1
 }
+
+init_env_type() {
+	# Auto-detect ENV_TYPE if not already set (D-07)
+	if [[ -z "${ENV_TYPE:-}" ]]; then
+		ENV_TYPE=$(detect_env_type)
+	fi
+}
+
+init_env_type
 
 # backup_file FILE
 #
