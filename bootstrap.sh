@@ -10,42 +10,59 @@ REPO_URL="https://github.com/hatsusato/dotfiles.git"
 PROC_VERSION_FILE="${PROC_VERSION_FILE:-/proc/version}"
 
 # ---------------------------------------------------------------------------
+# Logging functions
+# ---------------------------------------------------------------------------
+
+log_info() {
+	echo "[bootstrap] $*"
+}
+
+log_error() {
+	echo "[bootstrap] ERROR: $*" >&2
+}
+
+# ---------------------------------------------------------------------------
 # Environment detection functions (self-contained, no external dependencies)
 # ---------------------------------------------------------------------------
 
 is_wsl() {
-	local kernel
-	kernel="$(uname -r 2>/dev/null)" || kernel=""
-	if echo "${kernel}" | grep -qi 'microsoft' 2>/dev/null; then
-		return 0
-	fi
-	if [[ -r "${PROC_VERSION_FILE}" ]] && grep -qi 'microsoft' "${PROC_VERSION_FILE}" 2>/dev/null; then
-		return 0
-	fi
-	return 1
+	uname -r 2>/dev/null | grep -qi 'microsoft' && return 0
+	[[ -r "${PROC_VERSION_FILE}" ]] || return 1
+	grep -qi 'microsoft' "${PROC_VERSION_FILE}" 2>/dev/null
 }
 
 is_gitbash() {
-	[[ -n "${MSYSTEM:-}" ]]
+	[[ -v MSYSTEM ]]
+}
+
+is_linux() {
+	local uname_s
+	uname_s=$(uname -s 2>/dev/null) || return 1
+	[[ "${uname_s}" == "Linux" ]]
 }
 
 detect_env_type() {
-	local _is_wsl _is_gitbash _uname_s
+	local _result
 	is_wsl
-	_is_wsl=$?
-	is_gitbash
-	_is_gitbash=$?
-	_uname_s=$(uname -s 2>/dev/null) || _uname_s=""
-	if [[ ${_is_wsl} -eq 0 ]]; then
+	_result=$?
+	if [[ ${_result} -eq 0 ]]; then
 		echo "wsl"
-	elif [[ ${_is_gitbash} -eq 0 ]]; then
-		echo "gitbash"
-	elif [[ "${_uname_s}" == "Linux" ]]; then
-		echo "linux"
-	else
-		echo "[bootstrap] ERROR: unknown OS" >&2
-		return 1
+		return 0
 	fi
+	is_gitbash
+	_result=$?
+	if [[ ${_result} -eq 0 ]]; then
+		echo "gitbash"
+		return 0
+	fi
+	is_linux
+	_result=$?
+	if [[ ${_result} -eq 0 ]]; then
+		echo "linux"
+		return 0
+	fi
+	log_error "unknown OS"
+	return 1
 }
 
 detect_package_manager() {
@@ -69,83 +86,94 @@ detect_package_manager() {
 	fi
 }
 
-detect_has_sudo() {
-	if command -v sudo >/dev/null 2>&1; then
-		echo "true"
-	else
-		echo "false"
-	fi
+detect_sudo_cmd() {
+	command -v sudo >/dev/null 2>&1 && echo "sudo"
 }
 
-install_pkg() {
-	local pkg="${1}"
-	local pm sudo_cmd=()
-	local _has_sudo
-
-	# Try to find an available package manager (apt, dnf, or pacman)
+install_git() {
+	local pm sudo_cmd
+	sudo_cmd=$(detect_sudo_cmd)
 	for pm in apt dnf pacman; do
 		if command -v "${pm}" >/dev/null 2>&1; then
-			break
+			case "${pm}" in
+			apt)
+				DEBIAN_FRONTEND=noninteractive ${sudo_cmd} apt-get install -y git
+				;;
+			dnf)
+				${sudo_cmd} dnf install -y git
+				;;
+			pacman)
+				${sudo_cmd} pacman -S --noconfirm git
+				;;
+			*)
+				log_error "unsupported package manager: ${pm}"
+				return 1
+				;;
+			esac
+			return
 		fi
 	done
-
-	_has_sudo=$(detect_has_sudo)
-	[[ "${_has_sudo}" == "true" ]] && sudo_cmd=(sudo)
-	case "${pm}" in
-	apt)
-		DEBIAN_FRONTEND=noninteractive "${sudo_cmd[@]}" apt-get install -y "${pkg}"
-		;;
-	dnf)
-		"${sudo_cmd[@]}" dnf install -y "${pkg}"
-		;;
-	pacman)
-		"${sudo_cmd[@]}" pacman -S --noconfirm "${pkg}"
-		;;
-	*)
-		echo "[bootstrap] ERROR: unsupported package manager: ${pm}" >&2
-		exit 1
-		;;
-	esac
+	log_error "no package manager found"
+	return 1
 }
 
-# ---------------------------------------------------------------------------
-# Step 1: Install git
-# ---------------------------------------------------------------------------
+install_make() {
+	local pm sudo_cmd
+	sudo_cmd=$(detect_sudo_cmd)
+	for pm in apt dnf pacman; do
+		if command -v "${pm}" >/dev/null 2>&1; then
+			case "${pm}" in
+			apt)
+				DEBIAN_FRONTEND=noninteractive ${sudo_cmd} apt-get install -y make
+				;;
+			dnf)
+				${sudo_cmd} dnf install -y make
+				;;
+			pacman)
+				${sudo_cmd} pacman -S --noconfirm make
+				;;
+			*)
+				log_error "unsupported package manager: ${pm}"
+				return 1
+				;;
+			esac
+			return
+		fi
+	done
+	log_error "no package manager found"
+	return 1
+}
 
-if ! command -v git >/dev/null 2>&1; then
-	echo "[bootstrap] Installing git..."
-	install_pkg git
-else
-	echo "[bootstrap] git already installed, skipping."
-fi
+main() {
+	# Step 1: Install git
+	if ! command -v git >/dev/null 2>&1; then
+		log_info "Installing git..."
+		install_git
+	else
+		log_info "git already installed, skipping."
+	fi
 
-# ---------------------------------------------------------------------------
-# Step 2: Install make
-# ---------------------------------------------------------------------------
+	# Step 2: Install make
+	if ! command -v make >/dev/null 2>&1; then
+		log_info "Installing make..."
+		install_make
+	else
+		log_info "make already installed, skipping."
+	fi
 
-if ! command -v make >/dev/null 2>&1; then
-	echo "[bootstrap] Installing make..."
-	install_pkg make
-else
-	echo "[bootstrap] make already installed, skipping."
-fi
+	# Step 3: Clone or update dotfiles
+	if [[ -d "${DOTFILES_DIR}" ]]; then
+		log_info "Dotfiles directory exists, pulling latest..."
+		git -C "${DOTFILES_DIR}" pull
+	else
+		log_info "Cloning dotfiles to ${DOTFILES_DIR}..."
+		git clone "${REPO_URL}" "${DOTFILES_DIR}"
+	fi
 
-# ---------------------------------------------------------------------------
-# Step 3: Clone or update dotfiles
-# ---------------------------------------------------------------------------
+	# Step 4: Hand off to make deploy
+	log_info "Running make deploy..."
+	cd "${DOTFILES_DIR}" || return 1
+	make deploy
+}
 
-if [[ -d "${DOTFILES_DIR}" ]]; then
-	echo "[bootstrap] Dotfiles directory exists, pulling latest..."
-	git -C "${DOTFILES_DIR}" pull
-else
-	echo "[bootstrap] Cloning dotfiles to ${DOTFILES_DIR}..."
-	git clone "${REPO_URL}" "${DOTFILES_DIR}"
-fi
-
-# ---------------------------------------------------------------------------
-# Step 4: Hand off to make deploy
-# ---------------------------------------------------------------------------
-
-echo "[bootstrap] Running make deploy..."
-cd "${DOTFILES_DIR}"
-make deploy
+main "$@"
