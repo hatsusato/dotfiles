@@ -96,7 +96,6 @@ main() {
 	else
 		log_info "git and make already installed, skipping."
 	fi
-
 	# Step 2: Clone or update dotfiles
 	if [[ -d "${DOTFILES_DIR}" ]]; then
 		log_info "Dotfiles directory exists, pulling latest..."
@@ -105,7 +104,6 @@ main() {
 		log_info "Cloning dotfiles to ${DOTFILES_DIR}..."
 		git clone "${REPO_URL}" "${DOTFILES_DIR}"
 	fi
-
 	# Step 3: Hand off to make deploy
 	log_info "Running make deploy..."
 	cd "${DOTFILES_DIR}" || return 1

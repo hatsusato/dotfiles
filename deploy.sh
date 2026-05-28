@@ -118,26 +118,20 @@ set_log_prefix() {
 # Usage: backup_file /path/to/file
 backup_file() {
 	local file="${1}"
-
 	# No-op if file does not exist (BACK-05, D-04)
 	[[ -f "${file}" ]] || return 0
-
 	# Ensure backup directory exists (BACK-01, D-01)
 	mkdir -p "${TRASH_DIR}"
-
 	# Use epoch nanoseconds for unique naming (D-02, BACK-03)
 	local hash
 	hash=$(date +%s%N)
-
 	# Move file to TRASH_DIR (BACK-02)
 	mv "${file}" "${TRASH_DIR}/${hash}" || return 1
-
 	# Record metadata in JSON Lines format (D-05, BACK-06, BACK-07, BACK-08)
 	local date
 	date=$(date -u '+%Y-%m-%dT%H:%M:%S')
 	printf '{"hash":"%s","path":"%s","date":"%s"}\n' \
 		"${hash}" "${file}" "${date}" >>"${TRASH_DIR}/metadata.jsonl"
-
 	log_info "Backed up ${file/${HOME}/\~}"
 }
 
@@ -157,7 +151,6 @@ deploy_by_path() {
 	local src="${DOTFILES_ROOT}/${rel_path}"
 	local file target src_rel_path
 	src_rel_path="${rel_path}"
-
 	# If path is a directory, deploy all files under it (git ls-files filtered)
 	if [[ -d "${src}" ]]; then
 		while IFS= read -r file; do
