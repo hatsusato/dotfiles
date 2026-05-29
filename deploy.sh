@@ -107,7 +107,7 @@ backup_file() {
 	log_info "Backed up ${file/${HOME}/\~}"
 }
 
-DOTFILES_ROOT="${SCRIPT_DIR}/dotfiles"
+DOTFILES_ROOT="${SCRIPT_DIR}"
 
 copy_file() {
 	local src="${1}" target="${2}"
@@ -129,7 +129,7 @@ deploy_by_path() {
 			[[ -f "${DOTFILES_ROOT}/${file}" ]] || continue
 			target="${HOME}/${file#"${rel_path}"/}"
 			copy_file "${DOTFILES_ROOT}/${file}" "${target}"
-		done < <(git ls-files "${src_rel_path}" || true)
+		done < <(git -C "${SCRIPT_DIR}" ls-files "${src_rel_path}" || true)
 	# If path is a file, deploy just that file
 	elif [[ -f "${src}" ]]; then
 		target="${HOME}/${rel_path#*/}"
