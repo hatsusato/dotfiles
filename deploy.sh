@@ -2,20 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Environment variable validation (D-07)
-# ENV_TYPE must be pre-set by bootstrap.sh or caller; deploy.sh does not auto-detect.
-if [[ -z "${ENV_TYPE:-}" ]]; then
-	echo "ERROR: ENV_TYPE not set. Set via bootstrap.sh or manually before calling deploy.sh" >&2
-	exit 1
-fi
+PROC_VERSION_FILE="${PROC_VERSION_FILE:-/proc/version}"
 
 # Constants — all overridable via environment variables
 TRASH_DIR="${TRASH_DIR:-${HOME}/.trash}"
 LOG_PREFIX="${LOG_PREFIX:-deploy}"
 LOG_LEVEL="${LOG_LEVEL:-warn}"
 
-# Logging functions (D-06) — inlined from dotfiles/common/.local/lib/logging.sh
+# Logging functions (D-06) — inlined from common/.local/lib/logging.sh
 # Level hierarchy: debug < info < warn < error
 # A message at level X is shown when LOG_LEVEL <= X (debug shows all, error shows only errors).
 
@@ -63,9 +57,28 @@ log_debug() {
 	return 0
 }
 
-set_log_prefix() {
-	LOG_PREFIX="${1}"
+# ---------------------------------------------------------------------------
+# Environment detection functions (self-contained, no external dependencies)
+# ---------------------------------------------------------------------------
+
+detect_env_type() {
+	uname -r 2>/dev/null | grep -qi 'microsoft' && echo "wsl" && return 0
+	[[ -v MSYSTEM ]] && echo "gitbash" && return 0
+	local uname_s
+	uname_s=$(uname -s 2>/dev/null) || return 1
+	[[ "${uname_s}" == "Linux" ]] && echo "linux" && return 0
+	log_error "unknown OS"
+	return 1
 }
+
+init_env_type() {
+	# Auto-detect ENV_TYPE if not already set (D-07)
+	if [[ -z "${ENV_TYPE:-}" ]]; then
+		ENV_TYPE=$(detect_env_type)
+	fi
+}
+
+init_env_type
 
 # backup_file FILE
 #
@@ -77,43 +90,30 @@ set_log_prefix() {
 # Usage: backup_file /path/to/file
 backup_file() {
 	local file="${1}"
-
 	# No-op if file does not exist (BACK-05, D-04)
 	[[ -f "${file}" ]] || return 0
-
 	# Ensure backup directory exists (BACK-01, D-01)
 	mkdir -p "${TRASH_DIR}"
-
 	# Use epoch nanoseconds for unique naming (D-02, BACK-03)
 	local hash
 	hash=$(date +%s%N)
-
 	# Move file to TRASH_DIR (BACK-02)
 	mv "${file}" "${TRASH_DIR}/${hash}" || return 1
-
 	# Record metadata in JSON Lines format (D-05, BACK-06, BACK-07, BACK-08)
 	local date
 	date=$(date -u '+%Y-%m-%dT%H:%M:%S')
 	printf '{"hash":"%s","path":"%s","date":"%s"}\n' \
 		"${hash}" "${file}" "${date}" >>"${TRASH_DIR}/metadata.jsonl"
-
 	log_info "Backed up ${file/${HOME}/\~}"
 }
 
-DOTFILES_ROOT="${SCRIPT_DIR}/dotfiles"
+DOTFILES_ROOT="${SCRIPT_DIR}"
 
 copy_file() {
 	local src="${1}" target="${2}"
 	mkdir -p "$(dirname "${target}")"
-
 	# backup_file handles both existing and non-existent files (D-04)
 	backup_file "${target}"
-	local _ret=$?
-	if [[ ${_ret} -ne 0 ]]; then
-		log_error "Failed to backup ${target}"
-		exit 1
-	fi
-
 	cp -f "${src}" "${target}"
 	log_info "Copied ${src} -> ${target/${HOME}/\~}"
 }
@@ -121,15 +121,15 @@ copy_file() {
 deploy_by_path() {
 	local rel_path="${1}"
 	local src="${DOTFILES_ROOT}/${rel_path}"
-	local file target
-
-	# If path is a directory, deploy all files under it
+	local file target src_rel_path
+	src_rel_path="${rel_path}"
+	# If path is a directory, deploy all files under it (git ls-files filtered)
 	if [[ -d "${src}" ]]; then
-		while IFS= read -r -d '' file; do
-			rel_path="${file#"${DOTFILES_ROOT}/"}"
-			target="${HOME}/${rel_path#*/}"
-			copy_file "${file}" "${target}"
-		done < <(find "${src}" -type f -print0 || true)
+		while IFS= read -r file; do
+			[[ -f "${DOTFILES_ROOT}/${file}" ]] || continue
+			target="${HOME}/${file#"${rel_path}"/}"
+			copy_file "${DOTFILES_ROOT}/${file}" "${target}"
+		done < <(git -C "${SCRIPT_DIR}" ls-files "${src_rel_path}" || true)
 	# If path is a file, deploy just that file
 	elif [[ -f "${src}" ]]; then
 		target="${HOME}/${rel_path#*/}"

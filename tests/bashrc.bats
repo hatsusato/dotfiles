@@ -9,10 +9,10 @@ setup() {
 	export HOME="$FAKE_HOME"
 
 	# Point to the loader.sh in dotfiles (relative to project root)
-	# When tests run from /home/hatsu/dotfiles, the file is at ./dotfiles/common/.local/share/bash/loader.sh
-	LOADER_SH="${PWD}/dotfiles/common/.local/share/bash/loader.sh"
+	# When tests run from /home/hatsu/dotfiles, the file is at ./common/.local/share/bash/loader.sh
+	LOADER_SH="${PWD}/common/.local/share/bash/loader.sh"
 	# MAIN_SH kept for RED phase backward compatibility (existing tests use MAIN_SH)
-	MAIN_SH="${PWD}/dotfiles/common/.local/share/bash/main.sh"
+	MAIN_SH="${PWD}/common/.local/share/bash/main.sh"
 
 	# Create fake logging library in ~/.local/lib/logging.sh
 	# (This will be sourced by main.sh in the new eval-based design)
@@ -532,9 +532,9 @@ eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/ba
 # ---------------------------------------------------------------------------
 
 # BASH-05a: Fallback skel file exists in dotfiles at new path
-# Tests that dotfiles/common/.local/share/etc/skel/.bashrc exists
+# Tests that common/.local/share/etc/skel/.bashrc exists
 @test "BASH-05a: bash_completion fallback file exists in dotfiles" {
-	SKEL_BASHRC="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/etc/skel/.bashrc"
+	SKEL_BASHRC="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.local/share/etc/skel/.bashrc"
 
 	run bash -c "
 [[ -f '$SKEL_BASHRC' ]] && echo 'SKEL_EXISTS' || echo 'SKEL_NOT_FOUND'
@@ -547,7 +547,7 @@ eval "$(${LOADER_SH} "${HOME}/.local/share/bash/conf.d" "${HOME}/.local/share/ba
 # BASH-05b: Main.sh skel logic removed per D-03
 # Tests that main.sh no longer contains skel sourcing logic
 @test "BASH-05b: .bashrc includes bash_completion bootstrap logic" {
-	MAIN_SH_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/bash/main.sh"
+	MAIN_SH_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.local/share/bash/main.sh"
 
 	run bash -c "
 grep -q 'skel' '$MAIN_SH_FILE' && echo 'HAS_SKEL_LOGIC' || echo 'NO_SKEL_LOGIC'
@@ -627,9 +627,9 @@ echo 'SHELL_CONTINUED'
 # ---------------------------------------------------------------------------
 
 # BASH-06a: PATH module exists in dotfiles
-# Tests that dotfiles/common/.local/share/bash/conf.d/05-path.sh exists
+# Tests that common/.local/share/bash/conf.d/05-path.sh exists
 @test "BASH-06a: PATH module (conf.d/05-path.sh) exists in dotfiles" {
-	DOTFILES_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/bash/conf.d/05-path.sh"
+	DOTFILES_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.local/share/bash/conf.d/05-path.sh"
 
 	run bash -c "
 [[ -f '$DOTFILES_PATH' ]] && echo 'PATH_MODULE_EXISTS' || echo 'PATH_MODULE_NOT_FOUND'
@@ -767,9 +767,9 @@ echo \"\$PATH\" | grep -q 'local/bin' && echo 'LOCAL_FOUND' || echo 'MISSING'
 # ---------------------------------------------------------------------------
 
 # BASH-07a: .inputrc file exists in dotfiles
-# Tests that dotfiles/common/.inputrc exists in the repository
-@test "BASH-07a: .inputrc file exists in dotfiles/common" {
-	INPUTRC_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.inputrc"
+# Tests that common/.inputrc exists in the repository
+@test "BASH-07a: .inputrc file exists in common" {
+	INPUTRC_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.inputrc"
 
 	run bash -c "
 [[ -f '$INPUTRC_FILE' ]] && echo 'INPUTRC_EXISTS' || echo 'INPUTRC_NOT_FOUND'
@@ -782,7 +782,7 @@ echo \"\$PATH\" | grep -q 'local/bin' && echo 'LOCAL_FOUND' || echo 'MISSING'
 # BASH-07b: .config/readline/inputrc contains colored completions setting
 # Tests that readline config has colored-completion-prefix on
 @test "BASH-07b: .inputrc enables colored-completion-prefix" {
-	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/readline/inputrc"
+	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.config/readline/inputrc"
 
 	run bash -c "
 grep -q 'set colored-completion-prefix on' '$READLINE_CONFIG' 2>/dev/null && echo 'FOUND' || echo 'NOT_FOUND'
@@ -794,7 +794,7 @@ grep -q 'set colored-completion-prefix on' '$READLINE_CONFIG' 2>/dev/null && ech
 # BASH-07c: .config/readline/inputrc contains colored-stats setting
 # Tests that readline config has colored-stats on
 @test "BASH-07c: .inputrc enables colored-stats" {
-	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/readline/inputrc"
+	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.config/readline/inputrc"
 
 	run bash -c "
 grep -q 'set colored-stats on' '$READLINE_CONFIG' 2>/dev/null && echo 'FOUND' || echo 'NOT_FOUND'
@@ -806,7 +806,7 @@ grep -q 'set colored-stats on' '$READLINE_CONFIG' 2>/dev/null && echo 'FOUND' ||
 # BASH-07d: .config/readline/inputrc contains case-insensitive completion
 # Tests that readline config has completion-ignore-case on
 @test "BASH-07d: .inputrc enables case-insensitive matching" {
-	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/readline/inputrc"
+	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.config/readline/inputrc"
 
 	run bash -c "
 grep -q 'set completion-ignore-case on' '$READLINE_CONFIG' 2>/dev/null && echo 'FOUND' || echo 'NOT_FOUND'
@@ -818,7 +818,7 @@ grep -q 'set completion-ignore-case on' '$READLINE_CONFIG' 2>/dev/null && echo '
 # BASH-07e: .config/readline/inputrc contains history search keybindings
 # Tests that readline config has Ctrl-P and Ctrl-N for history search
 @test "BASH-07e: .inputrc configures history search keybindings" {
-	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/readline/inputrc"
+	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.config/readline/inputrc"
 
 	run bash -c "
 grep -q '\"\\\\C-p\": history-search-backward' '$READLINE_CONFIG' 2>/dev/null && echo 'FOUND_P' || echo 'NOT_FOUND'
@@ -830,7 +830,7 @@ grep -q '\"\\\\C-p\": history-search-backward' '$READLINE_CONFIG' 2>/dev/null &&
 # BASH-07f: .config/readline/inputrc does NOT enable vi mode
 # Tests that readline config doesn't set editing-mode vi
 @test "BASH-07f: .inputrc uses Emacs mode (not vi)" {
-	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.config/readline/inputrc"
+	READLINE_CONFIG="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.config/readline/inputrc"
 
 	run bash -c "
 grep -q 'set editing-mode vi' '$READLINE_CONFIG' 2>/dev/null && echo 'FOUND_VI' || echo 'NO_VI'
@@ -1166,7 +1166,7 @@ good_after_broken
 
 # BASH-12b: bash -n passes on func.d/ example modules deployed in dotfiles
 @test "BASH-12b: bash -n passes on all deployed func.d/ example modules" {
-	FUNC_D_DIR="${PWD}/dotfiles/common/.local/share/bash/func.d"
+	FUNC_D_DIR="${PWD}/common/.local/share/bash/func.d"
 
 	# Verify both example modules pass bash -n
 	run bash -c "
@@ -1186,14 +1186,14 @@ echo 'ALL_PASS'
 # CONF-01: loader.sh is sourced from ~/.local/share/bash/loader.sh
 @test "CONF-01: loader.sh relocated to ~/.local/share/bash/loader.sh per D-01" {
 	# Verify the new location exists in dotfiles
-	LOADER_SH_NEW="${PWD}/dotfiles/common/.local/share/bash/loader.sh"
+	LOADER_SH_NEW="${PWD}/common/.local/share/bash/loader.sh"
 	run test -f "$LOADER_SH_NEW"
 	assert_success
 }
 
 # CONF-02: .inputrc exists with $include directive
 @test "CONF-02: .inputrc contains \$include directive for readline config" {
-	INPUTRC="${PWD}/dotfiles/common/.inputrc"
+	INPUTRC="${PWD}/common/.inputrc"
 	[[ -f "$INPUTRC" ]] || { echo "File not found: $INPUTRC"; exit 1; }
 
 	# Check that .inputrc contains $include directive
@@ -1203,7 +1203,7 @@ echo 'ALL_PASS'
 
 # CONF-03: .config/readline/inputrc contains readline settings
 @test "CONF-03: .config/readline/inputrc contains readline configuration" {
-	READLINE_CONFIG="${PWD}/dotfiles/common/.config/readline/inputrc"
+	READLINE_CONFIG="${PWD}/common/.config/readline/inputrc"
 	[[ -f "$READLINE_CONFIG" ]] || { echo "File not found: $READLINE_CONFIG"; exit 1; }
 
 	# Check that readline config has content (at least some readline settings)
@@ -1213,7 +1213,7 @@ echo 'ALL_PASS'
 
 # CONF-04: .bashrc sources loader.sh from the new location
 @test "CONF-04: .bashrc references loader.sh (not main.sh) per D-01" {
-	BASHRC="${PWD}/dotfiles/common/.bashrc"
+	BASHRC="${PWD}/common/.bashrc"
 	[[ -f "$BASHRC" ]] || { echo "File not found: $BASHRC"; exit 1; }
 
 	# Check that .bashrc sources from new location
@@ -1224,10 +1224,10 @@ echo 'ALL_PASS'
 # CONF-04b: XDG directory structure uses loader.sh
 @test "CONF-04b: XDG Base Directory structure uses loader.sh per D-01" {
 	run bash -c '
-	[[ -f "${PWD}/dotfiles/common/.local/share/bash/loader.sh" ]] || exit 1
-	[[ -f "${PWD}/dotfiles/common/.config/readline/inputrc" ]] || exit 1
-	[[ -f "${PWD}/dotfiles/common/.inputrc" ]] || exit 1
-	[[ -f "${PWD}/dotfiles/common/.bashrc" ]] || exit 1
+	[[ -f "${PWD}/common/.local/share/bash/loader.sh" ]] || exit 1
+	[[ -f "${PWD}/common/.config/readline/inputrc" ]] || exit 1
+	[[ -f "${PWD}/common/.inputrc" ]] || exit 1
+	[[ -f "${PWD}/common/.bashrc" ]] || exit 1
 	'
 	assert_success
 }
@@ -1579,7 +1579,7 @@ source '$BASHRC'
 
 	# SKEL-RELOCATION-01: Skel .bashrc exists at new dotfiles path
 	@test "SKEL-RELOCATION-01: skel .bashrc exists at new dotfiles path" {
-		SKEL_BASHRC_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/etc/skel/.bashrc"
+		SKEL_BASHRC_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.local/share/etc/skel/.bashrc"
 
 		run bash -c "
 [[ -f '$SKEL_BASHRC_PATH' ]] && echo 'SKEL_BASHRC_EXISTS' || echo 'SKEL_BASHRC_MISSING'
@@ -1591,7 +1591,7 @@ source '$BASHRC'
 
 	# SKEL-RELOCATION-02: Skel .profile exists at new dotfiles path
 	@test "SKEL-RELOCATION-02: skel .profile exists at new dotfiles path" {
-		SKEL_PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/etc/skel/.profile"
+		SKEL_PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.local/share/etc/skel/.profile"
 
 		run bash -c "
 [[ -f '$SKEL_PROFILE_PATH' ]] && echo 'SKEL_PROFILE_EXISTS' || echo 'SKEL_PROFILE_MISSING'
@@ -1603,7 +1603,7 @@ source '$BASHRC'
 
 	# SKEL-RELOCATION-03: Old skel directory is absent from dotfiles
 	@test "SKEL-RELOCATION-03: old skel directory is absent from dotfiles" {
-		OLD_SKEL_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/bash/skel"
+		OLD_SKEL_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.local/share/bash/skel"
 
 		run bash -c "
 [[ ! -d '$OLD_SKEL_PATH' ]] && echo 'OLD_SKEL_ABSENT' || echo 'OLD_SKEL_EXISTS'
@@ -1617,9 +1617,9 @@ source '$BASHRC'
 	# Group 18: PROFILE - Tests for .profile three-tier skel sourcing
 	# ---------------------------------------------------------------------------
 
-	# PROFILE-01: .profile file exists in dotfiles/common/
-	@test "PROFILE-01: .profile file exists in dotfiles/common/" {
-		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.profile"
+	# PROFILE-01: .profile file exists in common/
+	@test "PROFILE-01: .profile file exists in common/" {
+		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.profile"
 
 		run bash -c "
 [[ -f '$PROFILE_PATH' ]] && echo 'PROFILE_EXISTS' || echo 'PROFILE_MISSING'
@@ -1636,7 +1636,7 @@ source '$BASHRC'
 PROFILE_TIER="local"
 EOF
 
-		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.profile"
+		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.profile"
 
 		run bash -c "
 export HOME='$HOME'
@@ -1656,7 +1656,7 @@ source '$PROFILE_PATH'
 PROFILE_TIER="system"
 EOF
 
-		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.profile"
+		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.profile"
 
 		run bash -c "
 export HOME='$HOME'
@@ -1675,7 +1675,7 @@ source '$PROFILE_PATH'
 BASHRC_FALLBACK="yes"
 EOF
 
-		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.profile"
+		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.profile"
 
 		run bash -c "
 export HOME='$HOME'
@@ -1689,7 +1689,7 @@ source '$PROFILE_PATH'
 
 	# PROFILE-05: .profile passes bash -n syntax check
 	@test "PROFILE-05: .profile passes bash -n syntax check" {
-		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.profile"
+		PROFILE_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.profile"
 
 		run bash -n "$PROFILE_PATH"
 		# RED phase - file does not exist yet; this test will fail at bash -n stage
@@ -1707,7 +1707,7 @@ source '$PROFILE_PATH'
 BASHRC_SKEL_SOURCE="local"
 EOF
 
-		BASHRC_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.bashrc"
+		BASHRC_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.bashrc"
 
 		run bash -c "
 export HOME='$HOME'
@@ -1727,7 +1727,7 @@ source '$BASHRC_PATH'
 BASHRC_SKEL_SOURCE="system"
 EOF
 
-		BASHRC_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.bashrc"
+		BASHRC_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.bashrc"
 
 		run bash -c "
 export HOME='$HOME'
@@ -1753,7 +1753,7 @@ EOF
 BASHRC_SKEL_SOURCE="system"
 EOF
 
-		BASHRC_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.bashrc"
+		BASHRC_PATH="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.bashrc"
 
 		run bash -c "
 export HOME='$HOME'
@@ -1772,7 +1772,7 @@ source '$BASHRC_PATH'
 
 	# EVAL-OPT-01: loader.sh contains zero eval calls (output-based design per D-02)
 	@test "EVAL-OPT-01: loader.sh contains zero eval calls (output-based design per D-02)" {
-		LOADER_SH_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../dotfiles/common/.local/share/bash/loader.sh"
+		LOADER_SH_FILE="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/../common/.local/share/bash/loader.sh"
 
 		run bash -c "
 grep -v '^[[:space:]]*#' '$LOADER_SH_FILE' | grep -c '\beval\b'

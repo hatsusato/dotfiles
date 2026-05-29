@@ -13,8 +13,8 @@ teardown() {
 setup() {
 	PROJECT_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
 	BASH_BIN="$(command -v bash)"
-	BTASH="$PROJECT_ROOT/dotfiles/common/.local/bin/btash"
-	BTASH_COMPLETION="$PROJECT_ROOT/dotfiles/common/.local/share/bash-completion/completions/btash"
+	BTASH="$PROJECT_ROOT/common/.local/bin/btash"
+	BTASH_COMPLETION="$PROJECT_ROOT/common/.local/share/bash-completion/completions/btash"
 	FAKE_BIN="$BATS_TEST_TMPDIR/fake_bin"
 	RUNTIME_DIR="$BATS_TEST_TMPDIR/runtime"
 	LIVE_SESSION_PID=""
